@@ -31,6 +31,17 @@ change must preserve the ability for accounts to post on schedule autonomously.
 | Facebook | Graph API v19+ | Page Access Token | Active — pages only |
 | Instagram | Graph API v19+ | Business Account via Facebook | Active |
 
+### Dispatch Architecture
+`cron_dispatchToPlatform()` in `controllers/cron.php` is the single dispatch
+point for all platform posts. It reads `connected_platforms.platform`, builds
+the platform-specific `$context` array, and calls the uniform `post()` interface
+on the selected service.
+
+Adding a new platform requires two changes only:
+1. A new service class in `src/Services/` extending `AbstractMetaService`
+   (for Meta platforms) or implementing `post()` / `verifyToken()` directly
+2. A new `case` in `cron_dispatchToPlatform()` building the correct `$context`
+
 ### Credential Architecture — Two Layers
 
 **Layer 1 — Developer App Credentials (config.php)**
@@ -305,11 +316,13 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Implement post_history logging
 - Implement idempotency checks
 
-### Phase 4 — Platform Integrations
+### Phase 4 — Platform Integrations ✓ COMPLETE
 - src/Services/TwitterService.php — API v2, posting only
 - src/Services/FacebookService.php — Graph API v19+, Page tokens
 - src/Services/InstagramService.php — Graph API via Facebook app
 - Token storage and auto-refresh for Facebook/Instagram
+- AbstractMetaService base class for shared Meta infrastructure
+- cron_dispatchToPlatform() wired in controllers/cron.php
 
 ### Phase 5 — Image Creation
 - Image generation pipeline before posting
