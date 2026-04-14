@@ -339,6 +339,7 @@ CREATE TABLE `scheduled_posts` (
     `post_id`               INT UNSIGNED  NOT NULL                           COMMENT 'Which content to post',
     `scheduled_time`        DATETIME      NOT NULL                           COMMENT 'When this post should be sent',
     `status`                ENUM('pending','posted','failed','skipped') NOT NULL DEFAULT 'pending' COMMENT 'Cron only processes pending rows',
+    `final_body`            TEXT          NOT NULL                           COMMENT 'Post body with hashtags appended by TagAppenderService at queue population time; sent verbatim by cron',
     `locked_at`             DATETIME      NULL     DEFAULT NULL              COMMENT 'Set atomically by cron when claiming a row; prevents double-posting on overlapping runs',
     `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -386,28 +387,6 @@ CREATE TABLE `post_history` (
     CONSTRAINT `fk_post_history_scheduled_post`
         FOREIGN KEY (`scheduled_post_id`) REFERENCES `scheduled_posts` (`id`)
         ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ------------------------------------------------------------
--- suggestions
--- Content ideas fetched from external sources (Twitter lists).
--- Displayed in the UI for review and one-click queuing.
--- The full table is purged and re-fetched on each cron cycle.
--- list_name avoids the MySQL reserved word LIST.
--- ------------------------------------------------------------
-CREATE TABLE `suggestions` (
-    `id`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `source`      VARCHAR(50)   NOT NULL DEFAULT 'twitter'         COMMENT 'Origin platform',
-    `source_id`   VARCHAR(100)  NOT NULL                           COMMENT 'External ID (e.g. tweet ID); prevents re-inserting on refresh',
-    `body`        TEXT          NOT NULL                           COMMENT 'Suggestion text',
-    `screen_name` VARCHAR(100)  NULL     DEFAULT NULL              COMMENT 'Author handle on the source platform',
-    `media_url`   VARCHAR(512)  NULL     DEFAULT NULL              COMMENT 'Attached media URL if present',
-    `list_name`   VARCHAR(100)  NULL     DEFAULT NULL              COMMENT 'Topic/list name for UI filtering',
-    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_suggestions_source_id` (`source_id`),
-    KEY `idx_suggestions_source` (`source`),
-    KEY `idx_suggestions_list_name` (`list_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,0 +1,138 @@
+<?php
+declare(strict_types=1);
+
+namespace SocialTurn\Services;
+
+use PDO;
+use PDOException;
+use Throwable;
+
+/**
+ * RecycleService
+ *
+ * Checks queue depth for a connected platform account and triggers
+ * QueuePopulationService::populate() when pending post count is at or
+ * below the account's recycle_threshold.
+ *
+ * Called by cron only — never from a web request.
+ * Never throws — all exceptions are caught and surfaced in the result array.
+ */
+class RecycleService
+{
+    public function __construct(
+        private readonly PDO $dbh,
+        private readonly QueuePopulationService $queue
+    ) {}
+
+    /**
+     * Check queue depth for an account and trigger population if needed.
+     *
+     * @return array{
+     *     account_id:      int,
+     *     queue_depth:     int,
+     *     threshold:       int,
+     *     triggered:       bool,
+     *     populate_result: array|null,
+     *     error:           string|null
+     * }
+     */
+    public function check(int $accountId): array
+    {
+        $result = [
+            'account_id'      => $accountId,
+            'queue_depth'     => 0,
+            'threshold'       => 0,
+            'triggered'       => false,
+            'populate_result' => null,
+            'error'           => null,
+        ];
+
+        try {
+            $connectedPlatformId = $this->fetchConnectedPlatformId($accountId);
+
+            if ($connectedPlatformId === null) {
+                $result['error'] = "Account {$accountId} not found or has no connected platform.";
+                return $result;
+            }
+
+            $depth     = $this->countPendingPosts($connectedPlatformId);
+            $threshold = $this->fetchThreshold($accountId);
+
+            $result['queue_depth'] = $depth;
+            $result['threshold']   = $threshold;
+
+            if ($depth <= $threshold) {
+                $result['triggered']       = true;
+                $result['populate_result'] = $this->queue->populate($accountId);
+            }
+
+        } catch (Throwable $e) {
+            $result['error'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Resolves connected_platform_id from the accounts table.
+     * Returns null if the account does not exist or has no connected platform.
+     */
+    private function fetchConnectedPlatformId(int $accountId): ?int
+    {
+        $stmt = $this->dbh->prepare(
+            'SELECT connected_platform_id
+               FROM accounts
+              WHERE id = ?'
+        );
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row === false || $row['connected_platform_id'] === null) {
+            return null;
+        }
+
+        return (int) $row['connected_platform_id'];
+    }
+
+    /**
+     * Counts pending rows in scheduled_posts for a given connected_platform_id.
+     */
+    private function countPendingPosts(int $connectedPlatformId): int
+    {
+        $stmt = $this->dbh->prepare(
+            "SELECT COUNT(*)
+               FROM scheduled_posts
+              WHERE connected_platform_id = ?
+                AND status = 'pending'"
+        );
+        $stmt->execute([$connectedPlatformId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Returns recycle_threshold from account_settings.
+     * Falls back to RECYCLE_THRESHOLD_DEFAULT constant if no row exists,
+     * then to 10 if the constant is not defined.
+     */
+    private function fetchThreshold(int $accountId): int
+    {
+        $stmt = $this->dbh->prepare(
+            'SELECT recycle_threshold
+               FROM account_settings
+              WHERE account_id = ?'
+        );
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row !== false && $row['recycle_threshold'] !== null) {
+            return (int) $row['recycle_threshold'];
+        }
+
+        return defined('RECYCLE_THRESHOLD_DEFAULT') ? (int) RECYCLE_THRESHOLD_DEFAULT : 10;
+    }
+}

@@ -275,33 +275,6 @@ function manual(){
 
 }
 
-function suggestions() {
-	global $dbh;
-	global $template;
-	global $path;
-	global $suggestionLists;
-	
-	$accountId = intval($path[2]);
-
-	$currentSuggestion = 'all';
-
-	if (!empty($path[3]) && in_array($path[3],$suggestionLists)) {
-		$currentSuggestion = $path[3];
-		$query = $dbh->prepare("select * from suggestions where id not in (select suggestion_id from accounts_queue where accountid = ?) and list = ? order by id desc limit 25");	
-		$query->execute(array($accountId,$currentSuggestion));
-	} else {
-		$query = $dbh->prepare("select * from suggestions where id not in (select suggestion_id from accounts_queue where accountid = ?) order by id desc limit 25");
-		$query->execute(array($accountId));
-	}
-
-	$suggestions = $query->fetchAll();
-	
-	$template->set('suggestions',$suggestions);
-	$template->set('list',$suggestionLists);
-	$template->set('currentSuggestion',$currentSuggestion);
-
-}
-
 function schedule() {
 	global $dbh;
 	global $template;
@@ -470,14 +443,8 @@ function post() {
 						}
 					}
 
-					$sid = 0;
-
-					if (!empty($_POST['suggestion_id'])) {
-						$sid = $_POST['suggestion_id'];
-					}
-
-					$query = $dbh->prepare("insert into accounts_queue (companyid,accountid,userid,message,image,record_created,scheduled_time,suggestion_id) values (?,?,?,?,?,?,?,?)");
-					$query->execute(array($_SESSION['user']['companyid'],$accountInfo[$account]['id'],$_SESSION['user']['loggedin'],$_POST['message'],$image,time(),$_POST['when'],$sid));
+					$query = $dbh->prepare("insert into accounts_queue (companyid,accountid,userid,message,image,record_created,scheduled_time) values (?,?,?,?,?,?,?)");
+					$query->execute(array($_SESSION['user']['companyid'],$accountInfo[$account]['id'],$_SESSION['user']['loggedin'],$_POST['message'],$image,time(),$_POST['when']));
 					requeue($accountInfo[$account]['id']);
 
 				}

@@ -44,8 +44,9 @@ define('SERVER_SALT', 'replace_with_64_char_random_hex_string');
 // Lower = more aggressive refilling. Recommended: 10–20.
 define('RECYCLE_THRESHOLD_DEFAULT', 10);
 
-// How many days ahead the queue population engine schedules posts.
-// Recommended: 14–30.
+// Fallback number of days ahead the queue population engine schedules posts
+// when no per-account setting exists in account_settings.recycle_lookahead_days.
+// Per-account settings take precedence over this value. Recommended: 14–30.
 define('RECYCLE_LOOKAHEAD_DAYS', 30);
 
 // -----------------------------------------------------------------------
@@ -69,6 +70,23 @@ define('FB_APPSECRET', 'your_facebook_app_secret');
 
 define('TWITTER_APIKEY', 'your_twitter_api_key');
 define('TWITTER_APISECRET', 'your_twitter_api_secret');
+
+// -----------------------------------------------------------------------
+// Storage
+// -----------------------------------------------------------------------
+// Controls where uploaded and queued images are stored.
+// 'local' — reads/writes the /images/ directory on this server (default).
+//           No additional packages required.
+// 's3'    — reads/writes AWS S3. Requires: composer require aws/aws-sdk-php
+//           Uncomment and fill in the S3_* constants below when using S3.
+
+define('STORAGE_DRIVER', 'local');
+
+// AWS S3 — only required when STORAGE_DRIVER = 's3'
+// define('S3_BUCKET', 'your-bucket-name');
+// define('S3_REGION', 'us-east-1');
+// define('S3_KEY',    'your-iam-access-key-id');
+// define('S3_SECRET', 'your-iam-secret-access-key');
 
 // -----------------------------------------------------------------------
 // Email — Postmark (required for sending team invitations)

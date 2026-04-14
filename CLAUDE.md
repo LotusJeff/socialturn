@@ -31,6 +31,26 @@ change must preserve the ability for accounts to post on schedule autonomously.
 | Facebook | Graph API v19+ | Page Access Token | Active — pages only |
 | Instagram | Graph API v19+ | Business Account via Facebook | Active |
 
+### Credential Architecture — Two Layers
+
+**Layer 1 — Developer App Credentials (config.php)**
+These identify your installation of SocialTurn to each platform.
+One set per platform, shared across all connected accounts.
+- Twitter/X: TWITTER_API_KEY, TWITTER_API_SECRET
+- Meta (Facebook + Instagram): META_APP_ID, META_APP_SECRET
+
+**Layer 2 — Per-Account OAuth Tokens (database)**
+These identify each individual social account to the platform.
+Stored in connected_platforms — one row per connected account.
+Users can connect unlimited accounts of any supported platform type.
+- Twitter/X: access_token + token_secret per account
+- Facebook: page_access_token per page
+- Instagram: access_token per business account
+
+config.php contains ONLY Layer 1 credentials and app config.
+Never store individual account tokens in config.php.
+Never hardcode any credentials anywhere in code.
+
 ### Token Handling Rules
 - Never re-authenticate on every cron run
 - Tokens are stored in connected_platforms and refreshed automatically before expiry
@@ -153,14 +173,16 @@ All cron operations must be idempotent — safe to run twice without side effect
 | posts | Content library — master record for all postable content |
 | scheduled_posts | Queue — a scheduled instance of a post at a specific datetime |
 | post_history | Immutable log of every successfully sent post |
-| suggestions | Content ideas pulled from external sources |
 
 ### connected_platforms columns
-- account_id, platform (twitter|facebook|instagram)
-- platform_account_id (page ID, Twitter user ID, etc.)
+- id, account_id
+- platform (twitter|facebook|instagram)
+- platform_account_id (page ID, Twitter user ID, Instagram account ID)
+- platform_account_name (display name — for UI listing)
 - access_token, token_secret
 - token_expires_at (NULL = never expires)
 - is_active
+- created_at, updated_at
 
 ### scheduled_posts status values
 pending → posted | failed | skipped
@@ -197,6 +219,24 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - All platform API calls go through a dedicated class in src/Services/
 - Failures are logged to post_history with error detail — never silently swallowed
 - All cron operations must be idempotent
+
+### Storage Architecture
+All image file operations go through `StorageService` — never call `fopen`,
+`file_get_contents`, `copy`, `unlink`, or any S3 SDK method directly in
+controllers or other services.
+
+The local driver is the default and requires no additional packages.
+The S3 driver requires `aws/aws-sdk-php` installed separately —
+it is intentionally excluded from `composer.json` so local installs
+carry no AWS dependency. A RuntimeException is thrown at StorageService
+instantiation if S3 is selected but the SDK is absent.
+
+Driver-specific behaviour of `retrieve()`:
+- Local driver returns an absolute filesystem path — NOT a public URL.
+  FacebookService and InstagramService must use BASE_URL . 'images/' . $filename
+  to construct public URLs for Meta Graph API image posts.
+- S3 driver returns a public HTTPS URL — suitable for Meta Graph API directly.
+- TwitterService must always use getReadStream() for media uploads, never retrieve().
 
 ### New Service Class Pattern
 Each platform gets its own service class:
@@ -277,6 +317,13 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Image resizing per platform requirements
 
 ### Phase 6 — UI Modernization
+- Account connection and management UI
+  - OAuth connect flow per platform (Twitter, Facebook, Instagram)
+  - Automatic token exchange (short-lived → long-lived) for Meta
+  - Page/account selection UI after Facebook OAuth
+  - Account listing with connection status (valid/expired/needs reconnect)
+  - Disconnect flow (revoke + delete token)
+  - Unlimited accounts per platform type
 - Bootstrap 5 upgrade
 - Queue management views
 - Recycle toggle per post
@@ -284,16 +331,24 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Content calendar view
 - Reconnect flow for expired tokens
 
-### Phase 7 — Custom Features
-- Restore all previously hacked-in features cleanly
-- Post auto-renewal with configurable threshold per account
-- Bulk content import via CSV
+### Phase 7 — Content Import
+- CSV bulk import (post body + optional image filename)
+- Manual post entry UI
 
 ### Phase 8 — Release Preparation
 - Complete INSTALL.md
 - Complete README.md with screenshots
 - Clean install test on fresh environment
 - Tag v1.0.0
+
+### Phase 9 — Future Roadmap (v2.0)
+The following features are intentionally deferred until v1.0 is stable
+and in production use:
+- AI content generation pipeline (OpenAI/Anthropic/etc.)
+  Concept: user submits a prompt or topic, system calls AI API, generates
+  post variations, user reviews and approves into content library.
+  Do not design or build any part of this in v1.0.
+  Revisit after v1.0 has been in active use.
 
 ---
 
@@ -308,3 +363,21 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Do not trigger queue population from a web request — cron only
 - Do not make schema changes without a corresponding migration file
 - Do not release without updating CHANGELOG.md and running a clean install test
+- Do not store per-account OAuth tokens in config.php — they belong
+  in connected_platforms in the database
+- Do not limit the number of connectable accounts per platform —
+  the architecture supports unlimited accounts by design
+- Do not rebuild the suggestions system — it has been intentionally
+  removed. Content enters the system via manual entry or CSV import in v1.0.
+- Do not add AI content generation to v1.0 — this is explicitly deferred
+  to v2.0. See Phase 9.
+
+---
+
+## Technical Debt
+
+### Stale lock cleanup
+Scheduled_posts rows where locked_at is older than 10 minutes should be reset
+to NULL to allow retry. Add to post() after fetchActiveAccounts.
+Deferred from Phase 3d.
+
