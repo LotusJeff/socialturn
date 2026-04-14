@@ -55,14 +55,15 @@ function getLink() {
 }
 
 function sanitize($input,$type = "old") {
-	
+
 	switch ($type) {
-	case "int": 
+	case "int":
 		$input = filter_var($input, FILTER_SANITIZE_NUMBER_INT);
 	break;
 
-	case "string": 
-		$input = filter_var($input, FILTER_SANITIZE_STRING);
+	case "string":
+		// FILTER_SANITIZE_STRING was deprecated in PHP 8.1 and removed in PHP 8.2.
+		$input = htmlspecialchars(strip_tags((string)$input), ENT_QUOTES, 'UTF-8');
 	break;
 
 	case "url": 
@@ -88,13 +89,8 @@ function sanitize($input,$type = "old") {
 }
 
 
-function escape($input) {
-	$input = mysql_real_escape_string($input);
-	return $input;
-}
-
 function createSlug($input) {
-	$input = filter_var($input, FILTER_SANITIZE_STRING);
+	$input = strip_tags((string)$input);
 	$input = trim($input);
 	$input = preg_replace("/ /","-",$input);
 	$input = preg_replace("/[^+A-Za-z0-9\.\-]/", "", $input); 
@@ -177,13 +173,12 @@ function generatePassword($length=9, $strength=0) {
 	return $password;
 }
 
-function hashPassword($password) {
-	$password = hash('sha256', $password);
-	$salt = hash('sha256', SERVER_SALT);
-	$hash = $password.$salt;
-	$hash = hash('sha512', $hash );
+function hashPassword(string $password): string {
+	return password_hash($password, PASSWORD_BCRYPT);
+}
 
-	return $password;
+function verifyPassword(string $password, string $hash): bool {
+	return password_verify($password, $hash);
 }
 
 
@@ -473,7 +468,7 @@ function upload($filePath, $destinationDir = 'images', array $allowedMimes = arr
         return false;
     }
 
-    $fileName = md5(uniqid(rand(0, time()), true)) . '.' . $ext;
+    $fileName = bin2hex(random_bytes(16)) . '.' . $ext;
     $newFilePath = $destinationDir.'/'.$fileName;
 
     if(!rename($filePath, $newFilePath)) {

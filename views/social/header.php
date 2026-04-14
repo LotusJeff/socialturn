@@ -18,8 +18,7 @@
 						<ul class="nav nav-tabs" role="tablist">
 						  <li <?php if ($action == 'queue'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/queue/<?php echo $current;?>">Queue</a></li>
 						  <li <?php if ($action == 'manual'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/manual/<?php echo $current;?>">Share</a></li>
-					  <li <?php if ($action == 'suggestions'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/suggestions/<?php echo $current;?>">Suggestions</a></li>
-						  <li <?php if ($action == 'schedule'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/schedule/<?php echo $current;?>">Schedule</a></li>
+							  <li <?php if ($action == 'schedule'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/schedule/<?php echo $current;?>">Schedule</a></li>
 <!--					  <li <?php if ($action == 'sent'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>social/sent/<?php echo $current;?>">Sent</a></li> -->
 						</ul>
 					

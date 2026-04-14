@@ -1,0 +1,17 @@
+{
+    "name": "socialturn/socialturn",
+    "description": "Self-hosted social media scheduling and auto-publishing engine",
+    "license": "MIT",
+    "type": "project",
+    "require": {
+        "php": ">=8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "SocialTurn\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

@@ -19,8 +19,22 @@ function invite() {
 
 function invited() {
 	global $template;
-	$email = $_POST['email'];
-	$template->set('email',$email);
+	global $dbh;
+
+	$email = sanitize($_POST['email'], 'email');
+
+	// Generate a cryptographically secure invite token.
+	$token = bin2hex(random_bytes(32));
+
+	// Replace any existing unused invite for this address.
+	$query = $dbh->prepare("DELETE FROM invites WHERE companyid = ? AND email = ? AND used_at IS NULL");
+	$query->execute(array($_SESSION['user']['companyid'], $email));
+
+	$query = $dbh->prepare("INSERT INTO invites (companyid, email, token) VALUES (?, ?, ?)");
+	$query->execute(array($_SESSION['user']['companyid'], $email, $token));
+
+	$template->set('email', $email);
+	$template->set('token', $token);
 }
 
 function manage(){
