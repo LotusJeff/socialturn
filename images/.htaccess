@@ -1,0 +1,8 @@
+# Block PHP execution in the images directory.
+# Uploaded files must never be interpreted as PHP.
+
+<FilesMatch "\.ph(p[0-9]?|tml)$">
+    Require all denied
+</FilesMatch>
+
+php_flag engine off

@@ -16,18 +16,6 @@ ini_set('log_errors', 'On');
 define('ROOT',DIRNAME(__FILE__));
 define('DS',DIRECTORY_SEPARATOR);
 
-function stripSlashesDeep($value) {
-	$value = is_array($value) ? array_map('stripSlashesDeep', $value) : stripslashes($value);
-	return $value;
-}
-
-if (get_magic_quotes_gpc() || (defined('FORCE_MAGIC_QUOTES'))) {
-	$_GET = stripSlashesDeep($_GET);
-	$_POST = stripSlashesDeep($_POST);
-	$_REQUEST = stripSlashesDeep($_REQUEST);
-	$_COOKIE = stripSlashesDeep($_COOKIE);
-}
-
 /* Start Session */
 
 session_start();
@@ -45,6 +33,12 @@ $action = 'index';
 
 if (!empty($path[0])) { $controller = str_replace("-","",$path[0]); }
 if (!empty($path[1])) { $action = str_replace("-","",$path[1]); }
+
+/* Composer Autoloader */
+
+if (is_file(ROOT.DS.'vendor'.DS.'autoload.php')) {
+	require_once ROOT.DS.'vendor'.DS.'autoload.php';
+}
 
 /* Include Libraries */
 

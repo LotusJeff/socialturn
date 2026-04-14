@@ -29,11 +29,11 @@ function validate() {
 
 	if ($type == 'login') {
 
-		$query = $dbh->prepare("select * from users where email = ? and password = ? and active = 1");
-		$query->execute(array($email,hashPassword($password)));
+		$query = $dbh->prepare("SELECT * FROM users WHERE email = ? AND active = 1");
+		$query->execute(array($email));
 		$account = $query->fetch();
 
-		if (!empty($account['id'])) {
+		if (!empty($account['id']) && verifyPassword($password, $account['password'])) {
 			$_SESSION['user']['loggedin'] = $account['id'];
 			$_SESSION['user']['email'] = $account['email'];
 			$_SESSION['user']['companyid'] = $account['companyid'];
@@ -102,18 +102,21 @@ function validate() {
 			exit;
 		}
 
-		$query = $dbh->prepare("select * from companies where sha1(concat(id,?)) = ?");
+		$query = $dbh->prepare("SELECT invites.*, companies.id AS company_id FROM invites JOIN companies ON invites.companyid = companies.id WHERE invites.email = ? AND invites.token = ? AND invites.used_at IS NULL");
 		$query->execute(array($email,$code));
-		$company = $query->fetch();
-		
-		if (empty($company['id'])) {
+		$invite = $query->fetch();
+
+		if (empty($invite['company_id'])) {
 			$_SESSION['notification']['type'] = 'error';
 			$_SESSION['notification']['message'] = 'Looks like something has gone wrong. Please ask your team member to invite you again.';
 			header('Location: '.$_SERVER['HTTP_REFERER']);
 			exit;
 		}
 
-		$companyId = $company['id'];
+		$companyId = $invite['company_id'];
+
+		$query = $dbh->prepare("UPDATE invites SET used_at = NOW() WHERE token = ?");
+		$query->execute(array($code));
 
 		$sql = "INSERT INTO users (companyid,email,password,active,type) VALUES (?,?,?,?,?)";
 		$query = $dbh->prepare($sql);

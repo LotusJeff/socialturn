@@ -1,0 +1,14 @@
+# Live configuration — never commit
+config.php
+
+# Uploaded images
+/images/*
+!/images/index.htm
+!/images/.htaccess
+
+# Composer dependencies
+/vendor/
+
+# Error logs
+*.log
+PDOErrors.txt

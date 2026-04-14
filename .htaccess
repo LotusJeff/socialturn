@@ -1,6 +1,20 @@
 
 DirectoryIndex index.php
 
+# -----------------------------------------------------------------------
+# Security: block direct access to configuration files
+# -----------------------------------------------------------------------
+<FilesMatch "^config(\.sample)?\.php$">
+    Require all denied
+</FilesMatch>
+
+# -----------------------------------------------------------------------
+# Security: block access to composer files and dot-files
+# -----------------------------------------------------------------------
+<FilesMatch "^(composer\.(json|lock)|\.gitignore|\.gitkeep)$">
+    Require all denied
+</FilesMatch>
+
 <IfModule mod_rewrite.c>
 # Turn on URL rewriting
 RewriteEngine On
