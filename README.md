@@ -1,5 +1,7 @@
 # SocialTurn
 
+## System is being completely rebuilt. Stay tuned for more info.
+
 ## Installation Guide
 
 1. Update config.php as per the values given. You will have to signup for a Facebook & Twitter App.
