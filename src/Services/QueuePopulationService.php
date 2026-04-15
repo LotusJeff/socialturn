@@ -116,11 +116,14 @@ class QueuePopulationService
                     (int) $account['dynamic_images_enabled'] === 1
                     && !empty($account['base_image_filename'])
                 ) {
-                    // No post image but account has a template — generate branded image
+                    // No post image but account has a template — generate branded image.
+                    // Pass posts.body directly (not the tag-appended body) — tags are
+                    // text-only and must never appear on images.
                     $finalImageFilename = $this->imageService->generateFromTemplate(
                         $account['base_image_filename'],
-                        $appended['body'],
-                        $account['platform']
+                        $post['body'],
+                        $account['platform'],
+                        $post['attributed_to'] ?? null
                     );
                 } else {
                     // Text-only post
@@ -250,7 +253,7 @@ class QueuePopulationService
 
         if (!empty($excludePostIds)) {
             $placeholders = implode(',', array_fill(0, count($excludePostIds), '?'));
-            $sql = "SELECT id, body, image_filename
+            $sql = "SELECT id, body, attributed_to, image_filename
                       FROM posts
                      WHERE account_id = ?
                        AND is_recyclable = 1
@@ -258,7 +261,7 @@ class QueuePopulationService
                        AND id NOT IN ({$placeholders})";
             $params = array_merge([$accountId], $excludePostIds);
         } else {
-            $sql    = 'SELECT id, body, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
+            $sql    = 'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
             $params = [$accountId];
         }
 
@@ -269,7 +272,7 @@ class QueuePopulationService
         // If exclusions left the pool empty, fall back to all recyclable posts
         if (empty($pool) && !empty($excludePostIds)) {
             $stmt = $this->dbh->prepare(
-                'SELECT id, body, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
+                'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
             );
             $stmt->execute([$accountId]);
             $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);

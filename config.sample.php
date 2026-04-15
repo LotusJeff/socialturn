@@ -89,10 +89,30 @@ define('STORAGE_DRIVER', 'local');
 // define('S3_SECRET', 'your-iam-secret-access-key');
 
 // -----------------------------------------------------------------------
-// Email — Postmark (required for sending team invitations)
+// Email — Postmark (https://postmarkapp.com)
+// Free tier: 100 emails/month — sufficient for a self-hosted single-tenant install.
+// 1. Sign up at postmarkapp.com
+// 2. Create a Server
+// 3. Copy the Server API Token below
+// Alternative providers: Mailjet (200 emails/day free), Resend (3,000 emails/month free).
+// To use an alternative, replace libraries/postmark.class.php with your provider's PHP
+// library and update the send calls in controllers/users.php and controllers/team.php
 // -----------------------------------------------------------------------
-// 1. Sign up at https://postmarkapp.com/ (free tier available).
-// 2. Create a Server and copy the Server API Token.
-// 3. Verify your sending domain in Postmark before sending.
 
-define('POSTMARKAPP_APIKEY', 'your_postmark_server_api_key');
+// Server API Token from your Postmark Server's API Tokens tab.
+define('POSTMARKAPP_API_KEY', 'your_postmark_server_api_token');
+
+// The email address all outbound mail is sent from.
+// Must match a verified sender signature or domain in Postmark.
+define('POSTMARKAPP_MAIL_FROM_ADDRESS', 'noreply@yourdomain.com');
+
+// Display name shown in the From field of outbound emails.
+define('POSTMARKAPP_MAIL_FROM_NAME', 'SocialTurn');
+
+// -----------------------------------------------------------------------
+// Owner
+// -----------------------------------------------------------------------
+// Owner email — used for initial setup only.
+// The owner account password is set via email link and stored in the database.
+// Never store a password in this file.
+define('OWNER_EMAIL', 'your@email.com');

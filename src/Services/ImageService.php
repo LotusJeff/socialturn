@@ -96,15 +96,25 @@ class ImageService
      * renders the post text as a lower-third text overlay, saves as JPEG to
      * generated/{platform}/.
      *
+     * When $attribution is null (Layout A), the post body is centered vertically
+     * within the overlay bar. When $attribution is provided (Layout B), the body
+     * occupies the upper portion and the attribution is right-aligned in the lower
+     * portion at a smaller font size.
+     *
+     * Tags must never be passed as $text — tags are text-only and must not appear
+     * on images. Pass posts.body directly, not the tag-appended final_body.
+     *
      * GD resources ($src, $canvas) and the temp file are destroyed/deleted
      * in the finally block regardless of outcome.
      *
-     * @param string $baseImageFilename  Bare filename within originals/ (e.g. 'template.jpg')
-     * @param string $text               Post caption text to render as lower-third overlay
-     * @param string $platform           'twitter', 'facebook', or 'instagram'
-     * @return string|null               Storage-relative path on success, null on any failure — never throws
+     * @param string      $baseImageFilename  Bare filename within originals/ (e.g. 'template.jpg')
+     * @param string      $text               Post body text to render — no tags
+     * @param string      $platform           'twitter', 'facebook', or 'instagram'
+     * @param string|null $attribution        Optional attribution string rendered as "-- Author";
+     *                                        null = Layout A (body only), string = Layout B (body + attribution)
+     * @return string|null                    Storage-relative path on success, null on any failure — never throws
      */
-    public function generateFromTemplate(string $baseImageFilename, string $text, string $platform): ?string
+    public function generateFromTemplate(string $baseImageFilename, string $text, string $platform, ?string $attribution = null): ?string
     {
         $src     = null;
         $canvas  = null;
@@ -116,7 +126,7 @@ class ImageService
             $src    = $this->loadImage('originals/' . $baseImageFilename);
             $canvas = $this->resizeAndCrop($src, $targetW, $targetH);
 
-            $this->overlayText($canvas, $text, $targetW, $targetH);
+            $this->overlayText($canvas, $text, $targetW, $targetH, $attribution);
 
             $outFilename = $platform . '_gen_' . uniqid() . '.jpg';
             $storedPath  = 'generated/' . $platform . '/' . $outFilename;
@@ -209,24 +219,31 @@ class ImageService
     /**
      * Render post text as a lower-third overlay on the canvas.
      *
-     * Uses GD built-in font 5 (9×15 px per character). No TTF font file
-     * required — guaranteed to render on any server with GD enabled.
+     * Uses GD built-in fonts — no TTF file required; guaranteed on any server
+     * with GD enabled. GD built-in fonts are ASCII/ISO-8859-1 only; multi-byte
+     * characters will not render correctly until TTF fonts are introduced.
      *
-     * Layout:
-     *   - Text is word-wrapped to fit canvas width minus 16px horizontal padding each side
-     *   - A semi-transparent dark bar (~70% opaque) spans the full width behind the text
-     *   - Bar sits 20px from the bottom edge of the canvas
-     *   - White text with 12px vertical padding inside the bar
+     * Layout A ($attribution === null):
+     *   - Post body word-wrapped in font 5 (9×15 px), left-aligned
+     *   - Body text centered vertically within the overlay bar (equal top/bottom padding)
+     *   - Semi-transparent dark bar (~70% opaque), full width, 20px from bottom edge
+     *
+     * Layout B ($attribution !== null):
+     *   - Post body in upper portion of bar (font 5, left-aligned)
+     *   - "-- {attribution}" in lower portion (font 4, right-aligned, smaller)
+     *   - 8px gap between body block and attribution line
+     *   - Attribution is a single line — never wrapped
+     *   - Tags are never passed to this method and must not appear on images
      *
      * Modifies $canvas in place. No return value.
      */
-    private function overlayText(\GdImage $canvas, string $text, int $canvasW, int $canvasH): void
+    private function overlayText(\GdImage $canvas, string $text, int $canvasW, int $canvasH, ?string $attribution = null): void
     {
         $fontW       = imagefontwidth(5);    // 9 px per character
         $fontH       = imagefontheight(5);   // 15 px per line
         $padH        = 16;                   // horizontal padding each side
         $padV        = 12;                   // vertical padding top and bottom inside bar
-        $lineSpacing = 4;                    // extra pixels between lines
+        $lineSpacing = 4;                    // extra pixels between body lines
 
         $usableWidth  = $canvasW - ($padH * 2);
         $charsPerLine = max(1, (int) floor($usableWidth / $fontW));
@@ -234,19 +251,47 @@ class ImageService
         $wrapped   = wordwrap($text, $charsPerLine, "\n", true);
         $lines     = explode("\n", $wrapped);
         $lineCount = count($lines);
-
         $lineHeight = $fontH + $lineSpacing;
-        $barHeight  = ($padV * 2) + ($lineCount * $lineHeight) - $lineSpacing;
-        $barTop     = $canvasH - $barHeight - 20;
 
         // Semi-transparent dark background (alpha 38 ≈ 70% opaque; GD: 0=opaque, 127=transparent)
         $darkBg = imagecolorallocatealpha($canvas, 0, 0, 0, 38);
-        imagefilledrectangle($canvas, 0, $barTop, $canvasW - 1, $canvasH - 20, $darkBg);
+        $white  = imagecolorallocate($canvas, 255, 255, 255);
 
-        $white = imagecolorallocate($canvas, 255, 255, 255);
-        foreach ($lines as $i => $line) {
-            $y = $barTop + $padV + ($i * $lineHeight);
-            imagestring($canvas, 5, $padH, $y, $line, $white);
+        if ($attribution !== null) {
+            // Layout B — body text + attribution line
+            $attrFontW   = imagefontwidth(4);
+            $attrFontH   = imagefontheight(4);
+            $attrSpacing = 8;                // gap between body block and attribution line
+            $attrLine    = '-- ' . $attribution;
+
+            $bodyBlockH = ($lineCount * $lineHeight) - $lineSpacing;
+            $barHeight  = ($padV * 2) + $bodyBlockH + $attrSpacing + $attrFontH;
+            $barTop     = $canvasH - $barHeight - 20;
+
+            imagefilledrectangle($canvas, 0, $barTop, $canvasW - 1, $canvasH - 20, $darkBg);
+
+            // Body text — left-aligned, upper portion of bar
+            foreach ($lines as $i => $line) {
+                $y = $barTop + $padV + ($i * $lineHeight);
+                imagestring($canvas, 5, $padH, $y, $line, $white);
+            }
+
+            // Attribution — right-aligned, lower portion of bar
+            $attrY = $barTop + $padV + $bodyBlockH + $attrSpacing;
+            $attrX = max($padH, $canvasW - $padH - (strlen($attrLine) * $attrFontW));
+            imagestring($canvas, 4, $attrX, $attrY, $attrLine, $white);
+
+        } else {
+            // Layout A — body text only, centered vertically in bar
+            $barHeight = ($padV * 2) + ($lineCount * $lineHeight) - $lineSpacing;
+            $barTop    = $canvasH - $barHeight - 20;
+
+            imagefilledrectangle($canvas, 0, $barTop, $canvasW - 1, $canvasH - 20, $darkBg);
+
+            foreach ($lines as $i => $line) {
+                $y = $barTop + $padV + ($i * $lineHeight);
+                imagestring($canvas, 5, $padH, $y, $line, $white);
+            }
         }
     }
 

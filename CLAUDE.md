@@ -168,6 +168,18 @@ Runs every 5 minutes. For each connected platform:
 The cron job does not authenticate. It uses stored tokens only.
 All cron operations must be idempotent — safe to run twice without side effects.
 
+### Post Edit Cascade Rule
+When a post body or attributed_to is edited, ALL pending rows in scheduled_posts
+for that post_id must be deleted before saving the update. Posted/failed/skipped
+history rows are never touched. The post re-enters the queue naturally on the
+next population cycle. This handles the case where a recycled post has been
+re-queued with stale final_body content.
+
+### Share Now
+Creates a scheduled_posts row with scheduled_time = NOW() and status = pending.
+The next cron run (within 5 minutes) picks it up and posts it. No special code
+path needed. UI must display: "Post will publish within 5 minutes."
+
 ---
 
 ## Database Schema
@@ -350,6 +362,15 @@ Do not skip ahead. Each phase depends on the previous being stable.
 
 ### Phase 8 — Release Preparation
 - Complete INSTALL.md
+  - Email provider setup — document Postmark as the default transactional email provider. Include:
+    - How to create a free Postmark account at postmarkapp.com (100 emails/month free)
+    - How to create a Server and find the API token
+    - Where to put the values in config.php
+    - Note that alternative providers (Mailjet 200/day free, Resend 3000/month free) can be used
+      by replacing libraries/postmark.class.php with the provider's PHP library and updating
+      send calls in controllers/users.php and controllers/team.php
+    - Note that email is required for: initial setup, team invites, password resets —
+      the app cannot onboard users without a working email provider
 - Complete README.md with screenshots
 - Clean install test on fresh environment
 - Tag v1.0.0
@@ -385,12 +406,4 @@ and in production use:
 - Do not add AI content generation to v1.0 — this is explicitly deferred
   to v2.0. See Phase 9.
 
----
-
-## Technical Debt
-
-### Stale lock cleanup
-Scheduled_posts rows where locked_at is older than 10 minutes should be reset
-to NULL to allow retry. Add to post() after fetchActiveAccounts.
-Deferred from Phase 3d.
 

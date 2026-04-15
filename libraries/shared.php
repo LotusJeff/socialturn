@@ -4,26 +4,79 @@ function generateLink($controller,$action) {
 	return basePath().'/'.$controller.'/'.$action;
 }
 
-function isLoggedIn() {
-	if (!empty($_SESSION['user']['loggedin']) && !empty($_SESSION['user']['email']) && !empty($_SESSION['user']['companyid']) && !empty($_SESSION['user']['type'])) {
-		return 1;
-	}
-
-	return 0;
+/**
+ * Returns true when a valid user session exists.
+ *
+ * Accepts both company_id (new session key, set by setpassword/login going
+ * forward) and companyid (legacy key, set by the old validate() function)
+ * so neither breaks while validate() is still in place. Remove the
+ * companyid fallback once Section 4 replaces validate() entirely.
+ */
+function isLoggedIn(): bool {
+	return !empty($_SESSION['user']['loggedin'])
+		&& !empty($_SESSION['user']['email'])
+		&& (!empty($_SESSION['user']['company_id']) || !empty($_SESSION['user']['companyid']))
+		&& !empty($_SESSION['user']['type']);
 }
 
 function authenticate($force = 0) {
-	global $template;
 	global $controller;
 	global $action;
 
-	$loggedin = isLoggedIn();
+	// Routes that never require authentication
+	$unauthenticatedActions = ['login', 'validate', 'invite', 'register', 'setup', 'setpassword', 'forgot'];
+	if ($controller === 'users' && in_array($action, $unauthenticatedActions, true)) {
+		return;
+	}
+	if ($controller === 'cron') {
+		return;
+	}
 
-	if ($loggedin == 0 && !($controller == 'users' && ($action == 'login' || $action == 'validate' || $action == 'invite' || $action == 'register')) && !($controller == 'cron')) {
-		header("Location: ".BASE_URL."users/login");
+	// Admin-only routes — type=1 required
+	$adminOnlyControllers = ['team', 'accounts', 'connect'];
+	if (in_array($controller, $adminOnlyControllers, true) && isLoggedIn()) {
+		if ((int) ($_SESSION['user']['type'] ?? 999) !== 1) {
+			header('Location: ' . BASE_URL . 'oops/permissions');
+			exit;
+		}
+	}
+
+	if (!isLoggedIn()) {
+		// Store the attempted URL so login() can redirect back after success.
+		$_SESSION['redirect_after_login'] = getLink();
+		header('Location: ' . BASE_URL . 'users/login');
 		exit;
 	}
-	
+}
+
+/**
+ * Returns the current session CSRF token, generating one if not yet set.
+ * The token is per-session — it is not regenerated on every GET request.
+ * Call csrf_regenerate() explicitly at login and logout.
+ */
+function csrf_token(): string {
+	if (empty($_SESSION['csrf_token'])) {
+		$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+	}
+	return $_SESSION['csrf_token'];
+}
+
+/**
+ * Replaces the current CSRF token with a new one.
+ * Call at login success and logout.
+ */
+function csrf_regenerate(): void {
+	$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+/**
+ * Returns true if $_POST['csrf_token'] matches the session token.
+ * Uses hash_equals() to prevent timing attacks.
+ */
+function csrf_validate(): bool {
+	return !empty($_POST['csrf_token'])
+		&& !empty($_SESSION['csrf_token'])
+		&& hash_equals($_SESSION['csrf_token'], (string) $_POST['csrf_token']);
 }
 
 function error404() {
@@ -46,6 +99,30 @@ function hasPermission($permission) {
 	return true;
 }
 
+/**
+ * Verifies the current user may access a specific account.
+ * Admins (type=1) pass silently. Team members (type=100) are checked
+ * against users_accounts. Redirects to oops/permissions on failure.
+ */
+function authorizeAccount(int $accountId): void {
+	if ((int) ($_SESSION['user']['type'] ?? 999) === 1) {
+		return; // admins have implicit access to all accounts
+	}
+	global $dbh;
+	$companyId = (int) ($_SESSION['user']['company_id'] ?? $_SESSION['user']['companyid'] ?? 0);
+	$userId    = (int) ($_SESSION['user']['loggedin'] ?? 0);
+	$stmt = $dbh->prepare(
+		'SELECT 1 FROM users_accounts
+		  WHERE company_id = ?
+		    AND user_id = ?
+		    AND account_id = ?'
+	);
+	$stmt->execute([$companyId, $userId, $accountId]);
+	if (!$stmt->fetchColumn()) {
+		header('Location: ' . BASE_URL . 'oops/permissions');
+		exit;
+	}
+}
 
 function getLink() {
 	$s = empty($_SERVER["HTTPS"]) ? '' : ($_SERVER["HTTPS"] == "on") ? "s" : "";

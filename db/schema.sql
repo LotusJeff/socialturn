@@ -79,8 +79,9 @@ CREATE TABLE `users` (
     `email`      VARCHAR(255)     NOT NULL                        COMMENT 'Login email address',
     `password`   VARCHAR(255)     NOT NULL                        COMMENT 'bcrypt hash -- never plaintext',
     `type`       TINYINT UNSIGNED NOT NULL DEFAULT 100            COMMENT '1=admin, 100=team member',
-    `active`     TINYINT(1)       NOT NULL DEFAULT 1              COMMENT '0=deactivated, 1=active',
-    `created_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `active`      TINYINT(1)       NOT NULL DEFAULT 1              COMMENT '0=deactivated, 1=active',
+    `last_login`  DATETIME         NULL     DEFAULT NULL           COMMENT 'Set on every successful login — displayed in team dashboard',
+    `created_at`  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_users_email` (`email`),
     KEY `idx_users_company_id` (`company_id`),
@@ -309,6 +310,7 @@ CREATE TABLE `posts` (
     `id`             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `account_id`     INT UNSIGNED  NOT NULL                           COMMENT 'Which account this content belongs to',
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
+    `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author — appended as "-- Author" after post body; affects image overlay layout in ImageService. Never included in image text — post body and attribution are overlaid on image, tags are text-only.',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
@@ -390,6 +392,36 @@ CREATE TABLE `post_history` (
     CONSTRAINT `fk_post_history_scheduled_post`
         FOREIGN KEY (`scheduled_post_id`) REFERENCES `scheduled_posts` (`id`)
         ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- activity_log
+-- Rolling operational event log — purged to 48 hours by cron.
+-- Records cron runs, post outcomes, token events, and queue
+-- population. NOT a permanent audit trail; post_history is.
+-- Tokens must never appear in message or context columns.
+-- ------------------------------------------------------------
+CREATE TABLE `activity_log` (
+    `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `company_id`            INT UNSIGNED  NOT NULL                           COMMENT 'Owning company',
+    `account_id`            INT UNSIGNED  NULL     DEFAULT NULL              COMMENT 'Account context; NULL for company-level events (e.g. cron_run)',
+    `connected_platform_id` INT UNSIGNED  NULL     DEFAULT NULL              COMMENT 'Platform connection context; NULL when not applicable',
+    `event_type`            ENUM(
+                                'cron_run',
+                                'post_success',
+                                'post_failure',
+                                'token_refresh',
+                                'token_verify',
+                                'queue_populate',
+                                'connection_test'
+                            ) NOT NULL                                       COMMENT 'Structured event type for filtering',
+    `message`               TEXT          NOT NULL                           COMMENT 'Human-readable event description',
+    `context`               JSON          NULL     DEFAULT NULL              COMMENT 'Structured event data (counts, IDs, errors); never include tokens',
+    `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_activity_log_company_time`   (`company_id`,            `created_at`),
+    INDEX `idx_activity_log_account_time`   (`account_id`,            `created_at`),
+    INDEX `idx_activity_log_platform_time`  (`connected_platform_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

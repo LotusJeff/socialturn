@@ -42,10 +42,23 @@ function post(): void
     $facebook  = new FacebookService($dbh, $storage);
     $instagram = new InstagramService($dbh, $storage);
 
+    // Reset stale locks older than 10 minutes so those rows can be retried.
+    $dbh->exec("UPDATE scheduled_posts SET locked_at = NULL WHERE locked_at < NOW() - INTERVAL 10 MINUTE");
+
+    // Purge activity log entries older than 48 hours — rolling window only.
+    $dbh->exec("DELETE FROM activity_log WHERE created_at < NOW() - INTERVAL 48 HOUR");
+
     $accounts       = cron_fetchActiveAccounts($dbh);
     $postsAttempted = 0;
     $postsSucceeded = 0;
     $postsFailed    = 0;
+
+    $companyId = cron_fetchCompanyId($dbh);
+    if ($companyId > 0) {
+        cron_logActivity($dbh, $companyId, 'cron_run', 'Cron run started.', null, null, [
+            'accounts_found' => count($accounts),
+        ]);
+    }
 
     foreach ($accounts as $account) {
         try {
@@ -82,6 +95,11 @@ function post(): void
                     } catch (Throwable) {
                         // post_history write failed — best-effort; scheduled_posts already marked posted.
                     }
+                    cron_logActivity($dbh, (int) $account['company_id'], 'post_success', 'Post sent successfully.',
+                        (int) $account['id'], (int) $account['connected_platform_id'], [
+                            'scheduled_post_id' => (int) $row['id'],
+                            'platform_post_id'  => $result['platform_post_id'],
+                        ]);
                     $postsSucceeded++;
                 } else {
                     cron_markFailed($dbh, (int) $row['id']);
@@ -101,12 +119,24 @@ function post(): void
                     } catch (Throwable) {
                         // post_history write failed — best-effort; scheduled_posts already marked failed.
                     }
+                    cron_logActivity($dbh, (int) $account['company_id'], 'post_failure',
+                        'Post failed: ' . ($result['error'] ?? 'unknown error'),
+                        (int) $account['id'], (int) $account['connected_platform_id'], [
+                            'scheduled_post_id' => (int) $row['id'],
+                        ]);
                     $postsFailed++;
                 }
             }
 
             // Always check queue depth after processing, even when $due was empty.
-            $recycle->check((int) $account['id']);
+            // Returns populate_result array if population was triggered, null otherwise.
+            $recycleResult = $recycle->check((int) $account['id']);
+            if ($recycleResult !== null) {
+                cron_logActivity($dbh, (int) $account['company_id'], 'queue_populate',
+                    'Queue population triggered.',
+                    (int) $account['id'], (int) $account['connected_platform_id'],
+                    $recycleResult);
+            }
 
         } catch (Throwable $e) {
             $postsFailed++;
@@ -143,6 +173,7 @@ function post(): void
  *
  * @return list<array{
  *     id: string,
+ *     company_id: string,
  *     connected_platform_id: string,
  *     platform: string,
  *     access_token: string,
@@ -153,7 +184,7 @@ function post(): void
 function cron_fetchActiveAccounts(PDO $dbh): array
 {
     $stmt = $dbh->prepare(
-        'SELECT a.id, a.connected_platform_id,
+        'SELECT a.id, a.company_id, a.connected_platform_id,
                 cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -289,6 +320,54 @@ function cron_markFailed(PDO $dbh, int $scheduledPostId): void
           WHERE id = ?"
     );
     $stmt->execute([$scheduledPostId]);
+}
+
+/**
+ * Returns the company ID for this single-tenant installation.
+ * Reads the first row from companies. Returns 0 if the table is empty.
+ */
+function cron_fetchCompanyId(PDO $dbh): int
+{
+    $stmt = $dbh->prepare('SELECT id FROM companies LIMIT 1');
+    $stmt->execute();
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Writes one row to activity_log.
+ *
+ * Never throws — all exceptions are silently caught so that a logging
+ * failure never disrupts cron posting.
+ *
+ * IMPORTANT: Never pass token data in $message or $context. Tokens must
+ * never appear in logs, responses, or views — see Security Rules.
+ */
+function cron_logActivity(
+    PDO     $dbh,
+    int     $companyId,
+    string  $eventType,
+    string  $message,
+    ?int    $accountId          = null,
+    ?int    $connectedPlatformId = null,
+    ?array  $context            = null
+): void {
+    try {
+        $stmt = $dbh->prepare(
+            'INSERT INTO activity_log
+                    (company_id, account_id, connected_platform_id, event_type, message, context)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $companyId,
+            $accountId,
+            $connectedPlatformId,
+            $eventType,
+            $message,
+            $context !== null ? json_encode($context) : null,
+        ]);
+    } catch (Throwable) {
+        // Best-effort — never let activity logging disrupt cron.
+    }
 }
 
 /**

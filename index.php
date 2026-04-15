@@ -61,6 +61,25 @@ $helper = new Helper();
 include_once ROOT.DS.'controllers'.DS.'helpers.php';
 include_once ROOT.DS.'libraries'.DS.'shared.php';
 
+// -----------------------------------------------------------------------
+// First-run check
+// If the users table is empty this is a fresh install. Force the setup
+// flow for every route except: users/setup, users/setpassword (so the
+// password-set link works before any user exists), users/forgot, and cron.
+// -----------------------------------------------------------------------
+$firstRunBypassed = (
+    ($controller === 'users' && in_array($action, ['setup', 'setpassword', 'forgot'], true))
+    || $controller === 'cron'
+);
+if (!$firstRunBypassed) {
+    $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
+    $stmt->execute();
+    if ((int) $stmt->fetchColumn() === 0) {
+        header('Location: ' . BASE_URL . 'users/setup');
+        exit;
+    }
+}
+
 if (!defined('MINIMAL')) {
 	/* Basic Bootstrapping */
 
