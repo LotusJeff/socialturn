@@ -133,6 +133,82 @@ class TwitterService
     }
 
     // -----------------------------------------------------------------------
+    // OAuth 1.0a connection flow
+    // -----------------------------------------------------------------------
+
+    /**
+     * Step 1 — Get a request token from Twitter.
+     *
+     * Called before the user is redirected to Twitter for authorization.
+     * Creates a TwitterOAuth client with app credentials only (no user token yet).
+     * $callbackUrl must exactly match the URL registered in the Twitter Developer Portal.
+     *
+     * Returns an array with at minimum:
+     *   oauth_token        string  Passed to getAuthorizeUrl() and stored in SESSION
+     *   oauth_token_secret string  Stored in SESSION for use in getAccessToken()
+     *   oauth_callback_confirmed string  'true' on success
+     *
+     * Returns an empty array on any failure — callers must check before redirecting.
+     *
+     * @return array<string, string>
+     */
+    public function getRequestToken(string $callbackUrl): array
+    {
+        $connection = new TwitterOAuth(TWITTER_APIKEY, TWITTER_APISECRET);
+        $result     = $connection->oauth('oauth/request_token', ['oauth_callback' => $callbackUrl]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Step 2 — Build the Twitter authorization URL.
+     *
+     * Redirects the user here so they can authorize the app.
+     * $requestToken is the oauth_token returned by getRequestToken().
+     *
+     * Returns the full https://api.twitter.com/oauth/authorize?oauth_token=... URL.
+     */
+    public function getAuthorizeUrl(string $requestToken): string
+    {
+        $connection = new TwitterOAuth(TWITTER_APIKEY, TWITTER_APISECRET);
+
+        return $connection->url('oauth/authorize', ['oauth_token' => $requestToken]);
+    }
+
+    /**
+     * Step 3 — Exchange verifier for a permanent access token pair.
+     *
+     * Called in the OAuth callback after Twitter redirects back with
+     * oauth_token and oauth_verifier. $requestToken and $requestTokenSecret
+     * are the values stored in SESSION during Step 1.
+     *
+     * Returns an array with at minimum:
+     *   oauth_token        string  Permanent access token — store in connected_platforms
+     *   oauth_token_secret string  Permanent token secret — store in connected_platforms
+     *   user_id            string  Twitter user ID — use as platform_account_id
+     *   screen_name        string  Twitter handle — use as platform_username
+     *
+     * Returns an empty array on any failure.
+     *
+     * @return array<string, string>
+     */
+    public function getAccessToken(
+        string $requestToken,
+        string $requestTokenSecret,
+        string $verifier
+    ): array {
+        $connection = new TwitterOAuth(
+            TWITTER_APIKEY,
+            TWITTER_APISECRET,
+            $requestToken,
+            $requestTokenSecret
+        );
+        $result = $connection->oauth('oauth/access_token', ['oauth_verifier' => $verifier]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
 

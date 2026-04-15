@@ -126,6 +126,99 @@ abstract class AbstractMetaService
     }
 
     // -----------------------------------------------------------------------
+    // OAuth 2.0 connection flow
+    // -----------------------------------------------------------------------
+
+    /**
+     * Step 1 — Exchange an authorization code for a short-lived user access token.
+     *
+     * Called in the OAuth callback immediately after Meta redirects back with a code.
+     * $redirectUri must exactly match what was passed to the OAuth dialog — Meta
+     * validates these against each other.
+     *
+     * Returns the short-lived user access token string, or null on any failure.
+     * This token typically expires in 1–2 hours; call exchangeForLongLivedToken()
+     * before storing anything.
+     */
+    public function exchangeCodeForToken(string $code, string $redirectUri): ?string
+    {
+        $response = $this->graphGet('oauth/access_token', [
+            'client_id'     => META_APP_ID,
+            'client_secret' => META_APP_SECRET,
+            'redirect_uri'  => $redirectUri,
+            'code'          => $code,
+        ]);
+
+        return !empty($response['access_token']) ? (string) $response['access_token'] : null;
+    }
+
+    /**
+     * Step 2 — Exchange a short-lived token for a long-lived user access token.
+     *
+     * Uses the fb_exchange_token grant against GET /oauth/access_token.
+     * The long-lived token is valid for ~60 days. Page Access Tokens obtained
+     * from a long-lived user token do not expire (no token_expires_at needed).
+     *
+     * Returns an array with:
+     *   access_token  string    The long-lived token
+     *   expires_in    int|null  Seconds until expiry, or null if not returned
+     *
+     * Returns null on any failure.
+     *
+     * @return array{access_token: string, expires_in: int|null}|null
+     */
+    public function exchangeForLongLivedToken(string $shortLivedToken): ?array
+    {
+        $response = $this->graphGet('oauth/access_token', [
+            'grant_type'        => 'fb_exchange_token',
+            'client_id'         => META_APP_ID,
+            'client_secret'     => META_APP_SECRET,
+            'fb_exchange_token' => $shortLivedToken,
+        ]);
+
+        if (empty($response['access_token'])) {
+            return null;
+        }
+
+        return [
+            'access_token' => (string) $response['access_token'],
+            'expires_in'   => isset($response['expires_in']) ? (int) $response['expires_in'] : null,
+        ];
+    }
+
+    /**
+     * Step 3 — Discover Facebook Pages and attached Instagram Business accounts.
+     *
+     * Calls GET /me/accounts with the long-lived user access token.
+     * Returns each page's id, name, and access_token, plus any attached
+     * instagram_business_account (id, name, username) as a nested key.
+     *
+     * Page Access Tokens returned here are permanent when the user token is
+     * long-lived — store directly in connected_platforms with token_expires_at = NULL.
+     *
+     * One call covers both Facebook Pages and Instagram Business accounts —
+     * no separate Instagram authorization is required.
+     *
+     * Returns the raw 'data' array from the Graph API response, or an empty
+     * array if no pages are found or on any failure.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPagesWithInstagram(string $userAccessToken): array
+    {
+        $response = $this->graphGet('me/accounts', [
+            'fields'       => 'id,name,access_token,instagram_business_account{id,name,username}',
+            'access_token' => $userAccessToken,
+        ]);
+
+        if (empty($response['data']) || !is_array($response['data'])) {
+            return [];
+        }
+
+        return $response['data'];
+    }
+
+    // -----------------------------------------------------------------------
     // Concrete protected
     // -----------------------------------------------------------------------
 
