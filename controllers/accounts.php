@@ -137,7 +137,7 @@ function store(): void
 
     $companyId           = accounts_companyId();
     $connectedPlatformId = (int) ($_POST['connected_platform_id'] ?? 0);
-    $name                = sanitize(trim((string) ($_POST['name'] ?? '')), 'string');
+    $name                = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 100);
     $isPosting           = isset($_POST['is_posting']) ? 1 : 0;
 
     if ($name === '' || $connectedPlatformId === 0) {
@@ -325,7 +325,7 @@ function update(): void
     // Identity
     // -----------------------------------------------------------------------
 
-    $name                = sanitize(trim((string) ($_POST['name'] ?? '')), 'string');
+    $name                = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 100);
     $connectedPlatformId = (int) ($_POST['connected_platform_id'] ?? 0);
     $isPosting           = isset($_POST['is_posting'])           ? 1 : 0;
     $dynamicImages       = isset($_POST['dynamic_images_enabled']) ? 1 : 0;
@@ -366,11 +366,12 @@ function update(): void
     // Base image — optional upload; existing filename preserved via hidden input
     // -----------------------------------------------------------------------
 
-    $baseImageFilename = sanitize(trim((string) ($_POST['base_image_filename_existing'] ?? '')), 'string') ?: null;
+    $baseImageFilename = mb_substr(trim((string) ($_POST['base_image_filename_existing'] ?? '')), 0, 255) ?: null;
 
     if (isset($_FILES['base_image']) && $_FILES['base_image']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower((string) pathinfo((string) $_FILES['base_image']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $ext  = strtolower((string) pathinfo((string) $_FILES['base_image']['name'], PATHINFO_EXTENSION));
+        $mime = getMimeType((string) $_FILES['base_image']['tmp_name']);
+        if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = 'originals/' . bin2hex(random_bytes(8)) . '.' . $ext;
             $storage = new StorageService();
             if ($storage->store((string) $_FILES['base_image']['tmp_name'], $newFilename)) {

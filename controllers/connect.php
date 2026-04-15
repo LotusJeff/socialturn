@@ -386,8 +386,8 @@ function savePage(): void
 
     $platform          = (string) ($_POST['platform']            ?? '');
     $platformAccountId = trim((string) ($_POST['platform_account_id'] ?? ''));
-    $platformName      = sanitize(trim((string) ($_POST['platform_name']     ?? '')), 'string');
-    $platformUsername  = sanitize(trim((string) ($_POST['platform_username'] ?? '')), 'string');
+    $platformName      = mb_substr(trim((string) ($_POST['platform_name']     ?? '')), 0, 255);
+    $platformUsername  = mb_substr(trim((string) ($_POST['platform_username'] ?? '')), 0, 50);
 
     if (!in_array($platform, ['facebook', 'instagram'], true) || $platformAccountId === '') {
         header('Location: ' . BASE_URL . 'connect/pages');
@@ -495,7 +495,7 @@ function disconnect(): void
 
     // App-layer guard: surface a readable error before the FK constraint fires.
     $stmt = $dbh->prepare(
-        'SELECT COUNT(*) FROM accounts WHERE connected_platform_id = ?'
+        'SELECT COUNT(*) FROM accounts WHERE connected_platform_id = ? AND is_active = 1'
     );
     $stmt->execute([$connectedPlatformId]);
 

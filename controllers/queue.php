@@ -413,7 +413,7 @@ function remove(): void
  * can confirm the flush worked as expected. The queue refills automatically
  * on the next cron run when pending depth falls below recycle_threshold.
  */
-function flush(): void
+function queue_flush(): void
 {
     global $dbh;
 

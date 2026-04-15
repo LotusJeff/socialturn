@@ -44,8 +44,14 @@ $count = count($posts);
 
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Content Library</h1>
-        <a href="<?= BASE_URL ?>content/create<?= $filterAccountId > 0 ? '?account_id=' . (int) $filterAccountId : '' ?>"
-           class="btn btn-primary btn-sm">+ New Post</a>
+        <div class="d-flex gap-2">
+            <a href="<?= BASE_URL ?>content/create<?= $filterAccountId > 0 ? '?account_id=' . (int) $filterAccountId : '' ?>"
+               class="btn btn-primary btn-sm">+ New Post</a>
+            <a href="<?= BASE_URL ?>content/importForm"
+               class="btn btn-sm btn-outline-secondary">Import CSV</a>
+            <a href="<?= BASE_URL ?>content/content_duplicates"
+               class="btn btn-sm btn-outline-secondary">Find Duplicates</a>
+        </div>
     </div>
 
     <?php if (!empty($_SESSION['notification'])): ?>

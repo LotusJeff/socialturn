@@ -581,5 +581,27 @@ function ordinalize($num)
     }
 }
 
+/**
+ * Produces a normalized fingerprint of a post body for duplicate detection.
+ * The result is stored in posts.body_normalized — never displayed to users.
+ *
+ * Algorithm (in order):
+ *   1. Lowercase
+ *   2. Strip URLs (http/https)
+ *   3. Strip all punctuation and symbols — keep only letters, numbers, whitespace
+ *   4. Collapse all whitespace to a single space
+ *   5. Trim
+ *   6. Truncate to 280 characters
+ */
+function normalize_body(string $body): string
+{
+    $n = mb_strtolower($body);
+    $n = (string) preg_replace('~https?://\S+~', '', $n);
+    $n = (string) preg_replace('/[^\p{L}\p{N}\s]/u', '', $n);
+    $n = (string) preg_replace('/\s+/', ' ', $n);
+    $n = trim($n);
+    return mb_substr($n, 0, 280);
+}
+
 db();
 authenticate();

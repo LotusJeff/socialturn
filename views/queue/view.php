@@ -59,7 +59,7 @@ $count = count($rows);
         </form>
 
         <?php if ((int) $pendingTotal > 0): ?>
-        <form method="POST" action="<?= BASE_URL ?>queue/flush"
+        <form method="POST" action="<?= BASE_URL ?>queue/queue_flush"
               onsubmit="return confirm('Remove all <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?> from the queue? The queue will refill automatically on the next cron run.')">
             <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
             <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">

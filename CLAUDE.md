@@ -359,9 +359,33 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Content calendar view
 - Reconnect flow for expired tokens
 
-### Phase 7 — Content Import
+### Phase 7 — Content Import ✓ COMPLETE
 - CSV bulk import (post body + optional image filename)
-- Manual post entry UI
+  - importForm(), importSample(), importProcess(), importErrors() in controllers/content.php
+  - views/content/import.php — upload form with per-account selection, result summary panel
+  - views/content/import_sample.csv — downloadable sample with comment rows
+  - BOM detection, header-column mapping, 5,000-row cap, character limit enforcement
+  - Missing image filenames produce a warning; row is imported without image
+  - Error report downloadable as text file after import
+- Manual post entry UI — create() / store() / edit() / update() in controllers/content.php
+
+### Phase 7b — Duplicate Detection ✓ COMPLETE
+- normalize_body() added to libraries/shared.php
+  - Algorithm: lowercase → strip URLs → strip punctuation → collapse whitespace → trim → truncate 280
+  - Called in store(), update(), and importProcess() on every write
+- Migration 023: body_normalized VARCHAR(280) NOT NULL DEFAULT '' on posts table
+  - Non-unique index on (account_id, body_normalized)
+  - No backfill — existing rows normalize lazily on first edit or re-import
+- Import duplicate detection in importProcess()
+  - Pre-transaction lookup: one query per selected account loads existing body_normalized values
+  - $seenThisImport tracks within-file duplicates per account
+  - Duplicate rows increment $skipped and add to $warnings[]; has_errors not set
+- content_duplicates() action — scoped to accessible accounts
+  - Correlated subquery finds body_normalized values with COUNT > 1 per account
+  - Results grouped in PHP: $groups[$accountId]['posts'][$normalized][]
+  - Route: content/content_duplicates (underscore passes through router unchanged; no PHP built-in collision)
+- views/content/duplicates.php — grouped cards per account, per-post Delete action
+- Find Duplicates button added to content library header action bar
 
 ### Phase 8 — Release Preparation
 - Complete INSTALL.md

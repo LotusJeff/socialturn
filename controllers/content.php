@@ -12,13 +12,18 @@ use SocialTurn\Services\TagAppenderService;
  * from active, recyclable posts to fill scheduled_posts.
  *
  * Functions:
- *   index()   — list posts for accessible accounts with filter/search
- *   create()  — render create form
- *   store()   — process create POST; optionally Share Now
- *   edit()    — render edit form pre-populated with existing data
- *   update()  — process edit POST; cascade pending queue; optionally Share Now
- *   delete()  — soft-delete (is_active=0); clears pending queue
- *   toggle()  — flip is_recyclable; redirect back preserving filter params
+ *   index()              — list posts for accessible accounts with filter/search
+ *   create()             — render create form
+ *   store()              — process create POST; optionally Share Now
+ *   edit()               — render edit form pre-populated with existing data
+ *   update()             — process edit POST; cascade pending queue; optionally Share Now
+ *   delete()             — soft-delete (is_active=0); clears pending queue
+ *   toggle()             — flip is_recyclable; redirect back preserving filter params
+ *   importForm()         — render CSV import form; display last import result
+ *   importSample()       — stream sample CSV as download
+ *   importProcess()      — parse uploaded CSV and bulk-insert posts
+ *   importErrors()       — stream row-level error report as download
+ *   content_duplicates() — list posts with duplicate body_normalized per account
  */
 
 // -----------------------------------------------------------------------
@@ -129,8 +134,8 @@ function index(): void
     }
 
     // Build query dynamically
-    $conditions = ['p.is_active = 1', 'a.company_id = ' . $companyId];
-    $params     = [];
+    $conditions = ['p.is_active = 1', 'a.company_id = ?'];
+    $params     = [$companyId];
 
     // Account scope: either one account or all accessible
     if ($filterAccountId !== 0) {
@@ -264,8 +269,9 @@ function store(): void
     // Image upload
     $imageFilename = null;
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $ext  = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
+        $mime = getMimeType((string) $_FILES['image']['tmp_name']);
+        if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             $storage = new StorageService();
             if ($storage->store((string) $_FILES['image']['tmp_name'], $newFilename)) {
@@ -278,10 +284,11 @@ function store(): void
     try {
         $dbh->prepare(
             'INSERT INTO posts
-                 (account_id, body, attributed_to, image_filename, is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, 1, ?, ?)'
+                 (account_id, body, body_normalized, attributed_to, image_filename,
+                  is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
         )->execute([
-            $accountId, $body, $attributedTo, $imageFilename,
+            $accountId, $body, normalize_body($body), $attributedTo, $imageFilename,
             $isRecyclable, $internalNote, $userId,
         ]);
         $postId = (int) $dbh->lastInsertId();
@@ -447,8 +454,9 @@ function update(): void
     $imageFilename = $imageFilename !== '' ? $imageFilename : null;
 
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $ext  = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
+        $mime = getMimeType((string) $_FILES['image']['tmp_name']);
+        if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             $storage = new StorageService();
             if ($storage->store((string) $_FILES['image']['tmp_name'], $newFilename)) {
@@ -480,11 +488,12 @@ function update(): void
 
         $dbh->prepare(
             'UPDATE posts
-                SET account_id = ?, body = ?, attributed_to = ?, image_filename = ?,
+                SET account_id = ?, body = ?, body_normalized = ?,
+                    attributed_to = ?, image_filename = ?,
                     is_recyclable = ?, internal_note = ?
               WHERE id = ? AND is_active = 1'
         )->execute([
-            $newAccountId, $body, $attributedTo, $imageFilename,
+            $newAccountId, $body, normalize_body($body), $attributedTo, $imageFilename,
             $isRecyclable, $internalNote,
             $postId,
         ]);
@@ -637,4 +646,529 @@ function toggle(): void
     $redirect = BASE_URL . 'content' . (!empty($qs) ? '?' . implode('&', $qs) : '');
     header('Location: ' . $redirect);
     exit;
+}
+
+/**
+ * Import Form — GET: renders the CSV import form.
+ *
+ * Checks for a completed-import result in SESSION and passes it to the
+ * view for display, then clears it so it only renders once.
+ */
+function importForm(): void
+{
+    global $template;
+
+    $accounts = content_accessibleAccounts();
+
+    if (empty($accounts)) {
+        $_SESSION['notification'] = [
+            'type'    => 'info',
+            'message' => 'Create an account before importing content.',
+        ];
+        header('Location: ' . BASE_URL . 'content');
+        exit;
+    }
+
+    $importResult = null;
+    if (isset($_SESSION['import_result'])) {
+        $importResult = $_SESSION['import_result'];
+        unset($_SESSION['import_result']);
+    }
+
+    $template->set('accounts',     $accounts);
+    $template->set('importResult', $importResult);
+    $template->set('csrfToken',    csrf_token());
+}
+
+/**
+ * Import Sample — GET: streams the sample CSV as a file download.
+ *
+ * No CSRF needed — read-only GET. Must exit before $template->render().
+ */
+function importSample(): void
+{
+    $samplePath = ROOT . DS . 'views' . DS . 'content' . DS . 'import_sample.csv';
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="socialturn_import_sample.csv"');
+    header('Cache-Control: no-store');
+
+    readfile($samplePath);
+    exit;
+}
+
+/**
+ * Import Process — POST: parses an uploaded CSV and bulk-inserts posts.
+ *
+ * Architecture note: the original plan referenced a posts_accounts junction
+ * table that does not exist. The posts table carries account_id directly, so
+ * multi-account import creates one post row per CSV row per selected account.
+ *
+ * Validation aborts (redirect to importForm) on: bad method, CSRF failure,
+ * no valid accounts, upload error, wrong MIME, file too large, no body column.
+ * Row-level failures (empty body, over character limit) are collected and
+ * written to a downloadable error report; they never abort the whole import.
+ * Missing image files produce a warning and the row is imported without image.
+ *
+ * The transaction is opened only after all rows are parsed so the parse phase
+ * is entirely separate from the write phase.
+ */
+function importProcess(): void
+{
+    global $dbh;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Account validation
+    // -----------------------------------------------------------------------
+
+    $rawIds = $_POST['account_ids'] ?? [];
+    if (!is_array($rawIds) || count($rawIds) === 0) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Select at least one account.'];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    $accounts      = content_accessibleAccounts();
+    $accessibleIds = array_column($accounts, 'id');
+    $accountsById  = array_column($accounts, null, 'id');
+
+    $selectedIds = [];
+    foreach ($rawIds as $raw) {
+        $id = (int) $raw;
+        if ($id === 0 || !in_array($id, $accessibleIds, true)) {
+            continue;
+        }
+        authorizeAccount($id); // redirects automatically on access failure
+        $selectedIds[] = $id;
+    }
+
+    if (empty($selectedIds)) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'No valid accounts selected.'];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // File validation
+    // -----------------------------------------------------------------------
+
+    if (!isset($_FILES['csv_file']) || (int) $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'No CSV file uploaded or the upload failed.'];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    $mime = getMimeType((string) $_FILES['csv_file']['tmp_name']);
+    if (!in_array($mime, ['text/csv', 'text/plain'], true)) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Uploaded file must be a CSV. Expected text/csv or text/plain.',
+        ];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    if ((int) $_FILES['csv_file']['size'] > 5 * 1024 * 1024) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'File is too large. Maximum upload size is 5 MB.'];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Character limit — most restrictive platform across selected accounts
+    // -----------------------------------------------------------------------
+
+    $platformLimits = ['twitter' => 280, 'instagram' => 2200, 'facebook' => 63206];
+    $charLimit      = PHP_INT_MAX;
+    $limitPlatform  = '';
+
+    foreach ($selectedIds as $id) {
+        $platform = strtolower((string) ($accountsById[$id]['platform'] ?? ''));
+        $limit    = $platformLimits[$platform] ?? PHP_INT_MAX;
+        if ($limit < $charLimit) {
+            $charLimit     = $limit;
+            $limitPlatform = $platform;
+        }
+    }
+
+    $isRecyclableDefault = isset($_POST['is_recyclable_default']) ? 1 : 0;
+    $userId              = content_userId();
+
+    // -----------------------------------------------------------------------
+    // Open file and skip UTF-8 BOM if present
+    // -----------------------------------------------------------------------
+
+    $tmpPath = (string) $_FILES['csv_file']['tmp_name'];
+    $handle  = fopen($tmpPath, 'r');
+
+    if ($handle === false) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not read uploaded file.'];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    $bom = fread($handle, 3);
+    if ($bom !== "\xEF\xBB\xBF") {
+        rewind($handle);
+    }
+
+    // -----------------------------------------------------------------------
+    // Find header row — first row that is not a comment and not empty
+    // -----------------------------------------------------------------------
+
+    $colBody         = null;
+    $colAttributedTo = null;
+    $colImage        = null;
+    $colRecyclable   = null;
+    $colNote         = null;
+    $headerFound     = false;
+
+    while (($row = fgetcsv($handle)) !== false) {
+        if ($row === [null]) {
+            continue;
+        }
+        $firstCell = trim((string) ($row[0] ?? ''));
+        if ($firstCell === '' || str_starts_with($firstCell, '#')) {
+            continue;
+        }
+        foreach ($row as $i => $col) {
+            switch (strtolower(trim((string) $col))) {
+                case 'body':           $colBody         = $i; break;
+                case 'attributed_to':  $colAttributedTo = $i; break;
+                case 'image_filename': $colImage        = $i; break;
+                case 'is_recyclable':  $colRecyclable   = $i; break;
+                case 'internal_note':  $colNote         = $i; break;
+            }
+        }
+        $headerFound = true;
+        break;
+    }
+
+    if (!$headerFound || $colBody === null) {
+        fclose($handle);
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'CSV must contain a header row with a "body" column.',
+        ];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Parse data rows
+    // -----------------------------------------------------------------------
+
+    $rowsToInsert = [];
+    $errors       = [];
+    $warnings     = [];
+    $skipped      = 0;
+    $failed       = 0;
+    $dataRowNum   = 0;
+
+    $storage = new StorageService();
+
+    while (($row = fgetcsv($handle)) !== false) {
+
+        // Skip fgetcsv sentinel for empty lines
+        if ($row === [null]) {
+            continue;
+        }
+
+        // Skip comment rows
+        if (str_starts_with(trim((string) ($row[0] ?? '')), '#')) {
+            continue;
+        }
+
+        // Skip all-empty rows (trailing blank lines etc.)
+        $allEmpty = true;
+        foreach ($row as $cell) {
+            if (trim((string) $cell) !== '') {
+                $allEmpty = false;
+                break;
+            }
+        }
+        if ($allEmpty) {
+            continue;
+        }
+
+        $dataRowNum++;
+
+        // Row cap check — abort before collecting more rows
+        if ($dataRowNum > 5000) {
+            fclose($handle);
+            $_SESSION['notification'] = [
+                'type'    => 'error',
+                'message' => 'CSV exceeds the 5,000-row import limit. Split the file and import in batches.',
+            ];
+            header('Location: ' . BASE_URL . 'content/importForm');
+            exit;
+        }
+
+        // Extract fields
+        $body         = trim((string) ($row[$colBody] ?? ''));
+        $attributedTo = $colAttributedTo !== null
+            ? (trim((string) ($row[$colAttributedTo] ?? '')) ?: null)
+            : null;
+        $imageFile    = $colImage !== null
+            ? trim((string) ($row[$colImage] ?? ''))
+            : '';
+        $recyclable   = $colRecyclable !== null
+            ? trim((string) ($row[$colRecyclable] ?? ''))
+            : '';
+        $note         = $colNote !== null
+            ? (trim((string) ($row[$colNote] ?? '')) ?: null)
+            : null;
+
+        // Empty body — skip and record
+        if ($body === '') {
+            $skipped++;
+            $errors[] = "Row {$dataRowNum}: skipped — body is empty.";
+            continue;
+        }
+
+        // Character limit — fail row
+        $bodyLen = mb_strlen($body);
+        if ($charLimit !== PHP_INT_MAX && $bodyLen > $charLimit) {
+            $failed++;
+            $errors[] = "Row {$dataRowNum}: body is {$bodyLen} characters, exceeds the {$charLimit}-character limit for {$limitPlatform}. Post not imported.";
+            continue;
+        }
+
+        // Image filename — warn and clear if not found in storage
+        $imageFilename = null;
+        if ($imageFile !== '') {
+            if ($storage->exists($imageFile)) {
+                $imageFilename = $imageFile;
+            } else {
+                $warnings[] = "Row {$dataRowNum}: image \"{$imageFile}\" not found in storage — post imported without image.";
+            }
+        }
+
+        // is_recyclable — parse variations, fall back to form default
+        $recyclableLower = strtolower($recyclable);
+        if (in_array($recyclableLower, ['1', 'true', 'yes', 'on'], true)) {
+            $isRecyclable = 1;
+        } elseif (in_array($recyclableLower, ['0', 'false', 'no', 'off'], true)) {
+            $isRecyclable = 0;
+        } else {
+            $isRecyclable = $isRecyclableDefault;
+        }
+
+        $normalized = normalize_body($body);
+
+        $rowsToInsert[] = [
+            'body'            => $body,
+            'body_normalized' => $normalized,
+            'attributed_to'   => $attributedTo,
+            'image_filename'  => $imageFilename,
+            'is_recyclable'   => $isRecyclable,
+            'internal_note'   => $note,
+            'row_num'         => $dataRowNum,
+        ];
+    }
+
+    fclose($handle);
+
+    // -----------------------------------------------------------------------
+    // Duplicate detection — load existing body_normalized per selected account
+    // -----------------------------------------------------------------------
+
+    $existingNormalized = []; // $existingNormalized[$accountId][$normalized] = true
+    foreach ($selectedIds as $accountId) {
+        $stmt = $dbh->prepare(
+            "SELECT body_normalized FROM posts
+              WHERE account_id = ? AND is_active = 1 AND body_normalized != ''"
+        );
+        $stmt->execute([$accountId]);
+        $existingNormalized[$accountId] = array_flip(
+            $stmt->fetchAll(PDO::FETCH_COLUMN)
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Transaction — one post per CSV row per selected account
+    // -----------------------------------------------------------------------
+
+    $inserted        = 0;
+    $seenThisImport  = []; // $seenThisImport[$accountId][$normalized] = true
+
+    $dbh->beginTransaction();
+    try {
+        $stmt = $dbh->prepare(
+            'INSERT INTO posts
+                 (account_id, body, body_normalized, attributed_to, image_filename,
+                  is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
+        );
+
+        foreach ($rowsToInsert as $row) {
+            foreach ($selectedIds as $accountId) {
+                $normalized  = $row['body_normalized'];
+                $accountName = (string) ($accountsById[$accountId]['name'] ?? '');
+
+                // Duplicate against existing DB posts for this account
+                if (isset($existingNormalized[$accountId][$normalized])) {
+                    $skipped++;
+                    $warnings[] = "Row {$row['row_num']}: duplicate of existing post in"
+                        . " account \"{$accountName}\" — skipped.";
+                    continue;
+                }
+
+                // Duplicate within this import for this account
+                if (isset($seenThisImport[$accountId][$normalized])) {
+                    $skipped++;
+                    $warnings[] = "Row {$row['row_num']}: duplicate of another row in this"
+                        . " import for account \"{$accountName}\" — skipped.";
+                    continue;
+                }
+
+                $seenThisImport[$accountId][$normalized] = true;
+
+                $stmt->execute([
+                    $accountId,
+                    $row['body'],
+                    $normalized,
+                    $row['attributed_to'],
+                    $row['image_filename'],
+                    $row['is_recyclable'],
+                    $row['internal_note'],
+                    $userId,
+                ]);
+                $inserted++;
+            }
+        }
+
+        $dbh->commit();
+    } catch (Throwable) {
+        $dbh->rollBack();
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'A database error occurred during import. No posts were saved. Please try again.',
+        ];
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Error report file — written to system temp dir if any row-level errors
+    // -----------------------------------------------------------------------
+
+    $hasErrors = !empty($errors);
+    if ($hasErrors) {
+        $errorFile = tempnam(sys_get_temp_dir(), 'st_import_');
+        file_put_contents($errorFile, implode("\n", $errors));
+        $_SESSION['import_error_file'] = $errorFile;
+    }
+
+    $_SESSION['import_result'] = [
+        'imported'   => $inserted,
+        'skipped'    => $skipped,
+        'failed'     => $failed,
+        'warnings'   => $warnings,
+        'has_errors' => $hasErrors,
+    ];
+
+    header('Location: ' . BASE_URL . 'content/importForm');
+    exit;
+}
+
+/**
+ * Import Errors — GET: streams the row-level error report as a text download.
+ *
+ * The report file path is stored in SESSION by importProcess(). The file is
+ * deleted after streaming so it does not persist on the server.
+ */
+function importErrors(): void
+{
+    $errorFile = $_SESSION['import_error_file'] ?? '';
+
+    if ($errorFile === '' || !is_file($errorFile)) {
+        header('Location: ' . BASE_URL . 'content/importForm');
+        exit;
+    }
+
+    header('Content-Type: text/plain; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="import_errors.txt"');
+    header('Cache-Control: no-store');
+
+    readfile($errorFile);
+
+    @unlink($errorFile);
+    unset($_SESSION['import_error_file']);
+    exit;
+}
+
+/**
+ * Duplicates — GET: lists posts where body_normalized appears more than once
+ * within the same account.
+ *
+ * Scoped to accessible accounts. Rows where body_normalized = '' (pre-existing
+ * posts that have not yet passed through a write path) are excluded.
+ *
+ * Results are grouped in PHP: $groups[$accountId]['account_name'] and
+ * $groups[$accountId]['posts'][$normalized][] = post row.
+ */
+function content_duplicates(): void
+{
+    global $dbh, $template;
+
+    $accounts = content_accessibleAccounts();
+
+    if (empty($accounts)) {
+        $template->set('groups',    []);
+        $template->set('csrfToken', csrf_token());
+        return;
+    }
+
+    $accessibleIds = array_column($accounts, 'id');
+    $inList        = implode(',', array_fill(0, count($accessibleIds), '?'));
+
+    $stmt = $dbh->prepare(
+        "SELECT p.id, p.body, p.attributed_to, p.is_recyclable, p.created_at,
+                p.body_normalized, p.account_id, a.name AS account_name
+           FROM posts p
+           JOIN accounts a ON a.id = p.account_id
+          WHERE p.account_id IN ($inList)
+            AND p.is_active = 1
+            AND p.body_normalized != ''
+            AND p.body_normalized IN (
+                SELECT body_normalized
+                  FROM posts
+                 WHERE account_id = p.account_id
+                   AND is_active = 1
+                   AND body_normalized != ''
+                 GROUP BY body_normalized
+                HAVING COUNT(*) > 1
+            )
+          ORDER BY p.account_id ASC, p.body_normalized ASC, p.created_at ASC"
+    );
+    $stmt->execute($accessibleIds);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Group by account_id → body_normalized → post rows
+    $groups = [];
+    foreach ($rows as $row) {
+        $accountId  = (int) $row['account_id'];
+        $normalized = (string) $row['body_normalized'];
+        if (!isset($groups[$accountId])) {
+            $groups[$accountId] = [
+                'account_name' => (string) $row['account_name'],
+                'posts'        => [],
+            ];
+        }
+        $groups[$accountId]['posts'][$normalized][] = $row;
+    }
+
+    $template->set('groups',    $groups);
+    $template->set('csrfToken', csrf_token());
 }
