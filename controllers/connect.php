@@ -293,6 +293,7 @@ function facebookCallback(): void
 
     $_SESSION['oauth']['facebook_pages']     = $pages;
     $_SESSION['oauth']['facebook_instagram'] = $instagram;
+    $_SESSION['oauth']['expires']            = time() + 600;
 
     header('Location: ' . BASE_URL . 'connect/pages');
     exit;
@@ -308,6 +309,16 @@ function facebookCallback(): void
 function pages(): void
 {
     global $template;
+
+    if (($_SESSION['oauth']['expires'] ?? 0) < time()) {
+        unset($_SESSION['oauth']);
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Session expired. Please reconnect.',
+        ];
+        header('Location: ' . BASE_URL . 'accounts');
+        exit;
+    }
 
     $pages     = $_SESSION['oauth']['facebook_pages']     ?? [];
     $instagram = $_SESSION['oauth']['facebook_instagram'] ?? [];

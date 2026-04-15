@@ -18,6 +18,9 @@ define('DS',DIRECTORY_SEPARATOR);
 
 /* Start Session */
 
+ini_set('session.cookie_secure',   '1');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
 session_start();
 
 /* Get Basic Details */

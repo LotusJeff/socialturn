@@ -230,6 +230,9 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 8. The images/ directory must not execute PHP — .htaccess must enforce this.
 9. Never ship with debug mode or verbose error output enabled by default.
 10. Default configuration must be secure — never require users to harden it.
+11. Token encryption at rest is deferred to v2.0. Tokens in connected_platforms
+    are stored as plaintext in v1.0. Documented in README as a known limitation —
+    production installs must use HTTPS and restrict database access.
 
 ---
 
