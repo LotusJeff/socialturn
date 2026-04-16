@@ -387,7 +387,7 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - views/content/duplicates.php — grouped cards per account, per-post Delete action
 - Find Duplicates button added to content library header action bar
 
-### Phase 8a — Unit Testing
+### Phase 8a — Unit Testing ✓ COMPLETE
 PHPUnit installed as a dev-only Composer dependency. Test cases written
 locally covering all key components. Pure logic tests (normalize_body,
 TagAppenderService, CSV parsing, input validation) run locally on Windows.
@@ -395,13 +395,13 @@ Full test suite executed on remote Linux server via SSH. Platform API calls
 mocked — no real posts during testing. Tests run against a seeded test
 database.
 
-### Phase 8b — Codebase Cleanup
+### Phase 8b — Codebase Cleanup ✓ COMPLETE
 Remove all legacy files, functions, and components no longer in use.
 Dead code audit across all controllers, views, and libraries. Collapse
 all migrations into a single unified schema.sql for fresh installs.
 Verify config.sample.php matches everything used in the codebase.
 
-### Phase 8c — Release Packaging
+### Phase 8c — Release Packaging ✓ COMPLETE
 INSTALL.md complete with step-by-step setup and API credential instructions.
 README.md with screenshots. CHANGELOG.md current. config.sample.php
 verified. Tag 0.9.0 on dev branch.
