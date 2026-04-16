@@ -47,21 +47,10 @@ if (is_file(ROOT.DS.'vendor'.DS.'autoload.php')) {
 
 include_once ROOT.DS.'config.php';
 include_once ROOT.DS.'libraries'.DS.'template.class.php';
-include_once ROOT.DS.'libraries'.DS.'helper.class.php';
-include_once ROOT.DS.'libraries'.DS.'pagination.class.php';
 include_once ROOT.DS.'libraries'.DS.'postmark.class.php';
-include_once ROOT.DS.'libraries'.DS.'uaparser.class.php';
-include_once ROOT.DS.'libraries'.DS.'recaptcha.php';
-
-include_once ROOT.DS.'libraries'.DS.'facebook'.DS.'facebook.php';
-include_once ROOT.DS.'libraries'.DS.'twitter'.DS.'twitter.php';
-include_once ROOT.DS.'libraries'.DS.'twitter'.DS.'twitter2.php';
 
 $template = new Template($controller,$action);
 
-$helper = new Helper();
-
-include_once ROOT.DS.'controllers'.DS.'helpers.php';
 include_once ROOT.DS.'libraries'.DS.'shared.php';
 
 // -----------------------------------------------------------------------
@@ -88,16 +77,8 @@ if (!defined('MINIMAL')) {
 
 	if (is_file(ROOT.DS.'controllers'.DS.$controller.'.php')) {
 
-		if (function_exists($action)) {
-			exit;
-		}
-
 		include ROOT.DS.'controllers'.DS.$controller.'.php';
 
-		if (function_exists('pre')) {
-			pre();
-		}
-		
 		if (function_exists($action)) {
 			call_user_func($action);
 		} else {

@@ -437,6 +437,39 @@ Merge dev to main. Tag 1.0.0. Public release.
 
 ---
 
+## Future Roadmap (v2.0)
+
+Features explicitly deferred until v1.0 is stable and in production use.
+Do not design or build any part of these in v1.0.
+
+### S3-Compatible Storage Driver
+Replace the current AWS SDK dependency with a lightweight S3-compatible
+HTTP client that works with any S3-compatible object storage provider:
+Cloudflare R2, Backblaze B2, DigitalOcean Spaces, MinIO, Wasabi, etc.
+The StorageService abstraction is already in place — only the driver
+implementation changes. This widens hosting options beyond AWS and removes
+the heavy aws/aws-sdk-php dependency from installs that need cloud storage.
+
+### REST API Layer
+Authenticated REST API allowing remote services to interact with SocialTurn
+programmatically. Minimum scope:
+- Create posts in the content library
+- Trigger Share Now for an existing post
+- Check queue status (pending count, next scheduled time) per account
+This is the foundation for AI integration and third-party tool connectivity.
+Authentication: API key per user stored in the database, passed as a header.
+Never expose OAuth tokens through the API.
+
+### AI Content Generation
+AI-generated post content pushed into the content library via the REST API.
+The preferred integration path is: an external AI service (or a user's own
+script) calls the SocialTurn REST API to create posts — no direct database
+access required. This keeps AI tooling decoupled from the core application
+and allows any model or provider to be used without changes to SocialTurn.
+Do not build AI generation into the application itself.
+
+---
+
 ## What Not To Do
 
 - Do not modify legacy libraries/facebook/ or libraries/twitter/ —
@@ -455,6 +488,8 @@ Merge dev to main. Tag 1.0.0. Public release.
 - Do not rebuild the suggestions system — it has been intentionally
   removed. Content enters the system via manual entry or CSV import in v1.0.
 - Do not add AI content generation to v1.0 — this is explicitly deferred
-  to v2.0. See Phase 9.
+  to v2.0. The planned integration path is via the REST API layer (also v2.0):
+  AI services push generated content through the API rather than accessing
+  the database directly. See Future Roadmap (v2.0).
 
 

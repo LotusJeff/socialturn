@@ -310,6 +310,7 @@ CREATE TABLE `posts` (
     `id`             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `account_id`     INT UNSIGNED  NOT NULL                           COMMENT 'Which account this content belongs to',
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
+    `body_normalized` VARCHAR(280) NOT NULL DEFAULT ''                COMMENT 'Normalized body fingerprint for duplicate detection — never displayed',
     `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author — appended as "-- Author" after post body; affects image overlay layout in ImageService. Never included in image text — post body and attribution are overlaid on image, tags are text-only.',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
@@ -320,6 +321,7 @@ CREATE TABLE `posts` (
     `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_posts_account_id` (`account_id`),
+    KEY `idx_posts_body_normalized` (`account_id`, `body_normalized`),
     KEY `idx_posts_queue_filter` (`account_id`, `is_active`, `is_recyclable`),
     CONSTRAINT `fk_posts_account`
         FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)

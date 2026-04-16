@@ -13,10 +13,6 @@
  * No CDN links. To update a vendored library, download the new minified
  * file, replace the file in assets/, and update the version note above.
  *
- * Legacy Bootstrap 3 assets (bootstrap.css, bootstrap.min.js, jasny-bootstrap,
- * bootstrap-select, image-picker) remain in assets/ but are no longer loaded
- * by this header. They will be removed in Phase 8 release cleanup.
- *
  * Variables expected from the controller:
  *   $controller  string  Current controller name — used for active nav state
  *   $action      string  Current action name — used for body class
@@ -50,7 +46,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
 
-            <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo BASE_URL; ?>social/queue">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo BASE_URL; ?>queue/index">
                 <img src="<?php echo BASE_URL; ?>assets/img/logo.png" alt="SocialTurn" height="32">
                 SocialTurn
             </a>
@@ -66,14 +62,14 @@
 
                     <!-- Queue — all authenticated users -->
                     <li class="nav-item">
-                        <a class="nav-link<?php echo ($controller === 'social') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>social/queue">Queue</a>
+                        <a class="nav-link<?php echo ($controller === 'queue') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>queue/index">Queue</a>
                     </li>
 
                     <!-- Content — all authenticated users -->
                     <li class="nav-item">
-                        <a class="nav-link<?php echo ($controller === 'posts') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>posts">Content</a>
+                        <a class="nav-link<?php echo ($controller === 'content') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>content/index">Content</a>
                     </li>
 
                     <?php if (hasPermission(1)): ?>

@@ -16,9 +16,6 @@
 // MySQL hostname — usually 'localhost' for shared hosting
 define('SERVERNAME', 'localhost');
 
-// MySQL port — usually 3306
-define('SERVERPORT', '3306');
-
 // MySQL username
 define('DBUSERNAME', 'your_db_username');
 
@@ -35,10 +32,6 @@ define('DBNAME', 'your_db_name');
 // Full public URL to your installation, with trailing slash.
 // Example: 'https://social.example.com/'
 define('BASE_URL', 'https://yoursite.com/');
-
-// A random secret string used for internal security.
-// Generate one with: php -r "echo bin2hex(random_bytes(32));"
-define('SERVER_SALT', 'replace_with_64_char_random_hex_string');
 
 // Number of pending queue entries below which the recycler refills the queue.
 // Lower = more aggressive refilling. Recommended: 10–20.
@@ -58,8 +51,8 @@ define('RECYCLE_LOOKAHEAD_DAYS', 30);
 //    instagram_basic, instagram_content_publish.
 // 4. Copy the App ID and App Secret from App Settings > Basic.
 
-define('FB_APPID', 'your_facebook_app_id');
-define('FB_APPSECRET', 'your_facebook_app_secret');
+define('META_APP_ID',     'your_facebook_app_id');
+define('META_APP_SECRET', 'your_facebook_app_secret');
 
 // -----------------------------------------------------------------------
 // Twitter / X

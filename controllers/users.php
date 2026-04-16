@@ -1,6 +1,26 @@
 <?php
 
 /**
+ * Returns the post-login destination URL for the given user type.
+ *
+ * Admin (type=1): accounts/index when no active accounts exist yet,
+ *   queue/index otherwise — so a fresh install lands on the connect flow.
+ * Team member (type=100): always queue/index.
+ */
+function post_login_url(int $type): string
+{
+    if ($type === 1) {
+        global $dbh;
+        $stmt = $dbh->prepare('SELECT COUNT(*) FROM accounts WHERE is_active = 1');
+        $stmt->execute();
+        if ((int) $stmt->fetchColumn() === 0) {
+            return BASE_URL . 'accounts/index';
+        }
+    }
+    return BASE_URL . 'queue/index';
+}
+
+/**
  * Initial setup — runs exactly once on a fresh install.
  *
  * GET:  If users exist, redirects to login (setup already complete).
@@ -115,7 +135,7 @@ function setup(): void {
  *         New user  — INSERT into users (type=1 for OWNER_EMAIL, type=100 otherwise).
  *         Existing  — UPDATE password only.
  *       Marks invite as used, logs the user in, regenerates CSRF token,
- *       redirects to social/queue.
+ *       redirects to queue/index (or accounts/index on first run for admins).
  *
  * Server-side rules mirror the Alpine.js client-side checklist exactly:
  *   12+ characters · uppercase · number · special character · passwords match
@@ -230,7 +250,7 @@ function setpassword(): void {
     ];
     csrf_regenerate();
 
-    header('Location: ' . BASE_URL . 'social/queue');
+    header('Location: ' . post_login_url($type));
     exit;
 }
 
@@ -240,7 +260,7 @@ function setpassword(): void {
  * The form posts to users/login (not the old users/validate).
  * On success: records last_login, sets session with company_id,
  * regenerates CSRF token, and redirects to the originally attempted
- * URL (stored by authenticate()) or /social/queue as the default.
+ * URL (stored by authenticate()) or queue/index as the default.
  * redirect_after_login is always unset after consuming to prevent
  * stale redirects on subsequent logins.
  */
@@ -309,7 +329,7 @@ function login(): void {
         || str_contains($redirect, 'users/login')
         || str_contains($redirect, 'users/validate')
     ) {
-        $redirect = BASE_URL . 'social/queue';
+        $redirect = post_login_url((int) $user['type']);
     }
 
     header('Location: ' . $redirect);
@@ -357,7 +377,7 @@ function validate(): void {
                 'company_id' => (int) $account['company_id'],
                 'type'       => (int) $account['type'],
             ];
-            header('Location: ' . BASE_URL . 'social/queue');
+            header('Location: ' . post_login_url((int) $account['type']));
             exit;
         }
 
@@ -406,7 +426,7 @@ function validate(): void {
             'type'       => 100,
         ];
 
-        header('Location: ' . BASE_URL . 'social/queue');
+        header('Location: ' . post_login_url(100));
         exit;
     }
 }

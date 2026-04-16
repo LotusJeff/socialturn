@@ -1,9 +1,5 @@
 <?php
 
-function generateLink($controller,$action) {
-	return basePath().'/'.$controller.'/'.$action;
-}
-
 /**
  * Returns true when a valid user session exists.
  *
@@ -166,39 +162,6 @@ function sanitize($input,$type = "old") {
 }
 
 
-function createSlug($input) {
-	$input = strip_tags((string)$input);
-	$input = trim($input);
-	$input = preg_replace("/ /","-",$input);
-	$input = preg_replace("/[^+A-Za-z0-9\.\-]/", "", $input); 
-	$input = preg_replace("/--/","-",$input);
-	return strtolower($input);
-}
-
-function fetchURL($url) {
-  $options = array(
-        CURLOPT_RETURNTRANSFER => true,     // return web page
-        CURLOPT_HEADER         => false,    // don't return headers
-        CURLOPT_FOLLOWLOCATION => true,     // follow redirects
-        CURLOPT_ENCODING       => "",       // handle all encodings
-        CURLOPT_USERAGENT      => "spider", // who am i
-        CURLOPT_AUTOREFERER    => true,     // set referer on redirect
-        CURLOPT_CONNECTTIMEOUT => 10,      // timeout on connect
-        CURLOPT_TIMEOUT        => 10,      // timeout on response
-        CURLOPT_MAXREDIRS      => 10,       // stop after 10 redirects
-    );
-
-    $ch      = curl_init( $url );
-    curl_setopt_array( $ch, $options );
-    $content = curl_exec( $ch );
-    $err     = curl_errno( $ch );
-    $errmsg  = curl_error( $ch );
-    $header  = curl_getinfo( $ch );
-    curl_close( $ch );
-
-    return $content;
-}
-
 function db() {
 	global $dbh;
 	try {
@@ -216,40 +179,6 @@ function datify($date) {
 	return date('g:iA M dS', strtotime($date));
 }
 
-function datifyunix($date) {
-	return date('g:iA M dS', $date);
-}
-
-function generatePassword($length=9, $strength=0) {
-	$vowels = 'aeuy';
-	$consonants = 'bdghjmnpqrstvz';
-	if ($strength & 1) {
-		$consonants .= 'BDGHJLMNPQRSTVWXZ';
-	}
-	if ($strength & 2) {
-		$vowels .= "AEUY";
-	}
-	if ($strength & 4) {
-		$consonants .= '23456789';
-	}
-	if ($strength & 8) {
-		$consonants .= '@#$%';
-	}
- 
-	$password = '';
-	$alt = time() % 2;
-	for ($i = 0; $i < $length; $i++) {
-		if ($alt == 1) {
-			$password .= $consonants[(rand() % strlen($consonants))];
-			$alt = 0;
-		} else {
-			$password .= $vowels[(rand() % strlen($vowels))];
-			$alt = 1;
-		}
-	}
-	return $password;
-}
-
 function hashPassword(string $password): string {
 	return password_hash($password, PASSWORD_BCRYPT);
 }
@@ -258,59 +187,6 @@ function verifyPassword(string $password, string $hash): bool {
 	return password_verify($password, $hash);
 }
 
-
-function highlight($c,$q){ 
-$q=explode(' ',str_replace(array('','\\','+','*','?','[','^',']','$','(',')','{','}','=','!','<','>','|',':','#','-','_'),'',$q));
-for($i=0;$i<sizeOf($q);$i++) 
-	$c=preg_replace("/($q[$i])(?![^<]*>)/i","<span class=\"highlight\">\${1}</span>",$c);
-return $c;}
-
-
- function excerpt($text, $phrase, $radius = 100, $ending = "...") { 
-       $phraseLen = strlen($phrase); 
-       if ($radius < $phraseLen) { 
-             $radius = $phraseLen; 
-         } 
-
-		 $phrases = explode (' ',$phrase);
-		 
-		 foreach ($phrases as $phrase) {
-			 $pos = strpos(strtolower($text), strtolower($phrase)); 
-			 if ($pos > -1) break;
-		 }
-  
-         $startPos = 0; 
-         if ($pos > $radius) { 
-             $startPos = $pos - $radius; 
-         } 
-  
-         $textLen = strlen($text); 
-  
-         $endPos = $pos + $phraseLen + $radius; 
-         if ($endPos >= $textLen) { 
-             $endPos = $textLen; 
-         } 
-  
-         $excerpt = substr($text, $startPos, $endPos - $startPos); 
-         if ($startPos != 0) { 
-             $excerpt = substr_replace($excerpt, $ending, 0, $phraseLen); 
-         } 
-  
-         if ($endPos != $textLen) { 
-             $excerpt = substr_replace($excerpt, $ending, -$phraseLen); 
-         } 
-  
-         return $excerpt; 
-   } 
-
-function truncate ($text, $length = 200, $ending = "...") {
-	if (strlen($text) <= $length) { 
-		return $text; 
-	} else { 
-		$truncate = substr($text, 0, $length - strlen($ending)).$ending; 
-		return $truncate;
-	} 
-}
 
 function sendemail($fromname,$fromaddress,$toemail,$subject,$body,$tag = null) {
 
@@ -553,32 +429,6 @@ function upload($filePath, $destinationDir = 'images', array $allowedMimes = arr
     }
 
     return $fileName;
-}
-
-function ordinalize($num)
-{
-    if ( ! is_numeric($num)) return $num;
-
-    if ($num % 100 >= 11 and $num % 100 <= 13)
-    {
-        return $num."th";
-    }
-    elseif ( $num % 10 == 1 )
-    {
-        return $num."st";
-    }
-    elseif ( $num % 10 == 2 )
-    {
-        return $num."nd";
-    }
-    elseif ( $num % 10 == 3 )
-    {
-        return $num."rd";
-    }
-    else
-    {
-        return $num."th";
-    }
 }
 
 /**

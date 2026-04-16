@@ -162,7 +162,7 @@ function store(): void
 
     $displayName = (string) ($platform['platform_name'] ?? '');
     $threshold   = defined('RECYCLE_THRESHOLD_DEFAULT')  ? (int) RECYCLE_THRESHOLD_DEFAULT  : 10;
-    $lookahead   = defined('RECYCLE_LOOKAHEAD_DEFAULT')   ? (int) RECYCLE_LOOKAHEAD_DEFAULT   : 30;
+    $lookahead   = defined('RECYCLE_LOOKAHEAD_DAYS')       ? (int) RECYCLE_LOOKAHEAD_DAYS       : 30;
 
     $dbh->beginTransaction();
     try {
