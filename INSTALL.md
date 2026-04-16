@@ -251,8 +251,32 @@ separate Instagram app is needed.
 **Portal:** [postmarkapp.com](https://postmarkapp.com)
 
 Sign up, create a **Server**, and copy the **Server API Token** from the
-API Tokens tab. Verify a sender signature or domain that matches the
-`POSTMARKAPP_MAIL_FROM_ADDRESS` you configure.
+API Tokens tab.
+
+**Sender verification (required)**
+
+`POSTMARKAPP_MAIL_FROM_ADDRESS` must be an email address at your own domain —
+public email providers (Gmail, Yahoo, Outlook, etc.) are not permitted as senders.
+
+In the Postmark dashboard, create a Sender Signature for your from address
+(e.g. `noreply@yourdomain.com`). Postmark will send a verification email —
+click the link to confirm.
+
+**DNS records for email deliverability (strongly recommended)**
+
+Without these records system emails will likely land in spam or be rejected.
+
+In your Postmark dashboard, go to your Sender Signature and copy the DKIM and
+SPF DNS records provided. Add them to your domain's DNS at your DNS provider:
+
+- **DKIM** — a TXT record that proves emails are sent by an authorized server.
+  Postmark provides the name and value.
+- **SPF** — a TXT record that authorizes Postmark to send on behalf of your
+  domain. If an SPF record already exists for your domain, add Postmark's
+  `include` value to it rather than creating a new record.
+
+DNS changes can take up to 24-48 hours to propagate. Postmark's dashboard
+shows verification status for both records.
 
 The free tier (100 emails/month) is sufficient for all system emails
 (setup, invites, password resets) in a single-tenant install.
