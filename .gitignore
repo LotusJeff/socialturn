@@ -30,6 +30,9 @@ config.php
 # Claude Code local project settings
 .claude/
 
+# PHPUnit local cache — generated per machine, not project state
+.phpunit.result.cache
+
 # Error logs
 *.log
 PDOErrors.txt
