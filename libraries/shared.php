@@ -1,29 +1,78 @@
 <?php
 
-function generateLink($controller,$action) {
-	return basePath().'/'.$controller.'/'.$action;
-}
-
-function isLoggedIn() {
-	if (!empty($_SESSION['user']['loggedin']) && !empty($_SESSION['user']['email']) && !empty($_SESSION['user']['companyid']) && !empty($_SESSION['user']['type'])) {
-		return 1;
-	}
-
-	return 0;
+/**
+ * Returns true when a valid user session exists.
+ *
+ * Accepts both company_id (new session key, set by setpassword/login going
+ * forward) and companyid (legacy key, set by the old validate() function)
+ * so neither breaks while validate() is still in place. Remove the
+ * companyid fallback once Section 4 replaces validate() entirely.
+ */
+function isLoggedIn(): bool {
+	return !empty($_SESSION['user']['loggedin'])
+		&& !empty($_SESSION['user']['email'])
+		&& (!empty($_SESSION['user']['company_id']) || !empty($_SESSION['user']['companyid']))
+		&& !empty($_SESSION['user']['type']);
 }
 
 function authenticate($force = 0) {
-	global $template;
 	global $controller;
 	global $action;
 
-	$loggedin = isLoggedIn();
+	// Routes that never require authentication
+	$unauthenticatedActions = ['login', 'validate', 'invite', 'register', 'setup', 'setpassword', 'forgot'];
+	if ($controller === 'users' && in_array($action, $unauthenticatedActions, true)) {
+		return;
+	}
+	if ($controller === 'cron') {
+		return;
+	}
 
-	if ($loggedin == 0 && !($controller == 'users' && ($action == 'login' || $action == 'validate' || $action == 'invite' || $action == 'register')) && !($controller == 'cron')) {
-		header("Location: ".BASE_URL."users/login");
+	// Admin-only routes — type=1 required
+	$adminOnlyControllers = ['team', 'accounts', 'connect'];
+	if (in_array($controller, $adminOnlyControllers, true) && isLoggedIn()) {
+		if ((int) ($_SESSION['user']['type'] ?? 999) !== 1) {
+			header('Location: ' . BASE_URL . 'oops/permissions');
+			exit;
+		}
+	}
+
+	if (!isLoggedIn()) {
+		// Store the attempted URL so login() can redirect back after success.
+		$_SESSION['redirect_after_login'] = getLink();
+		header('Location: ' . BASE_URL . 'users/login');
 		exit;
 	}
-	
+}
+
+/**
+ * Returns the current session CSRF token, generating one if not yet set.
+ * The token is per-session — it is not regenerated on every GET request.
+ * Call csrf_regenerate() explicitly at login and logout.
+ */
+function csrf_token(): string {
+	if (empty($_SESSION['csrf_token'])) {
+		$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+	}
+	return $_SESSION['csrf_token'];
+}
+
+/**
+ * Replaces the current CSRF token with a new one.
+ * Call at login success and logout.
+ */
+function csrf_regenerate(): void {
+	$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+/**
+ * Returns true if $_POST['csrf_token'] matches the session token.
+ * Uses hash_equals() to prevent timing attacks.
+ */
+function csrf_validate(): bool {
+	return !empty($_POST['csrf_token'])
+		&& !empty($_SESSION['csrf_token'])
+		&& hash_equals($_SESSION['csrf_token'], (string) $_POST['csrf_token']);
 }
 
 function error404() {
@@ -46,9 +95,33 @@ function hasPermission($permission) {
 	return true;
 }
 
+/**
+ * Verifies the current user may access a specific account.
+ * Admins (type=1) pass silently. Team members (type=100) are checked
+ * against users_accounts. Redirects to oops/permissions on failure.
+ */
+function authorizeAccount(int $accountId): void {
+	if ((int) ($_SESSION['user']['type'] ?? 999) === 1) {
+		return; // admins have implicit access to all accounts
+	}
+	global $dbh;
+	$companyId = (int) ($_SESSION['user']['company_id'] ?? $_SESSION['user']['companyid'] ?? 0);
+	$userId    = (int) ($_SESSION['user']['loggedin'] ?? 0);
+	$stmt = $dbh->prepare(
+		'SELECT 1 FROM users_accounts
+		  WHERE company_id = ?
+		    AND user_id = ?
+		    AND account_id = ?'
+	);
+	$stmt->execute([$companyId, $userId, $accountId]);
+	if (!$stmt->fetchColumn()) {
+		header('Location: ' . BASE_URL . 'oops/permissions');
+		exit;
+	}
+}
 
 function getLink() {
-	$s = empty($_SERVER["HTTPS"]) ? '' : ($_SERVER["HTTPS"] == "on") ? "s" : "";
+	$s = empty($_SERVER["HTTPS"]) ? '' : (($_SERVER["HTTPS"] == "on") ? "s" : "");
 	$protocol = substr(strtolower($_SERVER["SERVER_PROTOCOL"]), 0, strpos(strtolower($_SERVER["SERVER_PROTOCOL"]), "/")) . $s;
 	$port = ($_SERVER["SERVER_PORT"] == "80") ? "" : (":".$_SERVER["SERVER_PORT"]);
 	return $protocol . "://" . $_SERVER['SERVER_NAME'] . $port . $_SERVER['REQUEST_URI'];
@@ -89,39 +162,6 @@ function sanitize($input,$type = "old") {
 }
 
 
-function createSlug($input) {
-	$input = strip_tags((string)$input);
-	$input = trim($input);
-	$input = preg_replace("/ /","-",$input);
-	$input = preg_replace("/[^+A-Za-z0-9\.\-]/", "", $input); 
-	$input = preg_replace("/--/","-",$input);
-	return strtolower($input);
-}
-
-function fetchURL($url) {
-  $options = array(
-        CURLOPT_RETURNTRANSFER => true,     // return web page
-        CURLOPT_HEADER         => false,    // don't return headers
-        CURLOPT_FOLLOWLOCATION => true,     // follow redirects
-        CURLOPT_ENCODING       => "",       // handle all encodings
-        CURLOPT_USERAGENT      => "spider", // who am i
-        CURLOPT_AUTOREFERER    => true,     // set referer on redirect
-        CURLOPT_CONNECTTIMEOUT => 10,      // timeout on connect
-        CURLOPT_TIMEOUT        => 10,      // timeout on response
-        CURLOPT_MAXREDIRS      => 10,       // stop after 10 redirects
-    );
-
-    $ch      = curl_init( $url );
-    curl_setopt_array( $ch, $options );
-    $content = curl_exec( $ch );
-    $err     = curl_errno( $ch );
-    $errmsg  = curl_error( $ch );
-    $header  = curl_getinfo( $ch );
-    curl_close( $ch );
-
-    return $content;
-}
-
 function db() {
 	global $dbh;
 	try {
@@ -139,40 +179,6 @@ function datify($date) {
 	return date('g:iA M dS', strtotime($date));
 }
 
-function datifyunix($date) {
-	return date('g:iA M dS', $date);
-}
-
-function generatePassword($length=9, $strength=0) {
-	$vowels = 'aeuy';
-	$consonants = 'bdghjmnpqrstvz';
-	if ($strength & 1) {
-		$consonants .= 'BDGHJLMNPQRSTVWXZ';
-	}
-	if ($strength & 2) {
-		$vowels .= "AEUY";
-	}
-	if ($strength & 4) {
-		$consonants .= '23456789';
-	}
-	if ($strength & 8) {
-		$consonants .= '@#$%';
-	}
- 
-	$password = '';
-	$alt = time() % 2;
-	for ($i = 0; $i < $length; $i++) {
-		if ($alt == 1) {
-			$password .= $consonants[(rand() % strlen($consonants))];
-			$alt = 0;
-		} else {
-			$password .= $vowels[(rand() % strlen($vowels))];
-			$alt = 1;
-		}
-	}
-	return $password;
-}
-
 function hashPassword(string $password): string {
 	return password_hash($password, PASSWORD_BCRYPT);
 }
@@ -181,59 +187,6 @@ function verifyPassword(string $password, string $hash): bool {
 	return password_verify($password, $hash);
 }
 
-
-function highlight($c,$q){ 
-$q=explode(' ',str_replace(array('','\\','+','*','?','[','^',']','$','(',')','{','}','=','!','<','>','|',':','#','-','_'),'',$q));
-for($i=0;$i<sizeOf($q);$i++) 
-	$c=preg_replace("/($q[$i])(?![^<]*>)/i","<span class=\"highlight\">\${1}</span>",$c);
-return $c;}
-
-
- function excerpt($text, $phrase, $radius = 100, $ending = "...") { 
-       $phraseLen = strlen($phrase); 
-       if ($radius < $phraseLen) { 
-             $radius = $phraseLen; 
-         } 
-
-		 $phrases = explode (' ',$phrase);
-		 
-		 foreach ($phrases as $phrase) {
-			 $pos = strpos(strtolower($text), strtolower($phrase)); 
-			 if ($pos > -1) break;
-		 }
-  
-         $startPos = 0; 
-         if ($pos > $radius) { 
-             $startPos = $pos - $radius; 
-         } 
-  
-         $textLen = strlen($text); 
-  
-         $endPos = $pos + $phraseLen + $radius; 
-         if ($endPos >= $textLen) { 
-             $endPos = $textLen; 
-         } 
-  
-         $excerpt = substr($text, $startPos, $endPos - $startPos); 
-         if ($startPos != 0) { 
-             $excerpt = substr_replace($excerpt, $ending, 0, $phraseLen); 
-         } 
-  
-         if ($endPos != $textLen) { 
-             $excerpt = substr_replace($excerpt, $ending, -$phraseLen); 
-         } 
-  
-         return $excerpt; 
-   } 
-
-function truncate ($text, $length = 200, $ending = "...") {
-	if (strlen($text) <= $length) { 
-		return $text; 
-	} else { 
-		$truncate = substr($text, 0, $length - strlen($ending)).$ending; 
-		return $truncate;
-	} 
-}
 
 function sendemail($fromname,$fromaddress,$toemail,$subject,$body,$tag = null) {
 
@@ -478,31 +431,29 @@ function upload($filePath, $destinationDir = 'images', array $allowedMimes = arr
     return $fileName;
 }
 
-function ordinalize($num)
+/**
+ * Produces a normalized fingerprint of a post body for duplicate detection.
+ * The result is stored in posts.body_normalized — never displayed to users.
+ *
+ * Algorithm (in order):
+ *   1. Lowercase
+ *   2. Strip URLs (http/https)
+ *   3. Strip all punctuation and symbols — keep only letters, numbers, whitespace
+ *   4. Collapse all whitespace to a single space
+ *   5. Trim
+ *   6. Truncate to 280 characters
+ */
+function normalize_body(string $body): string
 {
-    if ( ! is_numeric($num)) return $num;
-
-    if ($num % 100 >= 11 and $num % 100 <= 13)
-    {
-        return $num."th";
-    }
-    elseif ( $num % 10 == 1 )
-    {
-        return $num."st";
-    }
-    elseif ( $num % 10 == 2 )
-    {
-        return $num."nd";
-    }
-    elseif ( $num % 10 == 3 )
-    {
-        return $num."rd";
-    }
-    else
-    {
-        return $num."th";
-    }
+    $n = mb_strtolower($body);
+    $n = (string) preg_replace('~https?://\S+~', '', $n);
+    $n = (string) preg_replace('/[^\p{L}\p{N}\s]/u', '', $n);
+    $n = (string) preg_replace('/\s+/', ' ', $n);
+    $n = trim($n);
+    return mb_substr($n, 0, 280);
 }
 
-db();
-authenticate();
+if (!defined('RUNNING_TESTS')) {
+    db();
+    authenticate();
+}

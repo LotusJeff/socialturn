@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use SocialTurn\Services\StorageService;
+use SocialTurn\Services\ImageService;
+use SocialTurn\Services\TwitterService;
+use SocialTurn\Services\FacebookService;
+use SocialTurn\Services\InstagramService;
 use SocialTurn\Services\TagAppenderService;
 use SocialTurn\Services\QueuePopulationService;
 use SocialTurn\Services\RecycleService;
@@ -15,7 +20,7 @@ use SocialTurn\Services\RecycleService;
  * For each active, posting account:
  *   1. Fetch due scheduled_posts rows
  *   2. Claim each row atomically before attempting to post
- *   3. Call the platform service (stub in Phase 3 — real in Phase 4)
+ *   3. Dispatch to platform service
  *   4. Record outcome in scheduled_posts and post_history
  *   5. Run RecycleService to refill the queue if depth is low
  *
@@ -28,14 +33,32 @@ function post(): void
 {
     global $dbh;
 
-    $tagger  = new TagAppenderService();
-    $queue   = new QueuePopulationService($dbh, $tagger);
-    $recycle = new RecycleService($dbh, $queue);
+    $tagger    = new TagAppenderService();
+    $storage   = new StorageService();
+    $images    = new ImageService($storage);
+    $queue     = new QueuePopulationService($dbh, $tagger, $images);
+    $recycle   = new RecycleService($dbh, $queue);
+    $twitter   = new TwitterService($storage);
+    $facebook  = new FacebookService($dbh, $storage);
+    $instagram = new InstagramService($dbh, $storage);
+
+    // Reset stale locks older than 10 minutes so those rows can be retried.
+    $dbh->exec("UPDATE scheduled_posts SET locked_at = NULL WHERE locked_at < NOW() - INTERVAL 10 MINUTE");
+
+    // Purge activity log entries older than 48 hours — rolling window only.
+    $dbh->exec("DELETE FROM activity_log WHERE created_at < NOW() - INTERVAL 48 HOUR");
 
     $accounts       = cron_fetchActiveAccounts($dbh);
     $postsAttempted = 0;
     $postsSucceeded = 0;
     $postsFailed    = 0;
+
+    $companyId = cron_fetchCompanyId($dbh);
+    if ($companyId > 0) {
+        cron_logActivity($dbh, $companyId, 'cron_run', 'Cron run started.', null, null, [
+            'accounts_found' => count($accounts),
+        ]);
+    }
 
     foreach ($accounts as $account) {
         try {
@@ -49,16 +72,12 @@ function post(): void
 
                 $postsAttempted++;
 
-                // IMPORTANT: $account['access_token'] is passed only to the platform stub.
+                // IMPORTANT: $account['access_token'] is passed only to the platform service.
                 // Tokens must never appear in JSON responses, error logs, or exception messages.
                 // The $account array must never be serialized or logged wholesale.
-                $stub = cron_callPlatformStub(
-                    $account['platform'],
-                    $account['access_token'],
-                    $row['final_body']
-                );
+                $result = cron_dispatchToPlatform($account, $row, $twitter, $facebook, $instagram);
 
-                if ($stub['success']) {
+                if ($result['success']) {
                     cron_markPosted($dbh, (int) $row['id']);
                     try {
                         cron_writePostHistory($dbh, [
@@ -68,14 +87,19 @@ function post(): void
                             'platform'              => $account['platform'],
                             'platform_account_id'   => $account['platform_account_id'],
                             'body_snapshot'         => $row['final_body'],
-                            'image_filename'        => $row['image_filename'],
-                            'platform_post_id'      => $stub['platform_post_id'],
+                            'image_filename'        => $row['final_image_filename'],
+                            'platform_post_id'      => $result['platform_post_id'],
                             'status'                => 'posted',
                             'error_message'         => null,
                         ]);
                     } catch (Throwable) {
                         // post_history write failed — best-effort; scheduled_posts already marked posted.
                     }
+                    cron_logActivity($dbh, (int) $account['company_id'], 'post_success', 'Post sent successfully.',
+                        (int) $account['id'], (int) $account['connected_platform_id'], [
+                            'scheduled_post_id' => (int) $row['id'],
+                            'platform_post_id'  => $result['platform_post_id'],
+                        ]);
                     $postsSucceeded++;
                 } else {
                     cron_markFailed($dbh, (int) $row['id']);
@@ -87,20 +111,32 @@ function post(): void
                             'platform'              => $account['platform'],
                             'platform_account_id'   => $account['platform_account_id'],
                             'body_snapshot'         => $row['final_body'],
-                            'image_filename'        => $row['image_filename'],
+                            'image_filename'        => $row['final_image_filename'],
                             'platform_post_id'      => null,
                             'status'                => 'failed',
-                            'error_message'         => $stub['error'],
+                            'error_message'         => $result['error'],
                         ]);
                     } catch (Throwable) {
                         // post_history write failed — best-effort; scheduled_posts already marked failed.
                     }
+                    cron_logActivity($dbh, (int) $account['company_id'], 'post_failure',
+                        'Post failed: ' . ($result['error'] ?? 'unknown error'),
+                        (int) $account['id'], (int) $account['connected_platform_id'], [
+                            'scheduled_post_id' => (int) $row['id'],
+                        ]);
                     $postsFailed++;
                 }
             }
 
             // Always check queue depth after processing, even when $due was empty.
-            $recycle->check((int) $account['id']);
+            // Returns populate_result array if population was triggered, null otherwise.
+            $recycleResult = $recycle->check((int) $account['id']);
+            if ($recycleResult !== null) {
+                cron_logActivity($dbh, (int) $account['company_id'], 'queue_populate',
+                    'Queue population triggered.',
+                    (int) $account['id'], (int) $account['connected_platform_id'],
+                    $recycleResult);
+            }
 
         } catch (Throwable $e) {
             $postsFailed++;
@@ -137,6 +173,7 @@ function post(): void
  *
  * @return list<array{
  *     id: string,
+ *     company_id: string,
  *     connected_platform_id: string,
  *     platform: string,
  *     access_token: string,
@@ -147,7 +184,7 @@ function post(): void
 function cron_fetchActiveAccounts(PDO $dbh): array
 {
     $stmt = $dbh->prepare(
-        'SELECT a.id, a.connected_platform_id,
+        'SELECT a.id, a.company_id, a.connected_platform_id,
                 cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -169,15 +206,14 @@ function cron_fetchActiveAccounts(PDO $dbh): array
  *     id: string,
  *     post_id: string,
  *     final_body: string,
- *     image_filename: string|null
+ *     final_image_filename: string|null
  * }>
  */
 function cron_fetchDuePosts(PDO $dbh, int $connectedPlatformId): array
 {
     $stmt = $dbh->prepare(
-        "SELECT sp.id, sp.post_id, sp.final_body, p.image_filename
+        "SELECT sp.id, sp.post_id, sp.final_body, sp.final_image_filename
            FROM scheduled_posts sp
-           JOIN posts p ON p.id = sp.post_id
           WHERE sp.connected_platform_id = ?
             AND sp.status = 'pending'
             AND sp.scheduled_time <= NOW()
@@ -208,24 +244,55 @@ function cron_claimPost(PDO $dbh, int $scheduledPostId): bool
 }
 
 /**
- * Platform service stub — replaced in Phase 4 with real service classes.
+ * Dispatch a scheduled post to the correct platform service.
  *
- * Accepts the platform identifier, the stored OAuth token, and the pre-rendered
- * final_body string. The signature is designed so Phase 4 can replace this
- * function body without changing any calling code.
+ * Reads $account['platform'] to select the service, builds the platform-specific
+ * $context array, and calls the uniform post() interface on the selected service.
+ * Returns the service result array unchanged.
  *
- * IMPORTANT: $token must never appear in any log output, response body,
- * or exception message. Pass it only to the platform API client.
+ * Context keys per platform:
+ *   twitter   — empty array (token + tokenSecret carry everything needed)
+ *   facebook  — page_id, connected_platform_id
+ *   instagram — ig_user_id, connected_platform_id
+ *
+ * IMPORTANT: $account['access_token'] and $account['token_secret'] are passed
+ * only to the service post() call — never logged, never serialized, never returned.
  *
  * @return array{success: bool, platform_post_id: string|null, error: string|null}
  */
-function cron_callPlatformStub(string $platform, string $token, string $finalBody): array
-{
-    return [
-        'success'          => true,
-        'platform_post_id' => 'stub_' . uniqid(),
-        'error'            => null,
-    ];
+function cron_dispatchToPlatform(
+    array            $account,
+    array            $scheduledPost,
+    TwitterService   $twitter,
+    FacebookService  $facebook,
+    InstagramService $instagram
+): array {
+    $token       = $account['access_token'];
+    $tokenSecret = $account['token_secret'] ?? null;
+
+    switch ($account['platform']) {
+        case 'twitter':
+            return $twitter->post($scheduledPost, $token, $tokenSecret, []);
+
+        case 'facebook':
+            return $facebook->post($scheduledPost, $token, $tokenSecret, [
+                'page_id'               => $account['platform_account_id'],
+                'connected_platform_id' => $account['connected_platform_id'],
+            ]);
+
+        case 'instagram':
+            return $instagram->post($scheduledPost, $token, $tokenSecret, [
+                'ig_user_id'            => $account['platform_account_id'],
+                'connected_platform_id' => $account['connected_platform_id'],
+            ]);
+
+        default:
+            return [
+                'success'          => false,
+                'platform_post_id' => null,
+                'error'            => 'Unrecognized platform: ' . $account['platform'],
+            ];
+    }
 }
 
 /**
@@ -253,6 +320,54 @@ function cron_markFailed(PDO $dbh, int $scheduledPostId): void
           WHERE id = ?"
     );
     $stmt->execute([$scheduledPostId]);
+}
+
+/**
+ * Returns the company ID for this single-tenant installation.
+ * Reads the first row from companies. Returns 0 if the table is empty.
+ */
+function cron_fetchCompanyId(PDO $dbh): int
+{
+    $stmt = $dbh->prepare('SELECT id FROM companies LIMIT 1');
+    $stmt->execute();
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Writes one row to activity_log.
+ *
+ * Never throws — all exceptions are silently caught so that a logging
+ * failure never disrupts cron posting.
+ *
+ * IMPORTANT: Never pass token data in $message or $context. Tokens must
+ * never appear in logs, responses, or views — see Security Rules.
+ */
+function cron_logActivity(
+    PDO     $dbh,
+    int     $companyId,
+    string  $eventType,
+    string  $message,
+    ?int    $accountId          = null,
+    ?int    $connectedPlatformId = null,
+    ?array  $context            = null
+): void {
+    try {
+        $stmt = $dbh->prepare(
+            'INSERT INTO activity_log
+                    (company_id, account_id, connected_platform_id, event_type, message, context)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $companyId,
+            $accountId,
+            $connectedPlatformId,
+            $eventType,
+            $message,
+            $context !== null ? json_encode($context) : null,
+        ]);
+    } catch (Throwable) {
+        // Best-effort — never let activity logging disrupt cron.
+    }
 }
 
 /**

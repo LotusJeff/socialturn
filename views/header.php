@@ -1,66 +1,128 @@
+<?php
+/**
+ * Application header and navigation partial.
+ *
+ * Loaded by every view. Outputs <head>, opens <body>, and renders the
+ * Bootstrap 5 navbar and flash notification when $noextra is not set.
+ *
+ * Vendored assets — update deliberately, not automatically:
+ *   Bootstrap 5.3.3  — https://getbootstrap.com
+ *   Alpine.js 3.14.1 — https://alpinejs.dev
+ *
+ * All asset references point to local /assets/ paths only.
+ * No CDN links. To update a vendored library, download the new minified
+ * file, replace the file in assets/, and update the version note above.
+ *
+ * Variables expected from the controller:
+ *   $controller  string  Current controller name — used for active nav state
+ *   $action      string  Current action name — used for body class
+ *   $noextra     mixed   When set (any truthy value), navbar and notifications
+ *                        are suppressed. Used by login, setup, setpassword, forgot.
+ */
+?>
 <!DOCTYPE html>
-
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="">
-    <meta name="author" content="">
+    <title>SocialTurn</title>
 
-    <title>Publish to Social Media for Free | SocialTurn</title>
+    <link rel="shortcut icon" type="image/x-icon" href="<?php echo BASE_URL; ?>favicon.ico">
 
-	<link rel="shortcut icon" type="image/x-icon" href="<?php echo BASE_URL;?>favicon.ico">
+    <!-- Bootstrap 5.3.3 -->
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/bootstrap.min.css">
 
-    <!-- Bootstrap core CSS -->
-    <link href="<?php echo BASE_URL;?>assets/css/bootstrap.css" rel="stylesheet">
+    <!-- Application styles -->
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/main.css">
+</head>
 
-	<link href="<?php echo BASE_URL;?>assets/css/image-picker.css" rel="stylesheet">
-	<link href="<?php echo BASE_URL;?>assets/css/bootstrap-select.min.css" rel="stylesheet">
+<body class="<?php echo htmlspecialchars($controller ?? '', ENT_QUOTES, 'UTF-8'); ?> <?php echo htmlspecialchars(($controller ?? '') . '_' . ($action ?? ''), ENT_QUOTES, 'UTF-8'); ?> <?php echo htmlspecialchars(($controller ?? '') . '-' . ($action ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
 
-	<link href="<?php echo BASE_URL;?>assets/css/jasny-bootstrap.min.css" rel="stylesheet">
+<?php if (empty($noextra)): ?>
 
-    <!-- Custom styles for this template -->
-    <link href="<?php echo BASE_URL;?>assets/css/main.css" rel="stylesheet">
+    <!-- ============================================================
+         Navigation
+         ============================================================ -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
 
-    <!-- Fonts from Google Fonts -->
-	<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans:300,400,500,600,700" type="text/css" />
-    <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo BASE_URL; ?>queue/index">
+                <img src="<?php echo BASE_URL; ?>assets/img/logo.png" alt="SocialTurn" height="32">
+                SocialTurn
+            </a>
 
+            <button class="navbar-toggler" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#navbarMain"
+                    aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-      <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
-    <![endif]-->
-  </head>
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
 
-  <body class="<?php echo $controller;?> <?php echo $controller;?>_<?php echo $action;?> <?php echo $controller;?>-<?php echo $action;?>">
+                    <!-- Queue — all authenticated users -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'queue') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>queue/index">Queue</a>
+                    </li>
 
-  <?php if(empty($noextra)):?>
-    <!-- Fixed navbar -->
-    <div class="navbar navbar-default">
-      <div class="container">
-        <div class="navbar-header">
-          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="navbar-brand" href="<?php echo BASE_URL;?>"><img src="<?php echo BASE_URL;?>assets/img/logo.png" title="SocialTurn" style="height:40px"> &nbsp;socialturn</a>
+                    <!-- Content — all authenticated users -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'content') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>content/index">Content</a>
+                    </li>
+
+                    <?php if (hasPermission(1)): ?>
+
+                    <!-- Accounts — admin only -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'accounts') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>accounts">Accounts</a>
+                    </li>
+
+                    <!-- Team — admin only -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'team') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>team">Team</a>
+                    </li>
+
+                    <?php endif; ?>
+
+                    <!-- Logout — all authenticated users -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'users') ? ' active' : ''; ?>"
+                           href="<?php echo BASE_URL; ?>users/logout">Logout</a>
+                    </li>
+
+                </ul>
+            </div>
+
         </div>
-        <div class="navbar-collapse collapse">
-          <ul class="nav navbar-nav navbar-right">
-		    <li <?php if ($controller == 'social'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>">Social</a></li>
-			<?php if (hasPermission(10)):?> 
-			<li <?php if ($controller == 'team'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>team">Team</a></li>
-			<?php endif;?>
-			<?php if (hasPermission(1)):?>           
-			<li <?php if ($controller == 'connect'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>connect">Connect</a></li> 
-			<?php endif;?>
-			<li <?php if ($controller == 'users'):?>class="active"<?php endif;?>><a href="<?php echo BASE_URL;?>users/logout">Logout</a></li>
-          </ul>
-        </div><!--/.nav-collapse -->
-      </div>
+    </nav>
+
+    <!-- ============================================================
+         Flash notifications
+         ============================================================ -->
+    <?php if (!empty($_SESSION['notification'])): ?>
+    <?php
+        $notifType    = $_SESSION['notification']['type']    ?? 'info';
+        $notifMessage = $_SESSION['notification']['message'] ?? '';
+        $alertClass   = match ($notifType) {
+            'success' => 'alert-success',
+            'error'   => 'alert-danger',
+            'warning' => 'alert-warning',
+            default   => 'alert-info',
+        };
+        unset($_SESSION['notification']);
+    ?>
+    <div class="container mt-3">
+        <div class="alert <?php echo $alertClass; ?> alert-dismissible fade show" role="alert">
+            <?php echo htmlspecialchars($notifMessage, ENT_QUOTES, 'UTF-8'); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
     </div>
-	<?php endif;?>
+    <?php endif; ?>
+
+<?php endif; ?>
+
+<!-- Page content begins below -->

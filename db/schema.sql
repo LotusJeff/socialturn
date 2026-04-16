@@ -79,8 +79,9 @@ CREATE TABLE `users` (
     `email`      VARCHAR(255)     NOT NULL                        COMMENT 'Login email address',
     `password`   VARCHAR(255)     NOT NULL                        COMMENT 'bcrypt hash -- never plaintext',
     `type`       TINYINT UNSIGNED NOT NULL DEFAULT 100            COMMENT '1=admin, 100=team member',
-    `active`     TINYINT(1)       NOT NULL DEFAULT 1              COMMENT '0=deactivated, 1=active',
-    `created_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `active`      TINYINT(1)       NOT NULL DEFAULT 1              COMMENT '0=deactivated, 1=active',
+    `last_login`  DATETIME         NULL     DEFAULT NULL           COMMENT 'Set on every successful login — displayed in team dashboard',
+    `created_at`  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_users_email` (`email`),
     KEY `idx_users_company_id` (`company_id`),
@@ -162,6 +163,8 @@ CREATE TABLE `accounts` (
     `default_tags`          JSON          NULL     DEFAULT NULL              COMMENT 'Ordered array of tag strings without # prefix, e.g. ["marketing","saas"]. Appended at send time in array order until platform character limit is reached (Twitter 280, Instagram 2200, Facebook 63206)',
     `is_posting`            TINYINT(1)    NOT NULL DEFAULT 0                 COMMENT '1=actively scheduling and sending; 0=paused or in setup. Content cannot be queued until is_posting=1',
     `is_active`             TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '0=archived (hidden from all views), 1=exists',
+    `dynamic_images_enabled` TINYINT(1)  NOT NULL DEFAULT 0                 COMMENT '1 = generate image from base_image_filename when post has no image; 0 = text-only posts allowed',
+    `base_image_filename`   VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Base image in originals/ used by ImageService::generateFromTemplate(); NULL = no template configured',
     `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_accounts_company_id` (`company_id`),
@@ -307,6 +310,8 @@ CREATE TABLE `posts` (
     `id`             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `account_id`     INT UNSIGNED  NOT NULL                           COMMENT 'Which account this content belongs to',
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
+    `body_normalized` VARCHAR(280) NOT NULL DEFAULT ''                COMMENT 'Normalized body fingerprint for duplicate detection — never displayed',
+    `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author — appended as "-- Author" after post body; affects image overlay layout in ImageService. Never included in image text — post body and attribution are overlaid on image, tags are text-only.',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
@@ -316,6 +321,7 @@ CREATE TABLE `posts` (
     `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_posts_account_id` (`account_id`),
+    KEY `idx_posts_body_normalized` (`account_id`, `body_normalized`),
     KEY `idx_posts_queue_filter` (`account_id`, `is_active`, `is_recyclable`),
     CONSTRAINT `fk_posts_account`
         FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
@@ -340,6 +346,7 @@ CREATE TABLE `scheduled_posts` (
     `scheduled_time`        DATETIME      NOT NULL                           COMMENT 'When this post should be sent',
     `status`                ENUM('pending','posted','failed','skipped') NOT NULL DEFAULT 'pending' COMMENT 'Cron only processes pending rows',
     `final_body`            TEXT          NOT NULL                           COMMENT 'Post body with hashtags appended by TagAppenderService at queue population time; sent verbatim by cron',
+    `final_image_filename`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Processed or generated image filename ready for posting; NULL = text-only post',
     `locked_at`             DATETIME      NULL     DEFAULT NULL              COMMENT 'Set atomically by cron when claiming a row; prevents double-posting on overlapping runs',
     `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -387,6 +394,36 @@ CREATE TABLE `post_history` (
     CONSTRAINT `fk_post_history_scheduled_post`
         FOREIGN KEY (`scheduled_post_id`) REFERENCES `scheduled_posts` (`id`)
         ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- activity_log
+-- Rolling operational event log — purged to 48 hours by cron.
+-- Records cron runs, post outcomes, token events, and queue
+-- population. NOT a permanent audit trail; post_history is.
+-- Tokens must never appear in message or context columns.
+-- ------------------------------------------------------------
+CREATE TABLE `activity_log` (
+    `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `company_id`            INT UNSIGNED  NOT NULL                           COMMENT 'Owning company',
+    `account_id`            INT UNSIGNED  NULL     DEFAULT NULL              COMMENT 'Account context; NULL for company-level events (e.g. cron_run)',
+    `connected_platform_id` INT UNSIGNED  NULL     DEFAULT NULL              COMMENT 'Platform connection context; NULL when not applicable',
+    `event_type`            ENUM(
+                                'cron_run',
+                                'post_success',
+                                'post_failure',
+                                'token_refresh',
+                                'token_verify',
+                                'queue_populate',
+                                'connection_test'
+                            ) NOT NULL                                       COMMENT 'Structured event type for filtering',
+    `message`               TEXT          NOT NULL                           COMMENT 'Human-readable event description',
+    `context`               JSON          NULL     DEFAULT NULL              COMMENT 'Structured event data (counts, IDs, errors); never include tokens',
+    `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_activity_log_company_time`   (`company_id`,            `created_at`),
+    INDEX `idx_activity_log_account_time`   (`account_id`,            `created_at`),
+    INDEX `idx_activity_log_platform_time`  (`connected_platform_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -31,6 +31,17 @@ change must preserve the ability for accounts to post on schedule autonomously.
 | Facebook | Graph API v19+ | Page Access Token | Active — pages only |
 | Instagram | Graph API v19+ | Business Account via Facebook | Active |
 
+### Dispatch Architecture
+`cron_dispatchToPlatform()` in `controllers/cron.php` is the single dispatch
+point for all platform posts. It reads `connected_platforms.platform`, builds
+the platform-specific `$context` array, and calls the uniform `post()` interface
+on the selected service.
+
+Adding a new platform requires two changes only:
+1. A new service class in `src/Services/` extending `AbstractMetaService`
+   (for Meta platforms) or implementing `post()` / `verifyToken()` directly
+2. A new `case` in `cron_dispatchToPlatform()` building the correct `$context`
+
 ### Credential Architecture — Two Layers
 
 **Layer 1 — Developer App Credentials (config.php)**
@@ -157,6 +168,18 @@ Runs every 5 minutes. For each connected platform:
 The cron job does not authenticate. It uses stored tokens only.
 All cron operations must be idempotent — safe to run twice without side effects.
 
+### Post Edit Cascade Rule
+When a post body or attributed_to is edited, ALL pending rows in scheduled_posts
+for that post_id must be deleted before saving the update. Posted/failed/skipped
+history rows are never touched. The post re-enters the queue naturally on the
+next population cycle. This handles the case where a recycled post has been
+re-queued with stale final_body content.
+
+### Share Now
+Creates a scheduled_posts row with scheduled_time = NOW() and status = pending.
+The next cron run (within 5 minutes) picks it up and posts it. No special code
+path needed. UI must display: "Post will publish within 5 minutes."
+
 ---
 
 ## Database Schema
@@ -207,6 +230,9 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 8. The images/ directory must not execute PHP — .htaccess must enforce this.
 9. Never ship with debug mode or verbose error output enabled by default.
 10. Default configuration must be secure — never require users to harden it.
+11. Token encryption at rest is deferred to v2.0. Tokens in connected_platforms
+    are stored as plaintext in v1.0. Documented in README as a known limitation —
+    production installs must use HTTPS and restrict database access.
 
 ---
 
@@ -284,7 +310,7 @@ with PHP hosting. These standards are non-negotiable for every release:
 
 Do not skip ahead. Each phase depends on the previous being stable.
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✓ COMPLETE
 - Composer setup and PSR-4 autoloading
 - Fix password hashing (bcrypt)
 - Fix invite tokens (random_bytes)
@@ -292,12 +318,12 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - PHP 8.2 compatibility pass — fix all deprecations
 - .htaccess security rules for config.php and images/
 
-### Phase 2 — Database
+### Phase 2 — Database ✓ COMPLETE
 - Design and create new schema.sql
 - Write migration files for upgrade from original schema
 - Update db() initialization for new table structure
 
-### Phase 3 — Queue Engine
+### Phase 3 — Queue Engine ✓ COMPLETE
 - Rebuild schedule definition system
 - Rebuild queue population engine with recycle threshold per account
 - Implement is_recyclable toggle on posts
@@ -305,18 +331,20 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Implement post_history logging
 - Implement idempotency checks
 
-### Phase 4 — Platform Integrations
+### Phase 4 — Platform Integrations ✓ COMPLETE
 - src/Services/TwitterService.php — API v2, posting only
 - src/Services/FacebookService.php — Graph API v19+, Page tokens
 - src/Services/InstagramService.php — Graph API via Facebook app
 - Token storage and auto-refresh for Facebook/Instagram
+- AbstractMetaService base class for shared Meta infrastructure
+- cron_dispatchToPlatform() wired in controllers/cron.php
 
-### Phase 5 — Image Creation
+### Phase 5 — Image Creation ✓ COMPLETE
 - Image generation pipeline before posting
 - Support for dynamic text overlay on images
 - Image resizing per platform requirements
 
-### Phase 6 — UI Modernization
+### Phase 6 — UI Modernization ✓ COMPLETE
 - Account connection and management UI
   - OAuth connect flow per platform (Twitter, Facebook, Instagram)
   - Automatic token exchange (short-lived → long-lived) for Meta
@@ -331,24 +359,114 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - Content calendar view
 - Reconnect flow for expired tokens
 
-### Phase 7 — Content Import
+### Phase 7 — Content Import ✓ COMPLETE
 - CSV bulk import (post body + optional image filename)
-- Manual post entry UI
+  - importForm(), importSample(), importProcess(), importErrors() in controllers/content.php
+  - views/content/import.php — upload form with per-account selection, result summary panel
+  - views/content/import_sample.csv — downloadable sample with comment rows
+  - BOM detection, header-column mapping, 5,000-row cap, character limit enforcement
+  - Missing image filenames produce a warning; row is imported without image
+  - Error report downloadable as text file after import
+- Manual post entry UI — create() / store() / edit() / update() in controllers/content.php
 
-### Phase 8 — Release Preparation
-- Complete INSTALL.md
-- Complete README.md with screenshots
-- Clean install test on fresh environment
-- Tag v1.0.0
+### Phase 7b — Duplicate Detection ✓ COMPLETE
+- normalize_body() added to libraries/shared.php
+  - Algorithm: lowercase → strip URLs → strip punctuation → collapse whitespace → trim → truncate 280
+  - Called in store(), update(), and importProcess() on every write
+- Migration 023: body_normalized VARCHAR(280) NOT NULL DEFAULT '' on posts table
+  - Non-unique index on (account_id, body_normalized)
+  - No backfill — existing rows normalize lazily on first edit or re-import
+- Import duplicate detection in importProcess()
+  - Pre-transaction lookup: one query per selected account loads existing body_normalized values
+  - $seenThisImport tracks within-file duplicates per account
+  - Duplicate rows increment $skipped and add to $warnings[]; has_errors not set
+- content_duplicates() action — scoped to accessible accounts
+  - Correlated subquery finds body_normalized values with COUNT > 1 per account
+  - Results grouped in PHP: $groups[$accountId]['posts'][$normalized][]
+  - Route: content/content_duplicates (underscore passes through router unchanged; no PHP built-in collision)
+- views/content/duplicates.php — grouped cards per account, per-post Delete action
+- Find Duplicates button added to content library header action bar
 
-### Phase 9 — Future Roadmap (v2.0)
-The following features are intentionally deferred until v1.0 is stable
-and in production use:
-- AI content generation pipeline (OpenAI/Anthropic/etc.)
-  Concept: user submits a prompt or topic, system calls AI API, generates
-  post variations, user reviews and approves into content library.
-  Do not design or build any part of this in v1.0.
-  Revisit after v1.0 has been in active use.
+### Phase 8a — Unit Testing ✓ COMPLETE
+PHPUnit installed as a dev-only Composer dependency. Test cases written
+locally covering all key components. Pure logic tests (normalize_body,
+TagAppenderService, CSV parsing, input validation) run locally on Windows.
+Full test suite executed on remote Linux server via SSH. Platform API calls
+mocked — no real posts during testing. Tests run against a seeded test
+database.
+
+### Phase 8b — Codebase Cleanup ✓ COMPLETE
+Remove all legacy files, functions, and components no longer in use.
+Dead code audit across all controllers, views, and libraries. Collapse
+all migrations into a single unified schema.sql for fresh installs.
+Verify config.sample.php matches everything used in the codebase.
+
+### Phase 8c — Release Packaging ✓ COMPLETE
+INSTALL.md complete with step-by-step setup and API credential instructions.
+README.md with screenshots. CHANGELOG.md current. config.sample.php
+verified. Tag 0.9.0 on dev branch.
+
+### Phase 9 — Testing & Bug Fix
+Deploy to remote Linux server following INSTALL.md as a clean install test.
+Run PHPUnit automated test suite. Manual testing of all features including
+queue engine, OAuth flows, platform posting, auth, CSV import, and duplicate
+detection. Bug tracking and fixes. Each fix gets a point release (0.9.1,
+0.9.2, etc.). Both automated and manual testing must pass before Phase 10.
+
+### Phase 10 — 1.0 Release
+Merge dev to main. Tag 1.0.0. Public release.
+
+---
+
+## Versioning Strategy
+
+- 0.9.0 — first public tag, feature complete, pre-release
+- 0.9.x — bug fix point releases during Phase 9
+- 1.0.0 — after clean automated and manual test pass on remote server
+
+---
+
+## Testing Approach
+
+- PHPUnit as dev-only Composer dependency, never ships to production
+- Test cases written locally on Windows
+- Full suite executed on remote Linux server via SSH using Claude Code
+- Test database seeded with known data, wiped and reseeded before each run
+- Platform API calls (Twitter, Facebook, Instagram) mocked in all tests
+- Both automated (PHPUnit) and manual testing required before 1.0.0
+
+---
+
+## Future Roadmap (v2.0)
+
+Features explicitly deferred until v1.0 is stable and in production use.
+Do not design or build any part of these in v1.0.
+
+### S3-Compatible Storage Driver
+Replace the current AWS SDK dependency with a lightweight S3-compatible
+HTTP client that works with any S3-compatible object storage provider:
+Cloudflare R2, Backblaze B2, DigitalOcean Spaces, MinIO, Wasabi, etc.
+The StorageService abstraction is already in place — only the driver
+implementation changes. This widens hosting options beyond AWS and removes
+the heavy aws/aws-sdk-php dependency from installs that need cloud storage.
+
+### REST API Layer
+Authenticated REST API allowing remote services to interact with SocialTurn
+programmatically. Minimum scope:
+- Create posts in the content library
+- Trigger Share Now for an existing post
+- Check queue status (pending count, next scheduled time) per account
+This is the foundation for AI integration and third-party tool connectivity.
+Authentication: API key per user stored in the database, passed as a header.
+Never expose OAuth tokens through the API.
+
+### AI Content Generation
+AI-generated post content pushed into the content library via the REST API.
+The preferred integration path is: an external AI service (or a user's own
+script) calls the SocialTurn REST API to create posts — no direct database
+access required. This keeps AI tooling decoupled from the core application
+and allows any model or provider to be used without changes to SocialTurn.
+Do not build AI generation into the application itself.
 
 ---
 
@@ -370,14 +488,8 @@ and in production use:
 - Do not rebuild the suggestions system — it has been intentionally
   removed. Content enters the system via manual entry or CSV import in v1.0.
 - Do not add AI content generation to v1.0 — this is explicitly deferred
-  to v2.0. See Phase 9.
+  to v2.0. The planned integration path is via the REST API layer (also v2.0):
+  AI services push generated content through the API rather than accessing
+  the database directly. See Future Roadmap (v2.0).
 
----
-
-## Technical Debt
-
-### Stale lock cleanup
-Scheduled_posts rows where locked_at is older than 10 minutes should be reset
-to NULL to allow retry. Add to post() after fetchActiveAccounts.
-Deferred from Phase 3d.
 

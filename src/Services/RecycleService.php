@@ -27,50 +27,44 @@ class RecycleService
     /**
      * Check queue depth for an account and trigger population if needed.
      *
+     * Returns the QueuePopulationService result array when population was
+     * triggered, or null when queue depth was above threshold (no action
+     * taken) or when the account could not be resolved.
+     *
+     * Never throws — all exceptions are caught internally.
+     *
      * @return array{
-     *     account_id:      int,
-     *     queue_depth:     int,
-     *     threshold:       int,
-     *     triggered:       bool,
-     *     populate_result: array|null,
-     *     error:           string|null
-     * }
+     *     account_id:         int,
+     *     slots_examined:     int,
+     *     posts_scheduled:    int,
+     *     duplicates_skipped: int,
+     *     tags_truncated:     int,
+     *     error:              string|null
+     * }|null
      */
-    public function check(int $accountId): array
+    public function check(int $accountId): ?array
     {
-        $result = [
-            'account_id'      => $accountId,
-            'queue_depth'     => 0,
-            'threshold'       => 0,
-            'triggered'       => false,
-            'populate_result' => null,
-            'error'           => null,
-        ];
+        $populateResult = null;
 
         try {
             $connectedPlatformId = $this->fetchConnectedPlatformId($accountId);
 
             if ($connectedPlatformId === null) {
-                $result['error'] = "Account {$accountId} not found or has no connected platform.";
-                return $result;
+                return null;
             }
 
             $depth     = $this->countPendingPosts($connectedPlatformId);
             $threshold = $this->fetchThreshold($accountId);
 
-            $result['queue_depth'] = $depth;
-            $result['threshold']   = $threshold;
-
             if ($depth <= $threshold) {
-                $result['triggered']       = true;
-                $result['populate_result'] = $this->queue->populate($accountId);
+                $populateResult = $this->queue->populate($accountId);
             }
 
-        } catch (Throwable $e) {
-            $result['error'] = $e->getMessage();
+        } catch (Throwable) {
+            return null;
         }
 
-        return $result;
+        return $populateResult;
     }
 
     // -----------------------------------------------------------------------

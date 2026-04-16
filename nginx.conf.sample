@@ -1,0 +1,64 @@
+# ============================================================
+# SocialTurn — nginx include snippet
+# ============================================================
+#
+# This is NOT a complete server block. It is an include snippet
+# to be added inside your existing server {} configuration.
+#
+# Usage:
+#   Inside your existing server {} block, add:
+#
+#     include /path/to/socialturn/nginx.conf.sample;
+#
+#   Your existing server block should already define:
+#     - listen, server_name
+#     - SSL certificate and key
+#     - root (absolute path to your SocialTurn installation)
+#     - index index.php
+#     - A PHP-FPM location block with fastcgi_pass
+#
+#   Your PHP-FPM location block must pass PATH_INFO to PHP-FPM:
+#     fastcgi_split_path_info ^(.+?\.php)(/.*)?$;
+#     fastcgi_param PATH_INFO $fastcgi_path_info;
+#
+#   nginx include documentation:
+#   https://nginx.org/en/docs/ngx_core_module.html#include
+# ============================================================
+
+# ------------------------------------------------------------
+# URL rewriting — route all requests through index.php
+#
+# Equivalent to the mod_rewrite block in .htaccess:
+#   RewriteCond %{REQUEST_FILENAME} !-f
+#   RewriteCond %{REQUEST_FILENAME} !-d
+#   RewriteRule ^(.*)$ index.php/$1 [PT,L]
+#
+# try_files checks for an existing file or directory first.
+# If neither exists the request falls through to index.php
+# with the original URI appended as PATH_INFO (e.g. /queue/index),
+# which the application parses to determine controller and action.
+# ------------------------------------------------------------
+location / {
+    try_files $uri $uri/ /index.php$uri$is_args$args;
+}
+
+# ------------------------------------------------------------
+# Security: block direct access to configuration files.
+# Equivalent to the .htaccess <FilesMatch> blocks.
+# ------------------------------------------------------------
+location ~* ^/config(\.sample)?\.php$ {
+    deny all;
+}
+
+location ~* ^/(composer\.(json|lock)|\.gitignore|\.gitkeep)$ {
+    deny all;
+}
+
+# ------------------------------------------------------------
+# Security: block PHP execution inside the images/ directory.
+# Uploaded files must never be interpreted as PHP.
+# Equivalent to images/.htaccess FilesMatch + php_flag engine off.
+# ------------------------------------------------------------
+location ~* ^/images/.*\.ph(p[0-9]?|tml)$ {
+    deny all;
+}

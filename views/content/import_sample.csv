@@ -1,0 +1,9 @@
+# SocialTurn CSV Import — UTF-8 encoding required
+# Columns: body, attributed_to, image_filename, is_recyclable, internal_note
+# Lines starting with # are ignored during import
+# is_recyclable: 1/yes/true = recycle (default), 0/no/false = send once
+# image_filename: must already exist in your images/ directory
+body,attributed_to,image_filename,is_recyclable,internal_note
+"The secret of getting ahead is getting started.",Mark Twain,,1,Motivational series
+"In the middle of every difficulty lies opportunity.",Albert Einstein,,,
+"Success is not final; failure is not fatal.",Winston Churchill,,0,One-shot post

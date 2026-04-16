@@ -18,6 +18,9 @@ define('DS',DIRECTORY_SEPARATOR);
 
 /* Start Session */
 
+ini_set('session.cookie_secure',   '1');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
 session_start();
 
 /* Get Basic Details */
@@ -44,38 +47,38 @@ if (is_file(ROOT.DS.'vendor'.DS.'autoload.php')) {
 
 include_once ROOT.DS.'config.php';
 include_once ROOT.DS.'libraries'.DS.'template.class.php';
-include_once ROOT.DS.'libraries'.DS.'helper.class.php';
-include_once ROOT.DS.'libraries'.DS.'pagination.class.php';
 include_once ROOT.DS.'libraries'.DS.'postmark.class.php';
-include_once ROOT.DS.'libraries'.DS.'uaparser.class.php';
-include_once ROOT.DS.'libraries'.DS.'recaptcha.php';
-
-include_once ROOT.DS.'libraries'.DS.'facebook'.DS.'facebook.php';
-include_once ROOT.DS.'libraries'.DS.'twitter'.DS.'twitter.php';
-include_once ROOT.DS.'libraries'.DS.'twitter'.DS.'twitter2.php';
 
 $template = new Template($controller,$action);
 
-$helper = new Helper();
-
-include_once ROOT.DS.'controllers'.DS.'helpers.php';
 include_once ROOT.DS.'libraries'.DS.'shared.php';
+
+// -----------------------------------------------------------------------
+// First-run check
+// If the users table is empty this is a fresh install. Force the setup
+// flow for every route except: users/setup, users/setpassword (so the
+// password-set link works before any user exists), users/forgot, and cron.
+// -----------------------------------------------------------------------
+$firstRunBypassed = (
+    ($controller === 'users' && in_array($action, ['setup', 'setpassword', 'forgot'], true))
+    || $controller === 'cron'
+);
+if (!$firstRunBypassed) {
+    $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
+    $stmt->execute();
+    if ((int) $stmt->fetchColumn() === 0) {
+        header('Location: ' . BASE_URL . 'users/setup');
+        exit;
+    }
+}
 
 if (!defined('MINIMAL')) {
 	/* Basic Bootstrapping */
 
 	if (is_file(ROOT.DS.'controllers'.DS.$controller.'.php')) {
 
-		if (function_exists($action)) {
-			exit;
-		}
-
 		include ROOT.DS.'controllers'.DS.$controller.'.php';
 
-		if (function_exists('pre')) {
-			pre();
-		}
-		
 		if (function_exists($action)) {
 			call_user_func($action);
 		} else {

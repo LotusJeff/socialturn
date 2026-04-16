@@ -22,8 +22,9 @@ use PDOException;
 class QueuePopulationService
 {
     public function __construct(
-        private readonly PDO $dbh,
-        private readonly TagAppenderService $tagger
+        private readonly PDO                $dbh,
+        private readonly TagAppenderService $tagger,
+        private readonly ImageService       $imageService
     ) {}
 
     /**
@@ -102,7 +103,34 @@ class QueuePopulationService
                 if ($appended['tags_skipped'] > 0) {
                     $result['tags_truncated']++;
                 }
-                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $appended['body']];
+
+                // Determine final_image_filename at population time so cron dispatches
+                // a ready-to-post image without any processing overhead at send time.
+                if (!empty($post['image_filename'])) {
+                    // Post has an image — resize/crop for this platform
+                    $finalImageFilename = $this->imageService->prepareForPlatform(
+                        $post['image_filename'],
+                        $account['platform']
+                    );
+                } elseif (
+                    (int) $account['dynamic_images_enabled'] === 1
+                    && !empty($account['base_image_filename'])
+                ) {
+                    // No post image but account has a template — generate branded image.
+                    // Pass posts.body directly (not the tag-appended body) — tags are
+                    // text-only and must never appear on images.
+                    $finalImageFilename = $this->imageService->generateFromTemplate(
+                        $account['base_image_filename'],
+                        $post['body'],
+                        $account['platform'],
+                        $post['attributed_to'] ?? null
+                    );
+                } else {
+                    // Text-only post
+                    $finalImageFilename = null;
+                }
+
+                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $appended['body'], $finalImageFilename];
             }
 
             $this->insertScheduledPosts($rows);
@@ -128,7 +156,8 @@ class QueuePopulationService
     {
         $stmt = $this->dbh->prepare(
             'SELECT a.id, a.connected_platform_id, a.is_posting,
-                    a.default_tags, cp.platform
+                    a.default_tags, a.dynamic_images_enabled, a.base_image_filename,
+                    cp.platform
                FROM accounts a
                JOIN connected_platforms cp ON cp.id = a.connected_platform_id
               WHERE a.id = ? AND a.is_active = 1'
@@ -224,7 +253,7 @@ class QueuePopulationService
 
         if (!empty($excludePostIds)) {
             $placeholders = implode(',', array_fill(0, count($excludePostIds), '?'));
-            $sql = "SELECT id, body
+            $sql = "SELECT id, body, attributed_to, image_filename
                       FROM posts
                      WHERE account_id = ?
                        AND is_recyclable = 1
@@ -232,7 +261,7 @@ class QueuePopulationService
                        AND id NOT IN ({$placeholders})";
             $params = array_merge([$accountId], $excludePostIds);
         } else {
-            $sql    = 'SELECT id, body FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
+            $sql    = 'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
             $params = [$accountId];
         }
 
@@ -243,7 +272,7 @@ class QueuePopulationService
         // If exclusions left the pool empty, fall back to all recyclable posts
         if (empty($pool) && !empty($excludePostIds)) {
             $stmt = $this->dbh->prepare(
-                'SELECT id, body FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
+                'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
             );
             $stmt->execute([$accountId]);
             $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -451,7 +480,8 @@ class QueuePopulationService
     /**
      * Bulk-inserts scheduled post rows inside a transaction.
      *
-     * @param list<array{0: int, 1: int, 2: string, 3: string}> $rows [connected_platform_id, post_id, scheduled_time, final_body]
+     * @param list<array{0: int, 1: int, 2: string, 3: string, 4: string|null}> $rows
+     *        [connected_platform_id, post_id, scheduled_time, final_body, final_image_filename]
      */
     private function insertScheduledPosts(array $rows): void
     {
@@ -461,16 +491,17 @@ class QueuePopulationService
 
         $placeholders = implode(
             ', ',
-            array_fill(0, count($rows), "(?, ?, ?, ?, 'pending')")
+            array_fill(0, count($rows), "(?, ?, ?, ?, ?, 'pending')")
         );
 
-        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, status) VALUES {$placeholders}";
+        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, final_image_filename, status) VALUES {$placeholders}";
         $flat = [];
-        foreach ($rows as [$connectedPlatformId, $postId, $scheduledTime, $finalBody]) {
+        foreach ($rows as [$connectedPlatformId, $postId, $scheduledTime, $finalBody, $finalImageFilename]) {
             $flat[] = $connectedPlatformId;
             $flat[] = $postId;
             $flat[] = $scheduledTime;
             $flat[] = $finalBody;
+            $flat[] = $finalImageFilename;
         }
 
         $this->dbh->beginTransaction();

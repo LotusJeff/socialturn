@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         stopOnError="false">
+
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <testsuite name="Platform">
+            <directory>tests/Platform</directory>
+        </testsuite>
+    </testsuites>
+
+    <!--
+        Test DB credentials are read from environment variables at runtime.
+        Set these in your shell before running integration or platform tests:
+
+          export TEST_DB_HOST=127.0.0.1
+          export TEST_DB_NAME=socialturn_test
+          export TEST_DB_USER=root
+          export TEST_DB_PASSWORD=secret
+
+        Unit tests (tests/Unit/) do not require a database.
+        Integration and Platform tests require TEST_DB_* to be set.
+    -->
+    <php>
+        <env name="TEST_DB_HOST"     value=""/>
+        <env name="TEST_DB_NAME"     value=""/>
+        <env name="TEST_DB_USER"     value=""/>
+        <env name="TEST_DB_PASSWORD" value=""/>
+    </php>
+
+</phpunit>

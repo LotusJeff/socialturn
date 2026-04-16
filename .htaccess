@@ -1,4 +1,11 @@
 
+# ============================================================
+# SocialTurn — Apache configuration
+# nginx users: use nginx.conf.sample in the repository root
+# instead of this file. See the comment header in that file
+# for include instructions.
+# ============================================================
+
 DirectoryIndex index.php
 
 # -----------------------------------------------------------------------
@@ -18,11 +25,6 @@ DirectoryIndex index.php
 <IfModule mod_rewrite.c>
 # Turn on URL rewriting
 RewriteEngine On
-
-# Put your installation directory here:
-# If your URL is www.example.com/, use /
-# If your URL is www.example.com/kohana/, use /kohana/
-# RewriteBase /
 
 # Do not enable rewriting for files or directories that exist
 RewriteCond %{REQUEST_FILENAME} !-f
