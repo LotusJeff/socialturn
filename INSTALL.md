@@ -2,6 +2,8 @@
 
 ## Requirements
 
+> **Current release:** 0.9.0 pre-release. Feature complete but integration and platform tests are pending live server validation. Not recommended for production use until 1.0.0 is tagged.
+
 - **PHP 8.2+** with extensions: `pdo`, `pdo_mysql`, `gd`, `mbstring`, `finfo`, `curl`
 - **MySQL 8.0+**
 - **Web server:** Apache with mod_rewrite, or nginx with PHP-FPM
