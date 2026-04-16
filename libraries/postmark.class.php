@@ -246,7 +246,7 @@ class Mail_Postmark
 		);
 		
 		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, 'http://api.postmarkapp.com/email');
+		curl_setopt($ch, CURLOPT_URL, 'https://api.postmarkapp.com/email');
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
