@@ -545,7 +545,7 @@ function delete(): void
  * the full ENUM list before being used in the query; invalid values are
  * silently ignored and treated as "no filter."
  */
-function log(): void
+function accounts_log(): void
 {
     global $dbh, $template, $path;
 

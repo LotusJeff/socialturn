@@ -1,6 +1,6 @@
 <?php
 /**
- * Activity log view — rendered by accounts/log.
+ * Activity log view — rendered by accounts/accounts_log.
  *
  * Shows the last 48 hours of activity_log rows for the account's connected
  * platform. Events older than 48 hours are purged by cron and never appear.
@@ -58,12 +58,12 @@ $count = count($rows);
 
     <!-- Filter bar -->
     <div class="d-flex flex-wrap gap-2 mb-3">
-        <a href="<?= BASE_URL ?>accounts/log/<?= (int) $account['id'] ?>"
+        <a href="<?= BASE_URL ?>accounts/accounts_log/<?= (int) $account['id'] ?>"
            class="btn btn-sm <?= $activeFilter === '' ? 'btn-primary' : 'btn-outline-secondary' ?>">
             All
         </a>
         <?php foreach ($eventTypes as $type): ?>
-        <a href="<?= BASE_URL ?>accounts/log/<?= (int) $account['id'] ?>?event_type=<?= urlencode($type) ?>"
+        <a href="<?= BASE_URL ?>accounts/accounts_log/<?= (int) $account['id'] ?>?event_type=<?= urlencode($type) ?>"
            class="btn btn-sm <?= $activeFilter === $type ? 'btn-primary' : 'btn-outline-secondary' ?>">
             <?= htmlspecialchars(eventLabel($type), ENT_QUOTES, 'UTF-8') ?>
         </a>
@@ -151,7 +151,7 @@ $count = count($rows);
                 <?php endif; ?>
             </p>
             <?php if ($activeFilter !== ''): ?>
-            <a href="<?= BASE_URL ?>accounts/log/<?= (int) $account['id'] ?>"
+            <a href="<?= BASE_URL ?>accounts/accounts_log/<?= (int) $account['id'] ?>"
                class="btn btn-sm btn-outline-secondary mt-3">Clear filter</a>
             <?php endif; ?>
         </div>
