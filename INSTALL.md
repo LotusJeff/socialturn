@@ -82,47 +82,93 @@ web server user.
 
 ### 7. Configure your web server
 
-**Apache**
+#### nginx (subdirectory install)
 
-Enable `mod_rewrite` and point the document root to your SocialTurn directory.
-The included `.htaccess` handles all routing and security rules automatically.
+SocialTurn is designed to run as a subdirectory app alongside
+your existing site — for example `https://yourdomain.com/socialturn/`.
+
+Your existing nginx server block handles SSL, domain, root, and
+PHP-FPM. You only need to add the SocialTurn location blocks.
+
+**Option A — Add directly to your existing server block**
+
+Open your existing nginx server block configuration and add
+these location blocks inside the `server {}` block:
+
+```nginx
+# SocialTurn — URL rewriting
+location /socialturn/ {
+    try_files $uri $uri/ /socialturn/index.php$uri$is_args$args;
+}
+
+# SocialTurn — block direct access to configuration files
+location ~* ^/socialturn/config(\.sample)?\.php$ {
+    deny all;
+}
+
+location ~* ^/socialturn/(composer\.(json|lock)|\.gitignore|\.gitkeep)$ {
+    deny all;
+}
+
+# SocialTurn — block PHP execution in images directory
+location ~* ^/socialturn/images/.*\.ph(p[0-9]?|tml)$ {
+    deny all;
+}
+```
+
+Replace `/socialturn/` with your actual subdirectory path if different.
+
+**Option B — Drop-in config file**
+
+If your nginx setup includes a directory that auto-loads
+additional config files (commonly `/etc/nginx/conf.d/` or
+`/etc/nginx/sites-enabled/`), create a new file there:
+
+```bash
+sudo nano /etc/nginx/conf.d/socialturn.conf
+```
+
+Add the same location blocks from Option A into that file
+and save. nginx will pick them up automatically on reload.
+
+This approach keeps SocialTurn's config separate from your
+main server block — easier to manage and remove if needed.
+
+**Both options — reload nginx after making changes:**
+
+```bash
+sudo nginx -t        # test config for errors first
+sudo nginx -s reload # reload if test passes
+```
+
+**PHP-FPM PATH_INFO requirement**
+
+Your existing PHP-FPM location block must pass PATH_INFO
+to PHP or the SocialTurn router will not work. Verify these
+lines are present in your PHP location block:
+
+```nginx
+fastcgi_split_path_info ^(.+?\.php)(/.*)?$;
+fastcgi_param PATH_INFO $fastcgi_path_info;
+```
+
+If they are missing, add them to your existing PHP-FPM location block.
+
+---
+
+#### Apache (subdirectory install)
+
+Enable mod_rewrite and ensure AllowOverride is set to All
+for your install directory. The included `.htaccess` handles
+all routing and security rules automatically.
 
 ```apache
-DocumentRoot /var/www/socialturn
-<Directory /var/www/socialturn>
+<Directory /path/to/yourdomain/socialturn>
     AllowOverride All
 </Directory>
 ```
 
-**nginx**
-
-Point the document root to your SocialTurn directory and include
-`nginx.conf.sample` inside your `server {}` block:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name social.example.com;
-    root /var/www/socialturn;
-    index index.php;
-
-    # SSL certificate configuration here
-
-    include /var/www/socialturn/nginx.conf.sample;
-
-    location ~ \.php {
-        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
-        fastcgi_split_path_info ^(.+?\.php)(/.*)?$;
-        fastcgi_param PATH_INFO $fastcgi_path_info;
-        include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-}
-```
-
-PATH_INFO support is required. The `fastcgi_split_path_info` and
-`fastcgi_param PATH_INFO` lines above are mandatory — without them the
-router cannot parse the URL.
+No additional configuration is needed — `.htaccess` is already in place.
 
 ### 8. Verify config.php is not web-accessible
 
