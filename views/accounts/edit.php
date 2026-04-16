@@ -46,14 +46,14 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 
     <form method="POST" action="<?= BASE_URL ?>accounts/update"
           enctype="multipart/form-data"
-          x-data="{
-              scheduleType: '<?= htmlspecialchars($scheduleType, ENT_QUOTES, 'UTF-8') ?>',
-              interval:     '<?= htmlspecialchars($interval,     ENT_QUOTES, 'UTF-8') ?>',
+          x-data='{
+              scheduleType: "<?= htmlspecialchars($scheduleType, ENT_QUOTES, 'UTF-8') ?>",
+              interval:     "<?= htmlspecialchars($interval,     ENT_QUOTES, 'UTF-8') ?>",
               dynImages:    <?= $dynImages ? 'true' : 'false' ?>,
               slots: <?= $slotTimesJson ?>,
-              addSlot()    { this.slots.push('') },
+              addSlot()    { this.slots.push("") },
               removeSlot(i){ this.slots.splice(i, 1) }
-          }">
+          }'>
 
         <input type="hidden" name="id"         value="<?= (int) $account['id'] ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -174,14 +174,17 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                         </div>
                         <div class="col-auto">
                             <label for="active_hours_end" class="form-label">Active hours end</label>
-                            <select id="active_hours_end" name="active_hours_end" class="form-select" style="max-width:120px">
-                                <?php for ($h = 0; $h <= 23; $h++): ?>
+                            <select id="active_hours_end" name="active_hours_end" class="form-select" style="max-width:200px">
+                                <?php for ($h = 0; $h <= 24; $h++): ?>
                                 <option value="<?= $h ?>" <?= $h === $hoursEnd ? 'selected' : '' ?>>
-                                    <?= sprintf('%02d:00', $h) ?>
+                                    <?= $h === 24 ? '24:00 (midnight — end of day)' : sprintf('%02d:00', $h) ?>
                                 </option>
                                 <?php endfor; ?>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-text mt-1">
+                        Intervals run daily within the selected window. The end hour is exclusive — selecting 22:00 schedules posts until 21:59. Select 24:00 to post through end of day. Cross-midnight windows are not supported — start hour must be earlier than end hour.
                     </div>
 
                 </div>

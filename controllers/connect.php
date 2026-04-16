@@ -53,7 +53,8 @@ function twitter(): void
 
     try {
         $requestToken = $service->getRequestToken(BASE_URL . 'connect/twitterCallback');
-    } catch (Throwable) {
+    } catch (Throwable $e) {
+        error_log('Twitter connect error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Could not connect to Twitter. Check TWITTER_APIKEY and TWITTER_APISECRET in config.php.',

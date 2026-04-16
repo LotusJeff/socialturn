@@ -397,10 +397,19 @@ function update(): void
         : null;
 
     $activeHoursStart = max(0, min(23, (int) ($_POST['active_hours_start'] ?? 8)));
-    $activeHoursEnd   = max(0, min(23, (int) ($_POST['active_hours_end']   ?? 20)));
+    $activeHoursEnd   = max(0, min(24, (int) ($_POST['active_hours_end']   ?? 20)));
 
     $timezone = in_array((string) ($_POST['timezone'] ?? 'UTC'), timezone_identifiers_list(), true)
         ? (string) $_POST['timezone'] : 'UTC';
+
+    if ($scheduleType === 'interval' && $activeHoursStart >= $activeHoursEnd) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Active hours start must be earlier than end. Cross-midnight windows are not supported.',
+        ];
+        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        exit;
+    }
 
     // -----------------------------------------------------------------------
     // Queue settings
@@ -426,6 +435,13 @@ function update(): void
             $accountId, $companyId,
         ]);
 
+        if ($scheduleType === 'time_specific') {
+            $interval         = null;
+            $customMinutes    = null;
+            $activeHoursStart = null;
+            $activeHoursEnd   = null;
+        }
+
         $dbh->prepare(
             "UPDATE account_schedules
                 SET schedule_type = ?, `interval` = ?, custom_interval_minutes = ?,
@@ -437,11 +453,15 @@ function update(): void
             $accountId,
         ]);
 
-        // Always replace slots — delete then re-insert if time_specific
-        $dbh->prepare('DELETE FROM account_schedule_slots WHERE account_id = ?')
-            ->execute([$accountId]);
+        if ($scheduleType === 'interval') {
+            // Clean up any slots left over from a previous time_specific configuration
+            $dbh->prepare('DELETE FROM account_schedule_slots WHERE account_id = ?')
+                ->execute([$accountId]);
+        } else {
+            // time_specific: full replace — delete existing then re-insert submitted slots
+            $dbh->prepare('DELETE FROM account_schedule_slots WHERE account_id = ?')
+                ->execute([$accountId]);
 
-        if ($scheduleType === 'time_specific') {
             $rawSlots = $_POST['time_slots'] ?? [];
             if (is_array($rawSlots)) {
                 $stmt = $dbh->prepare(
