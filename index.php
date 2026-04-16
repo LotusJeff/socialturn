@@ -26,7 +26,12 @@ session_start();
 /* Get Basic Details */
 
 if (empty($_SERVER['PATH_INFO'])) {
-	$_SERVER['PATH_INFO'] = '';
+	$qs = $_SERVER['QUERY_STRING'] ?? '';
+	if (str_starts_with($qs, '/')) {
+		$_SERVER['PATH_INFO'] = strtok($qs, '&');
+	} else {
+		$_SERVER['PATH_INFO'] = '';
+	}
 }
 
 $path = explode("/", (substr($_SERVER['PATH_INFO'],1)));
