@@ -54,7 +54,33 @@ mysql -u your_db_user -p socialturn < db/schema.sql
 This creates all tables. Run this once on a fresh database.
 For upgrades from an existing install, run `db/migrations/` in numbered order instead.
 
-### 6. Configure your web server
+### 6. Set file permissions
+
+The web server user needs write access to the images/ directory
+for image uploads to work.
+
+```bash
+# Set ownership to the web server user
+sudo chown -R www-data:www-data /path/to/socialturn
+
+# Set directory and file permissions
+sudo chmod -R 755 /path/to/socialturn
+
+# Allow the web server to write uploaded images
+sudo chmod -R 775 /path/to/socialturn/images
+```
+
+If your web server runs as a different user, replace `www-data`
+with the correct user. To check:
+
+```bash
+ps aux | grep -E 'apache|nginx|php-fpm' | grep -v grep
+```
+
+The user in the first column of the worker process row is your
+web server user.
+
+### 7. Configure your web server
 
 **Apache**
 
@@ -98,14 +124,14 @@ PATH_INFO support is required. The `fastcgi_split_path_info` and
 `fastcgi_param PATH_INFO` lines above are mandatory — without them the
 router cannot parse the URL.
 
-### 7. Verify config.php is not web-accessible
+### 8. Verify config.php is not web-accessible
 
 Browse directly to `https://yoursite.com/config.php`. You should receive
 a 403 Forbidden response. If you receive a blank page or PHP output,
 your web server is not enforcing the `.htaccess` or nginx rules. Do not
 proceed until this is confirmed.
 
-### 8. Set up the cron job
+### 9. Set up the cron job
 
 Add this to your crontab (`crontab -e`):
 
@@ -120,14 +146,14 @@ The cron job runs every 5 minutes. It checks for pending posts, dispatches
 them to their platforms, and refills the queue when it drops below the
 recycle threshold. It must be running for SocialTurn to post autonomously.
 
-### 9. Complete first-run setup
+### 10. Complete first-run setup
 
 Open your site in a browser. SocialTurn detects that no users exist and
 sends a setup email to the `OWNER_EMAIL` address you configured in `config.php`.
 
 Check your inbox for the setup email and follow the link to set your password.
 
-### 10. Connect your first platform account
+### 11. Connect your first platform account
 
 Log in, navigate to **Accounts**, create an account, and connect it to a
 platform. See [Platform Credentials](#platform-credentials) for what you
@@ -216,7 +242,7 @@ constants: `S3_BUCKET`, `S3_REGION`, `S3_KEY`, `S3_SECRET`.
 ## Security Notes
 
 - `config.php` is blocked by `.htaccess` and `nginx.conf.sample`. Verify
-  the 403 check in step 7 passes before going live.
+  the 403 check in step 8 passes before going live.
 - The `images/` directory blocks PHP execution via `.htaccess` and nginx
   rules. Uploaded files are never interpreted as PHP.
 - HTTPS is mandatory for production installs. OAuth tokens stored in the
