@@ -310,7 +310,7 @@ with PHP hosting. These standards are non-negotiable for every release:
 
 Do not skip ahead. Each phase depends on the previous being stable.
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✓ COMPLETE
 - Composer setup and PSR-4 autoloading
 - Fix password hashing (bcrypt)
 - Fix invite tokens (random_bytes)
@@ -318,12 +318,12 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - PHP 8.2 compatibility pass — fix all deprecations
 - .htaccess security rules for config.php and images/
 
-### Phase 2 — Database
+### Phase 2 — Database ✓ COMPLETE
 - Design and create new schema.sql
 - Write migration files for upgrade from original schema
 - Update db() initialization for new table structure
 
-### Phase 3 — Queue Engine
+### Phase 3 — Queue Engine ✓ COMPLETE
 - Rebuild schedule definition system
 - Rebuild queue population engine with recycle threshold per account
 - Implement is_recyclable toggle on posts
@@ -339,12 +339,12 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - AbstractMetaService base class for shared Meta infrastructure
 - cron_dispatchToPlatform() wired in controllers/cron.php
 
-### Phase 5 — Image Creation
+### Phase 5 — Image Creation ✓ COMPLETE
 - Image generation pipeline before posting
 - Support for dynamic text overlay on images
 - Image resizing per platform requirements
 
-### Phase 6 — UI Modernization
+### Phase 6 — UI Modernization ✓ COMPLETE
 - Account connection and management UI
   - OAuth connect flow per platform (Twitter, Facebook, Instagram)
   - Automatic token exchange (short-lived → long-lived) for Meta
@@ -387,29 +387,53 @@ Do not skip ahead. Each phase depends on the previous being stable.
 - views/content/duplicates.php — grouped cards per account, per-post Delete action
 - Find Duplicates button added to content library header action bar
 
-### Phase 8 — Release Preparation
-- Complete INSTALL.md
-  - Email provider setup — document Postmark as the default transactional email provider. Include:
-    - How to create a free Postmark account at postmarkapp.com (100 emails/month free)
-    - How to create a Server and find the API token
-    - Where to put the values in config.php
-    - Note that alternative providers (Mailjet 200/day free, Resend 3000/month free) can be used
-      by replacing libraries/postmark.class.php with the provider's PHP library and updating
-      send calls in controllers/users.php and controllers/team.php
-    - Note that email is required for: initial setup, team invites, password resets —
-      the app cannot onboard users without a working email provider
-- Complete README.md with screenshots
-- Clean install test on fresh environment
-- Tag v1.0.0
+### Phase 8a — Unit Testing
+PHPUnit installed as a dev-only Composer dependency. Test cases written
+locally covering all key components. Pure logic tests (normalize_body,
+TagAppenderService, CSV parsing, input validation) run locally on Windows.
+Full test suite executed on remote Linux server via SSH. Platform API calls
+mocked — no real posts during testing. Tests run against a seeded test
+database.
 
-### Phase 9 — Future Roadmap (v2.0)
-The following features are intentionally deferred until v1.0 is stable
-and in production use:
-- AI content generation pipeline (OpenAI/Anthropic/etc.)
-  Concept: user submits a prompt or topic, system calls AI API, generates
-  post variations, user reviews and approves into content library.
-  Do not design or build any part of this in v1.0.
-  Revisit after v1.0 has been in active use.
+### Phase 8b — Codebase Cleanup
+Remove all legacy files, functions, and components no longer in use.
+Dead code audit across all controllers, views, and libraries. Collapse
+all migrations into a single unified schema.sql for fresh installs.
+Verify config.sample.php matches everything used in the codebase.
+
+### Phase 8c — Release Packaging
+INSTALL.md complete with step-by-step setup and API credential instructions.
+README.md with screenshots. CHANGELOG.md current. config.sample.php
+verified. Tag 0.9.0 on dev branch.
+
+### Phase 9 — Testing & Bug Fix
+Deploy to remote Linux server following INSTALL.md as a clean install test.
+Run PHPUnit automated test suite. Manual testing of all features including
+queue engine, OAuth flows, platform posting, auth, CSV import, and duplicate
+detection. Bug tracking and fixes. Each fix gets a point release (0.9.1,
+0.9.2, etc.). Both automated and manual testing must pass before Phase 10.
+
+### Phase 10 — 1.0 Release
+Merge dev to main. Tag 1.0.0. Public release.
+
+---
+
+## Versioning Strategy
+
+- 0.9.0 — first public tag, feature complete, pre-release
+- 0.9.x — bug fix point releases during Phase 9
+- 1.0.0 — after clean automated and manual test pass on remote server
+
+---
+
+## Testing Approach
+
+- PHPUnit as dev-only Composer dependency, never ships to production
+- Test cases written locally on Windows
+- Full suite executed on remote Linux server via SSH using Claude Code
+- Test database seeded with known data, wiped and reseeded before each run
+- Platform API calls (Twitter, Facebook, Instagram) mocked in all tests
+- Both automated (PHPUnit) and manual testing required before 1.0.0
 
 ---
 

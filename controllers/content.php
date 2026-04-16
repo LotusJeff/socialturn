@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use SocialTurn\Services\CsvParser;
 use SocialTurn\Services\StorageService;
 use SocialTurn\Services\TagAppenderService;
 
@@ -805,179 +806,37 @@ function importProcess(): void
     $userId              = content_userId();
 
     // -----------------------------------------------------------------------
-    // Open file and skip UTF-8 BOM if present
+    // Parse CSV via CsvParser
     // -----------------------------------------------------------------------
 
     $tmpPath = (string) $_FILES['csv_file']['tmp_name'];
-    $handle  = fopen($tmpPath, 'r');
+    $parsed  = (new CsvParser(new StorageService()))->parse(
+        $tmpPath,
+        $charLimit,
+        $limitPlatform,
+        $isRecyclableDefault
+    );
 
-    if ($handle === false) {
-        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not read uploaded file.'];
+    if ($parsed['parse_error'] !== null) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => $parsed['parse_error']];
         header('Location: ' . BASE_URL . 'content/importForm');
         exit;
     }
 
-    $bom = fread($handle, 3);
-    if ($bom !== "\xEF\xBB\xBF") {
-        rewind($handle);
-    }
-
-    // -----------------------------------------------------------------------
-    // Find header row — first row that is not a comment and not empty
-    // -----------------------------------------------------------------------
-
-    $colBody         = null;
-    $colAttributedTo = null;
-    $colImage        = null;
-    $colRecyclable   = null;
-    $colNote         = null;
-    $headerFound     = false;
-
-    while (($row = fgetcsv($handle)) !== false) {
-        if ($row === [null]) {
-            continue;
-        }
-        $firstCell = trim((string) ($row[0] ?? ''));
-        if ($firstCell === '' || str_starts_with($firstCell, '#')) {
-            continue;
-        }
-        foreach ($row as $i => $col) {
-            switch (strtolower(trim((string) $col))) {
-                case 'body':           $colBody         = $i; break;
-                case 'attributed_to':  $colAttributedTo = $i; break;
-                case 'image_filename': $colImage        = $i; break;
-                case 'is_recyclable':  $colRecyclable   = $i; break;
-                case 'internal_note':  $colNote         = $i; break;
-            }
-        }
-        $headerFound = true;
-        break;
-    }
-
-    if (!$headerFound || $colBody === null) {
-        fclose($handle);
+    if ($parsed['cap_exceeded']) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'CSV must contain a header row with a "body" column.',
+            'message' => 'CSV exceeds the 5,000-row import limit. Split the file and import in batches.',
         ];
         header('Location: ' . BASE_URL . 'content/importForm');
         exit;
     }
 
-    // -----------------------------------------------------------------------
-    // Parse data rows
-    // -----------------------------------------------------------------------
-
-    $rowsToInsert = [];
-    $errors       = [];
-    $warnings     = [];
-    $skipped      = 0;
-    $failed       = 0;
-    $dataRowNum   = 0;
-
-    $storage = new StorageService();
-
-    while (($row = fgetcsv($handle)) !== false) {
-
-        // Skip fgetcsv sentinel for empty lines
-        if ($row === [null]) {
-            continue;
-        }
-
-        // Skip comment rows
-        if (str_starts_with(trim((string) ($row[0] ?? '')), '#')) {
-            continue;
-        }
-
-        // Skip all-empty rows (trailing blank lines etc.)
-        $allEmpty = true;
-        foreach ($row as $cell) {
-            if (trim((string) $cell) !== '') {
-                $allEmpty = false;
-                break;
-            }
-        }
-        if ($allEmpty) {
-            continue;
-        }
-
-        $dataRowNum++;
-
-        // Row cap check — abort before collecting more rows
-        if ($dataRowNum > 5000) {
-            fclose($handle);
-            $_SESSION['notification'] = [
-                'type'    => 'error',
-                'message' => 'CSV exceeds the 5,000-row import limit. Split the file and import in batches.',
-            ];
-            header('Location: ' . BASE_URL . 'content/importForm');
-            exit;
-        }
-
-        // Extract fields
-        $body         = trim((string) ($row[$colBody] ?? ''));
-        $attributedTo = $colAttributedTo !== null
-            ? (trim((string) ($row[$colAttributedTo] ?? '')) ?: null)
-            : null;
-        $imageFile    = $colImage !== null
-            ? trim((string) ($row[$colImage] ?? ''))
-            : '';
-        $recyclable   = $colRecyclable !== null
-            ? trim((string) ($row[$colRecyclable] ?? ''))
-            : '';
-        $note         = $colNote !== null
-            ? (trim((string) ($row[$colNote] ?? '')) ?: null)
-            : null;
-
-        // Empty body — skip and record
-        if ($body === '') {
-            $skipped++;
-            $errors[] = "Row {$dataRowNum}: skipped — body is empty.";
-            continue;
-        }
-
-        // Character limit — fail row
-        $bodyLen = mb_strlen($body);
-        if ($charLimit !== PHP_INT_MAX && $bodyLen > $charLimit) {
-            $failed++;
-            $errors[] = "Row {$dataRowNum}: body is {$bodyLen} characters, exceeds the {$charLimit}-character limit for {$limitPlatform}. Post not imported.";
-            continue;
-        }
-
-        // Image filename — warn and clear if not found in storage
-        $imageFilename = null;
-        if ($imageFile !== '') {
-            if ($storage->exists($imageFile)) {
-                $imageFilename = $imageFile;
-            } else {
-                $warnings[] = "Row {$dataRowNum}: image \"{$imageFile}\" not found in storage — post imported without image.";
-            }
-        }
-
-        // is_recyclable — parse variations, fall back to form default
-        $recyclableLower = strtolower($recyclable);
-        if (in_array($recyclableLower, ['1', 'true', 'yes', 'on'], true)) {
-            $isRecyclable = 1;
-        } elseif (in_array($recyclableLower, ['0', 'false', 'no', 'off'], true)) {
-            $isRecyclable = 0;
-        } else {
-            $isRecyclable = $isRecyclableDefault;
-        }
-
-        $normalized = normalize_body($body);
-
-        $rowsToInsert[] = [
-            'body'            => $body,
-            'body_normalized' => $normalized,
-            'attributed_to'   => $attributedTo,
-            'image_filename'  => $imageFilename,
-            'is_recyclable'   => $isRecyclable,
-            'internal_note'   => $note,
-            'row_num'         => $dataRowNum,
-        ];
-    }
-
-    fclose($handle);
+    $rowsToInsert = $parsed['rows'];
+    $errors       = $parsed['errors'];
+    $warnings     = $parsed['warnings'];
+    $skipped      = $parsed['skipped'];
+    $failed       = $parsed['failed'];
 
     // -----------------------------------------------------------------------
     // Duplicate detection — load existing body_normalized per selected account

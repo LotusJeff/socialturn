@@ -224,7 +224,7 @@ class TwitterService
      * Sets API version to v2 on construction; uploadMedia() temporarily
      * switches to v1.1 and restores v2 in a finally block.
      */
-    private function client(string $token, string $tokenSecret): TwitterOAuth
+    protected function client(string $token, string $tokenSecret): TwitterOAuth
     {
         if (!isset($this->clients[$token])) {
             $client = new TwitterOAuth(

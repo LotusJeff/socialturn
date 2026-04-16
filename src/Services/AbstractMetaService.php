@@ -36,8 +36,13 @@ abstract class AbstractMetaService
 
     public function __construct(
         protected readonly PDO            $dbh,
-        protected readonly StorageService $storage
-    ) {}
+        protected readonly StorageService $storage,
+        ?Client $client = null
+    ) {
+        if ($client !== null) {
+            $this->client = $client;
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Abstract — child classes must implement
