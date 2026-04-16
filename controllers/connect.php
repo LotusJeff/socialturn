@@ -181,6 +181,18 @@ function twitterCallback(): void
  */
 function facebook(): void
 {
+    if (!defined('META_APP_ID') || !defined('META_APP_SECRET')
+        || META_APP_ID     === 'your_facebook_app_id'
+        || META_APP_SECRET === 'your_facebook_app_secret'
+    ) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Could not connect to Facebook. Check META_APP_ID and META_APP_SECRET in config.php.',
+        ];
+        header('Location: ' . BASE_URL . 'accounts');
+        exit;
+    }
+
     $state = bin2hex(random_bytes(16));
     $_SESSION['oauth']['facebook_state'] = $state;
 

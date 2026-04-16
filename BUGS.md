@@ -4,6 +4,7 @@
 
 ### Fixed
 - [0.9.1] accounts/log fatal error — log() conflicts with PHP built-in math function. Fixed: renamed to accounts_log().
+- [0.9.1] Facebook OAuth initiated without checking META_APP_ID and META_APP_SECRET — now shows clear error message matching Twitter pattern.
 
 ### Open
 - Forgot Password set success screen briefly shows "This link has expired or already used" after successful first-time setup. Needs investigation.
