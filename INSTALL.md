@@ -97,12 +97,21 @@ these location blocks inside the `server {}` block:
 
 ```nginx
 # SocialTurn — URL rewriting
+# nginx does not populate PATH_INFO via try_files the same way Apache does.
+# The if/rewrite pattern passes the path as a query string (?/controller/action),
+# which index.php reads from QUERY_STRING when PATH_INFO is empty.
 location /socialturn/ {
-    try_files $uri $uri/ /socialturn/index.php$uri$is_args$args;
+    if (!-e $request_filename){
+        rewrite ^/socialturn/(.*)$ /socialturn/index.php?/$1 last;
+    }
 }
 
 # SocialTurn — block direct access to configuration files
-location ~* ^/socialturn/config(\.sample)?\.php$ {
+# Exact-match locations take priority over regex and prefix locations.
+location = /socialturn/config.php {
+    deny all;
+}
+location = /socialturn/config.sample.php {
     deny all;
 }
 

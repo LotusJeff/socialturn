@@ -33,20 +33,26 @@
 #   RewriteCond %{REQUEST_FILENAME} !-d
 #   RewriteRule ^(.*)$ index.php/$1 [PT,L]
 #
-# try_files checks for an existing file or directory first.
-# If neither exists the request falls through to index.php
-# with the original URI appended as PATH_INFO (e.g. /queue/index),
-# which the application parses to determine controller and action.
+# nginx does not populate PATH_INFO via try_files the same way
+# Apache does. The if/rewrite pattern passes the path as a query
+# string parameter (?/controller/action), which index.php reads
+# from QUERY_STRING when PATH_INFO is empty.
 # ------------------------------------------------------------
 location / {
-    try_files $uri $uri/ /index.php$uri$is_args$args;
+    if (!-e $request_filename){
+        rewrite ^/(.*)$ /index.php?/$1 last;
+    }
 }
 
 # ------------------------------------------------------------
 # Security: block direct access to configuration files.
 # Equivalent to the .htaccess <FilesMatch> blocks.
+# Exact-match locations take priority over regex locations.
 # ------------------------------------------------------------
-location ~* ^/config(\.sample)?\.php$ {
+location = /config.php {
+    deny all;
+}
+location = /config.sample.php {
     deny all;
 }
 
