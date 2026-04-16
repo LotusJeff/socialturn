@@ -1,6 +1,9 @@
 # Live configuration — never commit
 config.php
 
+# Local test/debug files — never commit
+pathtest.php
+
 # Uploaded images — ignore all image files but track directory structure
 # /images/** (recursive) rather than /images/* (one level) so processed/ and
 # generated/ subdirectory contents are also covered.
