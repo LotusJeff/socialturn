@@ -437,6 +437,92 @@ Merge dev to main. Tag 1.0.0. Public release.
 
 ---
 
+## Future Roadmap (v0.9.5) — Connect Flow and Multi-Account Redesign
+
+**Required before v1.0.0 tag. Do not begin implementation until base system
+bugs are resolved and manually tested (Phase 9 complete).**
+
+### Background
+
+The current architecture stores platform app credentials (TWITTER_API_KEY,
+TWITTER_API_SECRET, META_APP_ID, META_APP_SECRET) in config.php as shared
+constants. This limits each platform to one developer app per installation,
+making it impossible to connect two Twitter accounts that use separate
+developer apps. This redesign moves credentials to the database and rebuilds
+the connect flow as a guided wizard.
+
+### Schema Changes Required
+
+- Add `app_key` and `app_secret` columns to `connected_platforms`
+- These store the developer app credentials per connection
+- config.php platform credential constants become optional fallback defaults
+  or are removed entirely
+- Migration required
+
+### Connect Flow Redesign
+
+Replace the current single-click connect buttons with a guided multi-step
+wizard per platform.
+
+**Step 1 — Platform selection and documentation**
+- User selects which platform to connect
+- Screen displays step-by-step instructions for obtaining developer app
+  credentials for that platform
+- For Twitter/X: create a project and app at developer.twitter.com, set
+  permissions to Read and Write, add callback URL, copy Consumer Key and
+  Consumer Secret
+- For Facebook: create an app at developers.facebook.com, add Facebook Login
+  and Instagram Graph API products, copy App ID and App Secret
+- For Instagram: connected through Facebook app — no separate credentials needed
+
+**Step 2 — Credential entry**
+- Form fields for app credentials (pre-populated from config.php values if
+  present as defaults)
+- User can enter account-specific credentials
+- Credentials validated before proceeding to OAuth
+
+**Step 3 — OAuth authorization**
+- Redirect to platform OAuth with the entered credentials
+- On callback, store both app credentials and OAuth tokens in
+  connected_platforms
+
+### Account and Sub-Account Model Redesign
+
+- A connected platform becomes the parent record
+- Under each connected platform, user can create multiple posting schedules
+  (sub-accounts) each with their own content pool, schedule, and settings
+- This replaces the current model where accounts reference a
+  connected_platform_id
+- Enables Brand X Twitter to have both a Marketing schedule and a Promotional
+  schedule under the same Twitter connection
+
+### Service Class Changes
+
+- TwitterService, FacebookService, InstagramService currently read app
+  credentials from PHP constants
+- Redesign to accept app_key and app_secret as constructor parameters or via
+  the context array passed from cron
+- cron_dispatchToPlatform() reads app credentials from connected_platforms
+  row and passes to service class
+
+### Impact
+
+- Touches: connect flow, schema, service classes, cron dispatch, account
+  management UI, config.php
+- config.php platform credential constants removed or made optional
+- Fully backward compatible migration path for existing installs
+
+### Implementation Order
+
+1. Schema migration — add app_key, app_secret to connected_platforms
+2. Service class updates — accept credentials as parameters
+3. Cron dispatch update — pass credentials from DB
+4. Connect wizard UI — multi-step flow per platform
+5. Account/sub-account model — parent/child restructure
+6. config.php cleanup — remove or deprecate platform credential constants
+
+---
+
 ## Future Roadmap (v2.0)
 
 Features explicitly deferred until v1.0 is stable and in production use.

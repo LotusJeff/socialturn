@@ -380,6 +380,15 @@ function update(): void
         }
     }
 
+    if ($dynamicImages === 1 && empty($baseImageFilename)) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'A base image is required when dynamic images are enabled. Upload an image or disable dynamic images.',
+        ];
+        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        exit;
+    }
+
     // -----------------------------------------------------------------------
     // Schedule
     // -----------------------------------------------------------------------
