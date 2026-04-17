@@ -53,6 +53,10 @@ class RecycleService
                 return null;
             }
 
+            if (!$this->fetchSchedulingEnabled($accountId)) {
+                return null;
+            }
+
             $depth     = $this->countPendingPosts($connectedPlatformId);
             $threshold = $this->fetchThreshold($accountId);
 
@@ -106,6 +110,21 @@ class RecycleService
         $stmt->execute([$connectedPlatformId]);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Returns true if automated scheduling is enabled for this account.
+     * Falls back to false if no row exists — safe default prevents unintended population.
+     */
+    private function fetchSchedulingEnabled(int $accountId): bool
+    {
+        $stmt = $this->dbh->prepare(
+            'SELECT scheduling_enabled FROM account_settings WHERE account_id = ?'
+        );
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false && (bool) $row['scheduling_enabled'];
     }
 
     /**

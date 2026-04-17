@@ -21,7 +21,10 @@ $hoursEnd      = (int)    ($schedule['active_hours_end']     ?? 20);
 $tz            = (string) ($schedule['timezone']             ?? 'UTC');
 $threshold     = (int)    ($settings['recycle_threshold']    ?? 10);
 $lookahead     = (int)    ($settings['recycle_lookahead_days'] ?? 30);
-$dynImages     = (int)    ($account['dynamic_images_enabled'] ?? 0);
+$dynImages         = (int) ($account['dynamic_images_enabled']     ?? 0);
+$schedulingEnabled = (int) ($settings['scheduling_enabled']        ?? 0);
+$minPosts          = defined('SCHEDULE_MIN_POSTS') ? (int) SCHEDULE_MIN_POSTS : 25;
+$canEnableSchedule = ($schedulingEnabled === 1) || ($activePostCount >= $minPosts);
 
 // Build JSON-safe slot list for Alpine.js initialisation
 $slotTimes = array_map(
@@ -50,6 +53,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
               scheduleType: "<?= htmlspecialchars($scheduleType, ENT_QUOTES, 'UTF-8') ?>",
               interval:     "<?= htmlspecialchars($interval,     ENT_QUOTES, 'UTF-8') ?>",
               dynImages:    <?= $dynImages ? 'true' : 'false' ?>,
+              schedulingOn: <?= $schedulingEnabled ? 'true' : 'false' ?>,
               slots: <?= $slotTimesJson ?>,
               addSlot()    { this.slots.push("") },
               removeSlot(i){ this.slots.splice(i, 1) }
@@ -115,6 +119,28 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
         <div class="card mb-4">
             <div class="card-header fw-semibold">Schedule</div>
             <div class="card-body">
+
+                <div class="form-check mb-2">
+                    <input type="checkbox" id="scheduling_enabled" name="scheduling_enabled"
+                           class="form-check-input" value="1"
+                           x-model="schedulingOn"
+                           <?= $schedulingEnabled ? 'checked' : '' ?>
+                           <?= !$canEnableSchedule ? 'disabled' : '' ?>>
+                    <label for="scheduling_enabled" class="form-check-label fw-semibold">
+                        Enable automated scheduling
+                    </label>
+                </div>
+                <?php if (!$canEnableSchedule): ?>
+                <div class="text-muted small mb-3">
+                    Automated scheduling requires at least <?= $minPosts ?> active recyclable posts — you currently have <?= $activePostCount ?>.
+                </div>
+                <?php else: ?>
+                <div class="form-text mb-3">
+                    When enabled, the queue population engine automatically refills this account's schedule.
+                </div>
+                <?php endif; ?>
+
+                <div x-show="schedulingOn" x-cloak>
 
                 <div class="mb-3">
                     <label class="form-label">Schedule type</label>
@@ -231,6 +257,8 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                         All schedule times are interpreted in this timezone.
                     </div>
                 </div>
+
+                </div><!-- end x-show="schedulingOn" -->
 
             </div>
         </div>

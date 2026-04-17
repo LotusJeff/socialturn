@@ -42,6 +42,12 @@ define('RECYCLE_THRESHOLD_DEFAULT', 10);
 // Per-account settings take precedence over this value. Recommended: 14–30.
 define('RECYCLE_LOOKAHEAD_DAYS', 30);
 
+// Minimum number of active, recyclable posts required before automated
+// scheduling can be enabled for an account. Prevents the queue engine from
+// running on accounts with too little content to cycle meaningfully.
+// is_active = 1 AND is_recyclable = 1 posts are counted. Recommended: 25.
+define('SCHEDULE_MIN_POSTS', 25);
+
 // -----------------------------------------------------------------------
 // Facebook / Instagram
 // -----------------------------------------------------------------------

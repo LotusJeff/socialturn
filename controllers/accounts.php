@@ -182,8 +182,8 @@ function store(): void
 
         $dbh->prepare(
             'INSERT INTO account_settings
-                 (account_id, recycle_threshold, recycle_lookahead_days)
-             VALUES (?, ?, ?)'
+                 (account_id, recycle_threshold, recycle_lookahead_days, scheduling_enabled)
+             VALUES (?, ?, ?, 0)'
         )->execute([$accountId, $threshold, $lookahead]);
 
         $dbh->commit();
@@ -266,14 +266,21 @@ function edit(): void
         }
     }
 
-    $template->set('account',    $account);
-    $template->set('schedule',   $schedule);
-    $template->set('settings',   $settings);
-    $template->set('slots',      $slots);
-    $template->set('platforms',  $platforms);
-    $template->set('tagDisplay', $tagDisplay);
-    $template->set('timezones',  timezone_identifiers_list());
-    $template->set('csrfToken',  csrf_token());
+    $stmt = $dbh->prepare(
+        'SELECT COUNT(*) FROM posts WHERE account_id = ? AND is_active = 1 AND is_recyclable = 1'
+    );
+    $stmt->execute([$accountId]);
+    $activePostCount = (int) $stmt->fetchColumn();
+
+    $template->set('account',         $account);
+    $template->set('schedule',        $schedule);
+    $template->set('settings',        $settings);
+    $template->set('slots',           $slots);
+    $template->set('platforms',       $platforms);
+    $template->set('tagDisplay',      $tagDisplay);
+    $template->set('timezones',       timezone_identifiers_list());
+    $template->set('activePostCount', $activePostCount);
+    $template->set('csrfToken',       csrf_token());
 }
 
 /**
@@ -424,8 +431,35 @@ function update(): void
     // Queue settings
     // -----------------------------------------------------------------------
 
-    $recycleThreshold = max(1, (int) ($_POST['recycle_threshold']     ?? 10));
-    $lookaheadDays    = max(1, (int) ($_POST['recycle_lookahead_days'] ?? 30));
+    $recycleThreshold  = max(1, (int) ($_POST['recycle_threshold']     ?? 10));
+    $lookaheadDays     = max(1, (int) ($_POST['recycle_lookahead_days'] ?? 30));
+    $schedulingEnabled = isset($_POST['scheduling_enabled']) ? 1 : 0;
+
+    // Enforce minimum post count only when enabling (0 → 1); already-enabled accounts are not rechecked.
+    if ($schedulingEnabled === 1) {
+        $stmt = $dbh->prepare('SELECT scheduling_enabled FROM account_settings WHERE account_id = ?');
+        $stmt->execute([$accountId]);
+        $currentEnabled = (int) ($stmt->fetchColumn() ?: 0);
+
+        if ($currentEnabled === 0) {
+            $stmt = $dbh->prepare(
+                'SELECT COUNT(*) FROM posts WHERE account_id = ? AND is_active = 1 AND is_recyclable = 1'
+            );
+            $stmt->execute([$accountId]);
+            $activePostCount = (int) $stmt->fetchColumn();
+            $minPosts = defined('SCHEDULE_MIN_POSTS') ? (int) SCHEDULE_MIN_POSTS : 25;
+
+            if ($activePostCount < $minPosts) {
+                $_SESSION['notification'] = [
+                    'type'    => 'error',
+                    'message' => 'Automated scheduling requires at least ' . $minPosts
+                               . ' active recyclable posts. You currently have ' . $activePostCount . '.',
+                ];
+                header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+                exit;
+            }
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Write — single transaction covers all tables
@@ -495,9 +529,9 @@ function update(): void
 
         $dbh->prepare(
             'UPDATE account_settings
-                SET recycle_threshold = ?, recycle_lookahead_days = ?
+                SET recycle_threshold = ?, recycle_lookahead_days = ?, scheduling_enabled = ?
               WHERE account_id = ?'
-        )->execute([$recycleThreshold, $lookaheadDays, $accountId]);
+        )->execute([$recycleThreshold, $lookaheadDays, $schedulingEnabled, $accountId]);
 
         // Post-edit cascade: clear pending queue so it repopulates with the new schedule
         $dbh->prepare(
