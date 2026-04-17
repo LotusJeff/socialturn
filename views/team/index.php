@@ -114,4 +114,70 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
 
     <?php endif; ?>
 
+    <?php if (!empty($pendingInvites)): ?>
+
+    <h2 class="h5 mt-4 mb-3">Pending Invitations</h2>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Invited</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($pendingInvites as $invite): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars((string) $invite['email'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="text-muted">—</td>
+                        <td><span class="badge bg-warning text-dark">Pending</span></td>
+                        <td class="text-muted small">
+                            <?php echo date('M j, Y', strtotime((string) $invite['created_at'])); ?>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2 justify-content-end flex-wrap">
+
+                                <!-- Resend invite — non-destructive, no confirm needed -->
+                                <form method="POST"
+                                      action="<?php echo BASE_URL; ?>team/resendInvite">
+                                    <input type="hidden" name="csrf_token"
+                                           value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <input type="hidden" name="invite_id"
+                                           value="<?php echo (int) $invite['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        Resend invite
+                                    </button>
+                                </form>
+
+                                <!-- Revoke invite — destructive, Alpine confirm -->
+                                <form method="POST"
+                                      action="<?php echo BASE_URL; ?>team/revokeInvite"
+                                      x-data>
+                                    <input type="hidden" name="csrf_token"
+                                           value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <input type="hidden" name="invite_id"
+                                           value="<?php echo (int) $invite['id']; ?>">
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                            @click.prevent="window.confirm('Revoke this invitation?') && $el.closest('form').submit()">
+                                        Revoke
+                                    </button>
+                                </form>
+
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <?php endif; ?>
+
 </div>

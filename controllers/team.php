@@ -25,11 +25,14 @@ function team_companyId(): int {
 }
 
 /**
- * Team index — lists all users, including inactive ones.
+ * Team index — lists all confirmed users (including inactive) and pending invites.
  * Inactive users float to the bottom via ORDER BY active DESC.
+ * Pending invites are fetched separately and rendered as a distinct section.
  */
 function index(): void {
     global $dbh, $template;
+
+    $companyId = team_companyId();
 
     $stmt = $dbh->prepare(
         'SELECT id, email, type, active, last_login
@@ -37,11 +40,21 @@ function index(): void {
           WHERE company_id = ?
           ORDER BY active DESC, type ASC, email ASC'
     );
-    $stmt->execute([team_companyId()]);
+    $stmt->execute([$companyId]);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('users',     $users);
-    $template->set('csrfToken', csrf_token());
+    $stmt = $dbh->prepare(
+        'SELECT id, email, created_at
+           FROM invites
+          WHERE company_id = ? AND used_at IS NULL
+          ORDER BY created_at DESC'
+    );
+    $stmt->execute([$companyId]);
+    $pendingInvites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $template->set('users',          $users);
+    $template->set('pendingInvites', $pendingInvites);
+    $template->set('csrfToken',      csrf_token());
 }
 
 /**
@@ -114,6 +127,120 @@ function invited(): void {
 
     $template->set('email',     $email);
     $template->set('csrfToken', csrf_token());
+}
+
+/**
+ * Resend invite — POST: replaces the pending invite token and re-sends the email.
+ *
+ * Guards: invite must belong to this company and still be unused (used_at IS NULL).
+ * Uses the same DELETE+INSERT token pattern as invited() and forceReset().
+ */
+function resendInvite(): void {
+    global $dbh;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Location: ' . BASE_URL . 'team');
+        exit;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . BASE_URL . 'team');
+        exit;
+    }
+
+    $companyId = team_companyId();
+    $inviteId  = (int) ($_POST['invite_id'] ?? 0);
+
+    $stmt = $dbh->prepare(
+        'SELECT id, email FROM invites WHERE id = ? AND company_id = ? AND used_at IS NULL'
+    );
+    $stmt->execute([$inviteId, $companyId]);
+    $invite = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($invite['id'])) {
+        error404();
+    }
+
+    $email = (string) $invite['email'];
+
+    $dbh->prepare('DELETE FROM invites WHERE company_id = ? AND email = ? AND used_at IS NULL')
+        ->execute([$companyId, $email]);
+
+    $token = bin2hex(random_bytes(32));
+
+    $dbh->prepare('INSERT INTO invites (company_id, email, token) VALUES (?, ?, ?)')
+        ->execute([$companyId, $email, $token]);
+
+    try {
+        Mail_Postmark::compose()
+            ->to($email)
+            ->subject("You've been invited to SocialTurn")
+            ->messagePlain(
+                "You've been invited to join a SocialTurn account.\n\n" .
+                "Click the link below to set your password and get started:\n\n" .
+                BASE_URL . 'users/setpassword/' . $token . "\n\n" .
+                "This link expires in 48 hours.\n\n" .
+                "If you were not expecting this invitation, you can ignore this email."
+            )
+            ->send();
+
+        $_SESSION['notification'] = [
+            'type'    => 'success',
+            'message' => 'Invite resent to ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '.',
+        ];
+    } catch (Throwable) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Token refreshed but the email could not be sent. Check Postmark settings in config.php.',
+        ];
+    }
+
+    header('Location: ' . BASE_URL . 'team');
+    exit;
+}
+
+/**
+ * Revoke invite — POST: hard-deletes a pending invite row.
+ *
+ * No user record exists yet, so there is nothing to soft-delete.
+ * Guard: invite must belong to this company.
+ */
+function revokeInvite(): void {
+    global $dbh;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Location: ' . BASE_URL . 'team');
+        exit;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . BASE_URL . 'team');
+        exit;
+    }
+
+    $companyId = team_companyId();
+    $inviteId  = (int) ($_POST['invite_id'] ?? 0);
+
+    $stmt = $dbh->prepare(
+        'SELECT id, email FROM invites WHERE id = ? AND company_id = ?'
+    );
+    $stmt->execute([$inviteId, $companyId]);
+    $invite = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($invite['id'])) {
+        error404();
+    }
+
+    $dbh->prepare('DELETE FROM invites WHERE id = ? AND company_id = ?')
+        ->execute([$inviteId, $companyId]);
+
+    $_SESSION['notification'] = [
+        'type'    => 'success',
+        'message' => 'Invite for ' . htmlspecialchars((string) $invite['email'], ENT_QUOTES, 'UTF-8') . ' has been revoked.',
+    ];
+
+    header('Location: ' . BASE_URL . 'team');
+    exit;
 }
 
 /**
