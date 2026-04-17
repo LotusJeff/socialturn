@@ -13,6 +13,8 @@ manual intervention.
 **Never break the queue engine.** It is the core of the application. Every
 change must preserve the ability for accounts to post on schedule autonomously.
 
+Development workflow: See DEVELOPMENT_PROCESS.md in the repo root for the full build process, templates, and quality gates.
+
 ---
 
 ## Current Stack
@@ -21,6 +23,15 @@ change must preserve the ability for accounts to post on schedule autonomously.
 - Apache with mod_rewrite (all requests route through index.php)
 - Composer for dependency management
 - Bootstrap 5, vanilla JS — no frontend build tools
+
+---
+
+## Deployment
+
+- Live environment: https://polisci101.com/socialturn/
+- Server: PHP 8.3, nginx + PHP-FPM, MySQL 8.0
+- Branch: master
+- Deployed: April 2026
 
 ---
 
@@ -406,7 +417,7 @@ INSTALL.md complete with step-by-step setup and API credential instructions.
 README.md with screenshots. CHANGELOG.md current. config.sample.php
 verified. Tag 0.9.0 on dev branch.
 
-### Phase 9 — Testing & Bug Fix
+### Phase 9 — Testing & Bug Fix — IN PROGRESS
 Deploy to remote Linux server following INSTALL.md as a clean install test.
 Run PHPUnit automated test suite. Manual testing of all features including
 queue engine, OAuth flows, platform posting, auth, CSV import, and duplicate
@@ -437,6 +448,29 @@ Merge dev to main. Tag 1.0.0. Public release.
 
 ---
 
+## Phase 9 Bug Fix Log
+
+### Fixed
+- `log()` naming collision in `accounts.php` — renamed to `accounts_log()` (PHP built-in conflict)
+- Facebook OAuth initiated without credential check — pre-flight validation added matching Twitter pattern
+- Alpine.js x-data double-quote conflict in `views/accounts/edit.php` — outer attribute delimiter changed to single quotes
+- Account schedule save — slots deleted unconditionally on every save regardless of schedule_type — fixed to branch by schedule type
+- Account schedule save — `active_hours_start` and `active_hours_end` defined NOT NULL prevented nulling for time_specific mode — migration 024 added to allow NULL
+- Active hours boundary — extended to support 24 (end of day) so posts can run through 23:xx
+- Cross-midnight validation added — server-side check rejects `active_hours_start >= active_hours_end` with clear error message
+- `index.php` PATH_INFO fallback — added QUERY_STRING parsing for nginx subdirectory installs using if/rewrite pattern
+- Postmark API endpoint — `http://` changed to `https://` in `libraries/postmark.class.php`
+- `nginx.conf.sample` — updated with verified working subdirectory install config using if/rewrite pattern and exact match deny rules
+- `INSTALL.md` — updated with subdirectory install instructions, file permissions step, Postmark sender verification, DKIM/SPF DNS guidance
+- Twitter credential naming — `config.sample.php` and `INSTALL.md` updated to note Consumer Key/Consumer Secret labeling in Twitter developer portal
+- Migration 024 — `active_hours_start` and `active_hours_end` changed to NULL DEFAULT NULL in `account_schedules`
+
+### Open
+- Password reset link shows "expired or already used" message after successful first-time password set — needs investigation
+- Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
+
+---
+
 ## Future Roadmap (v0.9.5) — Connect Flow and Multi-Account Redesign
 
 **Required before v1.0.0 tag. Do not begin implementation until base system
@@ -444,8 +478,8 @@ bugs are resolved and manually tested (Phase 9 complete).**
 
 ### Background
 
-The current architecture stores platform app credentials (TWITTER_API_KEY,
-TWITTER_API_SECRET, META_APP_ID, META_APP_SECRET) in config.php as shared
+The current architecture stores platform app credentials (TWITTER_APIKEY,
+TWITTER_APISECRET, META_APP_ID, META_APP_SECRET) in config.php as shared
 constants. This limits each platform to one developer app per installation,
 making it impossible to connect two Twitter accounts that use separate
 developer apps. This redesign moves credentials to the database and rebuilds
@@ -468,16 +502,15 @@ wizard per platform.
 - User selects which platform to connect
 - Screen displays step-by-step instructions for obtaining developer app
   credentials for that platform
-- For Twitter/X: create a project and app at developer.twitter.com, set
-  permissions to Read and Write, add callback URL, copy Consumer Key and
-  Consumer Secret
-- For Facebook: create an app at developers.facebook.com, add Facebook Login
-  and Instagram Graph API products, copy App ID and App Secret
-- For Instagram: connected through Facebook app — no separate credentials needed
+- Twitter/X: create project and app at developer.twitter.com, set Read and
+  Write permissions, add callback URL, copy Consumer Key and Consumer Secret
+- Facebook: create app at developers.facebook.com, add Facebook Login and
+  Instagram Graph API products, copy App ID and App Secret
+- Instagram: connected through Facebook app — no separate credentials needed
 
 **Step 2 — Credential entry**
-- Form fields for app credentials (pre-populated from config.php values if
-  present as defaults)
+- Form fields for app credentials
+- Pre-populated from config.php values if present as defaults
 - User can enter account-specific credentials
 - Credentials validated before proceeding to OAuth
 
@@ -491,10 +524,9 @@ wizard per platform.
 - A connected platform becomes the parent record
 - Under each connected platform, user can create multiple posting schedules
   (sub-accounts) each with their own content pool, schedule, and settings
-- This replaces the current model where accounts reference a
-  connected_platform_id
-- Enables Brand X Twitter to have both a Marketing schedule and a Promotional
-  schedule under the same Twitter connection
+- Replaces current model where accounts reference a connected_platform_id
+- Enables Brand X Twitter to have both a Marketing and Promotional schedule
+  under the same Twitter connection
 
 ### Service Class Changes
 

@@ -1,6 +1,8 @@
 
 # DEVELOPMENT_PROCESS.md
 
+> Claude Code sessions: always read CLAUDE.md first to orient on current project state, active phase, and any open bugs before beginning work.
+
 A structured workflow for building SocialTurn features—planning before code, review at every stage, and explicit confirmation before moving forward.
 
 ## Four Stages: Plan → Review → Confirm → Build
