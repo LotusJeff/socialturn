@@ -52,7 +52,7 @@
 --
 -- ============================================================
 
-SET NAMES utf8mb4;
+SET NAMES 'utf8mb4';
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ------------------------------------------------------------
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `id`         INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     `company_id` INT UNSIGNED     NOT NULL                        COMMENT 'Owning company',
     `email`      VARCHAR(255)     NOT NULL                        COMMENT 'Login email address',
-    `password`   VARCHAR(255)     NOT NULL                        COMMENT 'bcrypt hash -- never plaintext',
+    `password`   VARCHAR(255)     NOT NULL                        COMMENT 'bcrypt hash - never plaintext',
     `type`       TINYINT UNSIGNED NOT NULL DEFAULT 100            COMMENT '1=admin, 100=team member',
     `active`      TINYINT(1)       NOT NULL DEFAULT 1              COMMENT '0=deactivated, 1=active',
     `last_login`  DATETIME         NULL     DEFAULT NULL           COMMENT 'Set on every successful login — displayed in team dashboard',
@@ -124,9 +124,9 @@ CREATE TABLE IF NOT EXISTS `connected_platforms` (
     `platform`            ENUM('twitter','facebook','instagram') NOT NULL   COMMENT 'Platform identifier',
     `platform_account_id` VARCHAR(100)   NOT NULL                           COMMENT 'Platform own ID: FB Page ID, Twitter user ID, IG account ID',
     `platform_name`       VARCHAR(255)   NULL     DEFAULT NULL              COMMENT 'Display name as it appears on the platform',
-    `platform_username`   VARCHAR(255)   NULL     DEFAULT NULL              COMMENT 'Handle or slug -- display only',
+    `platform_username`   VARCHAR(255)   NULL     DEFAULT NULL              COMMENT 'Handle or slug - display only',
     `platform_avatar_url` VARCHAR(512)   NULL     DEFAULT NULL              COMMENT 'Profile image URL cached for UI; may become stale',
-    `access_token`        TEXT           NOT NULL                           COMMENT 'OAuth access token -- never log, never expose in views or responses',
+    `access_token`        TEXT           NOT NULL                           COMMENT 'OAuth access token - never log, never expose in views or responses',
     `token_secret`        VARCHAR(512)   NULL     DEFAULT NULL              COMMENT 'OAuth 1.0a token secret (Twitter only); NULL for OAuth 2.0 platforms',
     `token_expires_at`    DATETIME       NULL     DEFAULT NULL              COMMENT 'NULL=never expires (Twitter); set for Facebook/Instagram 60-day tokens',
     `is_active`           TINYINT(1)     NOT NULL DEFAULT 1                 COMMENT '0=disconnected or expired, 1=active',
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS `accounts` (
     `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `company_id`            INT UNSIGNED  NOT NULL                           COMMENT 'Owning company',
     `connected_platform_id` INT UNSIGNED  NOT NULL                           COMMENT 'Required: must exist before account is created',
-    `name`                  VARCHAR(255)  NOT NULL                           COMMENT 'Operator-defined internal label (e.g. "Brand X -- Marketing")',
+    `name`                  VARCHAR(255)  NOT NULL                           COMMENT 'Operator-defined internal label (e.g. "Brand X - Marketing")',
     `display_name`          VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Platform profile name pulled from API (e.g. "Brand X Official Page")',
     `default_tags`          JSON          NULL     DEFAULT NULL              COMMENT 'Ordered array of tag strings without # prefix, e.g. ["marketing","saas"]. Appended at send time in array order until platform character limit is reached (Twitter 280, Instagram 2200, Facebook 63206)',
     `is_posting`            TINYINT(1)    NOT NULL DEFAULT 0                 COMMENT '1=actively scheduling and sending; 0=paused or in setup. Content cannot be queued until is_posting=1',
@@ -312,11 +312,11 @@ CREATE TABLE IF NOT EXISTS `posts` (
     `account_id`     INT UNSIGNED  NOT NULL                           COMMENT 'Which account this content belongs to',
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
     `body_normalized` VARCHAR(280) NOT NULL DEFAULT ''                COMMENT 'Normalized body fingerprint for duplicate detection — never displayed',
-    `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author — appended as "-- Author" after post body; affects image overlay layout in ImageService. Never included in image text — post body and attribution are overlaid on image, tags are text-only.',
+    `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author - appended as "- Author" after post body; affects image overlay layout in ImageService. Never included in image text - post body and attribution are overlaid on image, tags are text-only.',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
-    `internal_note`  TEXT          NULL     DEFAULT NULL              COMMENT 'Operator note -- never sent, never shown publicly, visible in UI only',
+    `internal_note`  TEXT          NULL     DEFAULT NULL              COMMENT 'Operator note - never sent, never shown publicly, visible in UI only',
     `created_by`     INT UNSIGNED  NOT NULL                           COMMENT 'User who created this post',
     `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -372,7 +372,7 @@ CREATE TABLE IF NOT EXISTS `post_history` (
     `connected_platform_id` INT UNSIGNED  NOT NULL                           COMMENT 'FK preserved for dashboard queries while connection exists',
     `post_id`               INT UNSIGNED  NOT NULL                           COMMENT 'FK preserved while post exists',
     `scheduled_post_id`     INT UNSIGNED  NOT NULL                           COMMENT 'One history row per queue entry',
-    `platform`              ENUM('twitter','facebook','instagram') NOT NULL  COMMENT 'Denormalized -- survives connected_platform deletion',
+    `platform`              ENUM('twitter','facebook','instagram') NOT NULL  COMMENT 'Denormalized - survives connected_platform deletion',
     `platform_account_id`   VARCHAR(100)  NOT NULL                           COMMENT 'Denormalized page/profile ID at time of posting',
     `body_snapshot`         TEXT          NOT NULL                           COMMENT 'Exact text as sent; unaffected by future edits to the source post',
     `image_filename`        VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Image filename at time of posting',

@@ -53,14 +53,59 @@ function h(string $val): string {
     return htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
 }
 
+function splitSqlStatements(string $sql): array {
+    $statements = [];
+    $current    = '';
+    $inString   = false;
+    $len        = strlen($sql);
+
+    for ($i = 0; $i < $len; $i++) {
+        $char = $sql[$i];
+
+        if ($inString) {
+            $current .= $char;
+            if ($char === "'" ) {
+                if (isset($sql[$i + 1]) && $sql[$i + 1] === "'") {
+                    $current .= $sql[++$i];
+                } else {
+                    $inString = false;
+                }
+            }
+            continue;
+        }
+
+        if ($char === "'") {
+            $inString  = true;
+            $current  .= $char;
+            continue;
+        }
+
+        if ($char === ';') {
+            $stmt = trim($current);
+            if ($stmt !== '') {
+                $statements[] = $stmt;
+            }
+            $current = '';
+            continue;
+        }
+
+        $current .= $char;
+    }
+
+    $stmt = trim($current);
+    if ($stmt !== '') {
+        $statements[] = $stmt;
+    }
+
+    return $statements;
+}
+
 function runSqlFile(PDO $pdo, string $file): void {
     $sql = (string) file_get_contents($file);
-    $sql = (string) preg_replace('/--[^\n]*\n/', "\n", $sql);
+    $sql = (string) preg_replace('/^[ \t]*--[^\n]*/m', '', $sql);
     $sql = (string) preg_replace('/\/\*.*?\*\//s', '', $sql);
-    foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
-        if ($stmt !== '') {
-            $pdo->exec($stmt);
-        }
+    foreach (splitSqlStatements($sql) as $stmt) {
+        $pdo->exec($stmt);
     }
 }
 

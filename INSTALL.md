@@ -47,120 +47,16 @@ The web server user needs:
 
 ```bash
 # Set ownership to the web server user
+# If your webserver runs as a different user, replace `www-data` with the correct user.
 sudo chown -R www-data:www-data /path/to/socialturn
-
-# Set directory and file permissions
-sudo chmod -R 755 /path/to/socialturn
-
-# Allow the web server to write uploaded images
-sudo chmod -R 775 /path/to/socialturn/images
 
 # Allow the web server to write socialturn.ini above the web root
 # Replace /var/www/yoursite.com with the parent of your document root
-sudo chmod 775 /var/www/yoursite.com
+sudo touch /var/socialturn.ini
+sudo chmod chown www-data:www-data /var/socialturn.ini
 ```
 
-If your web server runs as a different user, replace `www-data` with the correct user.
-To check:
-
-```bash
-ps aux | grep -E 'apache|nginx|php-fpm' | grep -v grep
-```
-
-The user in the first column of the worker process row is your web server user.
-
-After the install wizard runs, you can tighten directory permissions:
-
-```bash
-sudo chmod 755 /path/to/socialturn
-sudo chmod 755 /var/www/yoursite.com
-```
-
-### 5. Configure your web server
-
-#### nginx (subdirectory install)
-
-SocialTurn is designed to run as a subdirectory app alongside your existing site —
-for example `https://yourdomain.com/socialturn/`.
-
-Your existing nginx server block handles SSL, domain, root, and PHP-FPM. You only
-need to add the SocialTurn location blocks.
-
-**Option A — Add directly to your existing server block**
-
-Open your existing nginx server block configuration and add these location blocks
-inside the `server {}` block:
-
-```nginx
-# SocialTurn — block direct access to configuration files
-# Exact-match locations take priority over regex and prefix locations.
-location = /socialturn/config.php {
-    deny all;
-}
-location = /socialturn/config.sample.php {
-    deny all;
-}
-
-location ~* ^/socialturn/(composer\.(json|lock)|\.gitignore|\.gitkeep)$ {
-    deny all;
-}
-
-# SocialTurn — block access to socialturn.ini / config.ini (if inside web root)
-location ~* \.ini$ {
-    deny all;
-}
-
-# SocialTurn — block direct access to boot.php
-location = /socialturn/boot.php {
-    deny all;
-}
-
-# SocialTurn — block PHP execution in images directory
-location ~* ^/socialturn/images/.*\.ph(p[0-9]?|tml)$ {
-    deny all;
-}
-```
-
-Replace `/socialturn/` with your actual subdirectory path if different.
-
-**Option B — Drop-in config file**
-
-If your nginx setup includes a directory that auto-loads additional config files
-(commonly `/etc/nginx/conf.d/` or `/etc/nginx/sites-enabled/`), create a new file:
-
-```bash
-sudo nano /etc/nginx/conf.d/socialturn.conf
-```
-
-Add the same location blocks from Option A and save.
-
-**Both options — reload nginx after making changes:**
-
-```bash
-sudo nginx -t        # test config for errors first
-sudo nginx -s reload # reload if test passes
-```
-
----
-
-#### Apache (subdirectory install)
-
-SocialTurn uses query-string routing — no mod_rewrite is required.
-The included `.htaccess` handles security rules (blocking direct access to
-`config.ini`, config files, and the images directory).
-
-Ensure AllowOverride is set to at least `Limit` or `All` so that the `.htaccess`
-security rules are applied:
-
-```apache
-<Directory /path/to/yourdomain/socialturn>
-    AllowOverride All
-</Directory>
-```
-
-No URL rewriting configuration is needed.
-
-### 6. Run the install wizard
+### 5. Run the install wizard
 
 Open your browser and navigate to:
 
@@ -194,26 +90,8 @@ Click **Install SocialTurn** on the final step. The wizard:
 > SocialTurn will display a security warning on every page until the file is removed.
 > Run: `rm /path/to/socialturn/install.php`
 
-### 7. Verify credentials are not web-accessible
 
-If `socialturn.ini` was written above the web root, it is not web-accessible by
-definition. If it was written inside the web root (advisory path warning shown during
-install), verify it is blocked:
-
-```
-https://yoursite.com/socialturn/socialturn.ini  → must return 403 Forbidden
-```
-
-Also verify `boot.php` is blocked (it reveals the filesystem path):
-
-```
-https://yoursite.com/socialturn/boot.php  → must return 403 Forbidden
-```
-
-If either returns anything other than 403, your web server is not enforcing the
-`.htaccess` or nginx rules. Do not proceed until this is confirmed.
-
-### 8. Set up the cron job
+### 6. Set up the cron job
 
 Add this to your crontab (`crontab -e`):
 
@@ -228,7 +106,7 @@ The cron job runs every 5 minutes. It checks for pending posts, dispatches
 them to their platforms, and refills the queue when it drops below the
 recycle threshold. It must be running for SocialTurn to post autonomously.
 
-### 9. Connect your first platform account
+### 7. Connect your first platform account
 
 Log in, navigate to **Accounts**, create an account, and connect it to a platform.
 See [Platform Credentials](#platform-credentials) for what you will need before
