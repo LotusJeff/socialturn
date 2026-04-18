@@ -50,10 +50,10 @@ The web server user needs:
 # If your webserver runs as a different user, replace `www-data` with the correct user.
 sudo chown -R www-data:www-data /path/to/socialturn
 
-# Allow the web server to write socialturn.ini above the web root
-# Replace /var/www/yoursite.com with the parent of your document root
+# Allow the web server to write socialturn.ini outside of the web root
+# Replace /var/socilturn.ini with a directory not within your web folder
 sudo touch /var/socialturn.ini
-sudo chmod chown www-data:www-data /var/socialturn.ini
+sudo chown www-data:www-data /var/socialturn.ini
 ```
 
 ### 5. Run the install wizard
