@@ -9,7 +9,7 @@
 <div class="container py-4">
 
     <div class="d-flex align-items-center mb-4">
-        <a href="<?php echo BASE_URL; ?>team"
+        <a href="<?php echo u('team'); ?>"
            class="text-muted text-decoration-none me-3"
            aria-label="Back to team">&larr;</a>
         <h1 class="h3 mb-0">Invite team member</h1>
@@ -26,7 +26,7 @@
                         The link expires in 48&nbsp;hours.
                     </p>
 
-                    <form method="POST" action="<?php echo BASE_URL; ?>team/invited">
+                    <form method="POST" action="<?php echo u('team', 'invited'); ?>">
                         <input type="hidden" name="csrf_token"
                                value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 

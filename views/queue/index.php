@@ -50,7 +50,7 @@ function queue_index_platformLabel(string $platform): string
             <p class="card-text text-muted small mb-4">
                 Create an account and add content to get the queue running.
             </p>
-            <a href="<?= BASE_URL ?>accounts/create" class="btn btn-primary">Create Account</a>
+            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Account</a>
         </div>
     </div>
 
@@ -85,7 +85,7 @@ function queue_index_platformLabel(string $platform): string
                 </td>
                 <td>
                     <?php if ((int) $r['pending_count'] > 0): ?>
-                    <a href="<?= BASE_URL ?>queue/view/<?= (int) $r['id'] ?>"
+                    <a href="<?= u('queue', 'view', ['id' => (int) $r['id']]) ?>"
                        class="fw-semibold text-decoration-none">
                         <?= (int) $r['pending_count'] ?>
                     </a>
@@ -95,7 +95,7 @@ function queue_index_platformLabel(string $platform): string
                 </td>
                 <td>
                     <?php if ((int) $r['posted_count'] > 0): ?>
-                    <a href="<?= BASE_URL ?>queue/history/<?= (int) $r['id'] ?>"
+                    <a href="<?= u('queue', 'history', ['id' => (int) $r['id']]) ?>"
                        class="text-success text-decoration-none">
                         <?= (int) $r['posted_count'] ?>
                     </a>
@@ -105,7 +105,7 @@ function queue_index_platformLabel(string $platform): string
                 </td>
                 <td>
                     <?php if ((int) $r['failed_count'] > 0): ?>
-                    <a href="<?= BASE_URL ?>queue/errors/<?= (int) $r['id'] ?>"
+                    <a href="<?= u('queue', 'errors', ['id' => (int) $r['id']]) ?>"
                        class="text-danger fw-semibold text-decoration-none">
                         <?= (int) $r['failed_count'] ?>
                     </a>
@@ -115,9 +115,9 @@ function queue_index_platformLabel(string $platform): string
                 </td>
                 <td class="text-end">
                     <div class="d-flex gap-2 justify-content-end">
-                        <a href="<?= BASE_URL ?>queue/view/<?= (int) $r['id'] ?>"
+                        <a href="<?= u('queue', 'view', ['id' => (int) $r['id']]) ?>"
                            class="btn btn-sm btn-outline-secondary">Queue</a>
-                        <a href="<?= BASE_URL ?>queue/history/<?= (int) $r['id'] ?>"
+                        <a href="<?= u('queue', 'history', ['id' => (int) $r['id']]) ?>"
                            class="btn btn-sm btn-outline-secondary">History</a>
                     </div>
                 </td>

@@ -1,5 +1,10 @@
 <?php
 
+function u(string $controller, string $action = 'index', array $params = []): string {
+    $qs = array_merge(['c' => $controller, 'a' => $action], $params);
+    return BASE_URL . 'index.php?' . http_build_query($qs);
+}
+
 /**
  * Returns true when a valid user session exists.
  *
@@ -32,7 +37,7 @@ function authenticate($force = 0) {
 	$adminOnlyControllers = ['team', 'accounts', 'connect'];
 	if (in_array($controller, $adminOnlyControllers, true) && isLoggedIn()) {
 		if ((int) ($_SESSION['user']['type'] ?? 999) !== 1) {
-			header('Location: ' . BASE_URL . 'oops/permissions');
+			header('Location: ' . u('oops', 'permissions'));
 			exit;
 		}
 	}
@@ -40,7 +45,7 @@ function authenticate($force = 0) {
 	if (!isLoggedIn()) {
 		// Store the attempted URL so login() can redirect back after success.
 		$_SESSION['redirect_after_login'] = getLink();
-		header('Location: ' . BASE_URL . 'users/login');
+		header('Location: ' . u('users', 'login'));
 		exit;
 	}
 }
@@ -76,13 +81,13 @@ function csrf_validate(): bool {
 }
 
 function error404() {
-	header("Location: ".BASE_URL."oops/not-found");
+	header('Location: ' . u('oops', 'notfound'));
 	exit;
 }
 
 function checkPermission($permission) {
 	if ($_SESSION['user']['type'] > $permission) {
-		header("Location: ".BASE_URL."oops/permissions");
+		header('Location: ' . u('oops', 'permissions'));
 		exit;
 	}
 }
@@ -115,7 +120,7 @@ function authorizeAccount(int $accountId): void {
 	);
 	$stmt->execute([$companyId, $userId, $accountId]);
 	if (!$stmt->fetchColumn()) {
-		header('Location: ' . BASE_URL . 'oops/permissions');
+		header('Location: ' . u('oops', 'permissions'));
 		exit;
 	}
 }

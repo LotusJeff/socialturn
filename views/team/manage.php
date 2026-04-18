@@ -19,7 +19,7 @@
 <div class="container py-4">
 
     <div class="d-flex align-items-center mb-4">
-        <a href="<?php echo BASE_URL; ?>team"
+        <a href="<?php echo u('team'); ?>"
            class="text-muted text-decoration-none me-3"
            aria-label="Back to team">&larr;</a>
         <h1 class="h3 mb-0">
@@ -44,7 +44,7 @@
         <div class="col-12 col-lg-7">
 
             <!-- Role, active, and account access -->
-            <form method="POST" action="<?php echo BASE_URL; ?>team/update"
+            <form method="POST" action="<?php echo u('team', 'update'); ?>"
                   x-data="{ role: <?php echo (int) $user['type']; ?> }">
                 <input type="hidden" name="csrf_token"
                        value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
@@ -149,10 +149,10 @@
                 <?php if (!$isSelf): ?>
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Save changes</button>
-                    <a href="<?php echo BASE_URL; ?>team" class="btn btn-outline-secondary">Cancel</a>
+                    <a href="<?php echo u('team'); ?>" class="btn btn-outline-secondary">Cancel</a>
                 </div>
                 <?php else: ?>
-                <a href="<?php echo BASE_URL; ?>team" class="btn btn-outline-secondary">Back to team</a>
+                <a href="<?php echo u('team'); ?>" class="btn btn-outline-secondary">Back to team</a>
                 <?php endif; ?>
 
             </form>
@@ -170,7 +170,7 @@
                         Any existing unused reset link will be invalidated.
                     </p>
                     <?php if ($user['active']): ?>
-                    <form method="POST" action="<?php echo BASE_URL; ?>team/forceReset">
+                    <form method="POST" action="<?php echo u('team', 'forceReset'); ?>">
                         <input type="hidden" name="csrf_token"
                                value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="id"
@@ -193,7 +193,7 @@
                     <p class="text-muted small mb-3">
                         Deactivates this account. Their post history is preserved.
                     </p>
-                    <form method="POST" action="<?php echo BASE_URL; ?>team/delete" x-data>
+                    <form method="POST" action="<?php echo u('team', 'delete'); ?>" x-data>
                         <input type="hidden" name="csrf_token"
                                value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="id"

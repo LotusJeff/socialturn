@@ -162,9 +162,9 @@ function index(): void
  */
 function view(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
-    $accountId = isset($path[2]) ? (int) $path[2] : 0;
+    $accountId = (int) ($_GET['id'] ?? 0);
     if ($accountId === 0) {
         error404();
     }
@@ -227,9 +227,9 @@ function view(): void
  */
 function history(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
-    $accountId = isset($path[2]) ? (int) $path[2] : 0;
+    $accountId = (int) ($_GET['id'] ?? 0);
     if ($accountId === 0) {
         error404();
     }
@@ -298,9 +298,9 @@ function history(): void
  */
 function errors(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
-    $accountId = isset($path[2]) ? (int) $path[2] : 0;
+    $accountId = (int) ($_GET['id'] ?? 0);
     if ($accountId === 0) {
         error404();
     }
@@ -363,12 +363,12 @@ function remove(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -378,7 +378,7 @@ function remove(): void
     $search          = trim((string) ($_POST['search'] ?? ''));
 
     if ($scheduledPostId === 0 || $accountId === 0) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -398,11 +398,11 @@ function remove(): void
         ];
     }
 
-    $redirect = BASE_URL . 'queue/view/' . $accountId;
+    $params = ['id' => $accountId];
     if ($search !== '') {
-        $redirect .= '?q=' . urlencode($search);
+        $params['q'] = $search;
     }
-    header('Location: ' . $redirect);
+    header('Location: ' . u('queue', 'view', $params));
     exit;
 }
 
@@ -418,12 +418,12 @@ function queue_flush(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -431,7 +431,7 @@ function queue_flush(): void
     $accountId = (int) ($_POST['account_id'] ?? 0);
 
     if ($accountId === 0) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -452,7 +452,7 @@ function queue_flush(): void
             : $deleted . ' pending ' . ($deleted === 1 ? 'post' : 'posts') . ' removed from the queue.',
     ];
 
-    header('Location: ' . BASE_URL . 'queue/view/' . $accountId);
+    header('Location: ' . u('queue', 'view', ['id' => $accountId]));
     exit;
 }
 
@@ -471,12 +471,12 @@ function sharenow(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -486,7 +486,7 @@ function sharenow(): void
     $search          = trim((string) ($_POST['search'] ?? ''));
 
     if ($scheduledPostId === 0 || $accountId === 0) {
-        header('Location: ' . BASE_URL . 'queue');
+        header('Location: ' . u('queue'));
         exit;
     }
 
@@ -513,10 +513,10 @@ function sharenow(): void
         ];
     }
 
-    $redirect = BASE_URL . 'queue/view/' . $accountId;
+    $params = ['id' => $accountId];
     if ($search !== '') {
-        $redirect .= '?q=' . urlencode($search);
+        $params['q'] = $search;
     }
-    header('Location: ' . $redirect);
+    header('Location: ' . u('queue', 'view', $params));
     exit;
 }

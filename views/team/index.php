@@ -15,7 +15,7 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
 
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Team</h1>
-        <a href="<?php echo BASE_URL; ?>team/invite" class="btn btn-primary">Invite team member</a>
+        <a href="<?php echo u('team', 'invite'); ?>" class="btn btn-primary">Invite team member</a>
     </div>
 
     <?php if (empty($users)): ?>
@@ -66,14 +66,14 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
                             <td>
                                 <div class="d-flex gap-2 justify-content-end flex-wrap">
 
-                                    <a href="<?php echo BASE_URL; ?>team/manage/<?php echo (int) $user['id']; ?>"
+                                    <a href="<?php echo u('team', 'manage', ['id' => (int) $user['id']]); ?>"
                                        class="btn btn-sm btn-outline-secondary">Manage</a>
 
                                     <?php if ($user['active']): ?>
 
                                         <!-- Force reset — no confirm needed (non-destructive) -->
                                         <form method="POST"
-                                              action="<?php echo BASE_URL; ?>team/forceReset">
+                                              action="<?php echo u('team', 'forceReset'); ?>">
                                             <input type="hidden" name="csrf_token"
                                                    value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                                             <input type="hidden" name="id"
@@ -87,7 +87,7 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
                                         <?php if (!$isSelf): ?>
                                         <!-- Delete — soft-delete with Alpine confirm -->
                                         <form method="POST"
-                                              action="<?php echo BASE_URL; ?>team/delete"
+                                              action="<?php echo u('team', 'delete'); ?>"
                                               x-data>
                                             <input type="hidden" name="csrf_token"
                                                    value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
@@ -144,7 +144,7 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
 
                                 <!-- Resend invite — non-destructive, no confirm needed -->
                                 <form method="POST"
-                                      action="<?php echo BASE_URL; ?>team/resendInvite">
+                                      action="<?php echo u('team', 'resendInvite'); ?>">
                                     <input type="hidden" name="csrf_token"
                                            value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                                     <input type="hidden" name="invite_id"
@@ -156,7 +156,7 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
 
                                 <!-- Revoke invite — destructive, Alpine confirm -->
                                 <form method="POST"
-                                      action="<?php echo BASE_URL; ?>team/revokeInvite"
+                                      action="<?php echo u('team', 'revokeInvite'); ?>"
                                       x-data>
                                     <input type="hidden" name="csrf_token"
                                            value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">

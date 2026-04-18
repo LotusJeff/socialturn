@@ -42,7 +42,7 @@
                 <?php endif; ?>
 
                 <form method="POST"
-                      action="<?php echo BASE_URL; ?>users/setpassword/<?php echo htmlspecialchars($invite['token'], ENT_QUOTES, 'UTF-8'); ?>"
+                      action="<?php echo u('users', 'setpassword', ['token' => $invite['token']]); ?>"
                       x-data="{
                           password: '',
                           confirm: '',

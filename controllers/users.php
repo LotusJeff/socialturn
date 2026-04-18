@@ -14,10 +14,10 @@ function post_login_url(int $type): string
         $stmt = $dbh->prepare('SELECT COUNT(*) FROM accounts WHERE is_active = 1');
         $stmt->execute();
         if ((int) $stmt->fetchColumn() === 0) {
-            return BASE_URL . 'accounts/index';
+            return u('accounts', 'index');
         }
     }
-    return BASE_URL . 'queue/index';
+    return u('queue', 'index');
 }
 
 /**
@@ -47,7 +47,7 @@ function setup(): void {
     $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
     $stmt->execute();
     if ((int) $stmt->fetchColumn() > 0) {
-        header('Location: ' . BASE_URL . 'users/login');
+        header('Location: ' . u('users', 'login'));
         exit;
     }
 
@@ -69,7 +69,7 @@ function setup(): void {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!csrf_validate()) {
-            header('Location: ' . BASE_URL . 'users/setup');
+            header('Location: ' . u('users', 'setup'));
             exit;
         }
 
@@ -92,7 +92,7 @@ function setup(): void {
             $stmt = $dbh->prepare('INSERT INTO invites (company_id, email, token) VALUES (?, ?, ?)');
             $stmt->execute([$companyId, OWNER_EMAIL, $token]);
 
-            $setupUrl = BASE_URL . 'users/setpassword/' . $token;
+            $setupUrl = u('users', 'setpassword', ['token' => $token]);
 
             Mail_Postmark::compose()
                 ->to(OWNER_EMAIL)
@@ -141,17 +141,17 @@ function setup(): void {
  *   12+ characters · uppercase · number · special character · passwords match
  */
 function setpassword(): void {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
     $template->set('noextra', true);
     $template->set('passwordError', null);
     $template->set('invite', null);
 
-    $token = isset($path[2]) ? trim((string) $path[2]) : '';
+    $token = trim((string) ($_GET['token'] ?? ''));
 
     if ($token === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'This link is invalid.'];
-        header('Location: ' . BASE_URL . 'users/login');
+        header('Location: ' . u('users', 'login'));
         exit;
     }
 
@@ -171,7 +171,7 @@ function setpassword(): void {
             'type'    => 'error',
             'message' => 'This link has expired or has already been used.',
         ];
-        header('Location: ' . BASE_URL . 'users/login');
+        header('Location: ' . u('users', 'login'));
         exit;
     }
 
@@ -183,7 +183,7 @@ function setpassword(): void {
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'users/setpassword/' . $token);
+        header('Location: ' . u('users', 'setpassword', ['token' => $token]));
         exit;
     }
 
@@ -274,7 +274,7 @@ function login(): void {
     $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
     $stmt->execute();
     if ((int) $stmt->fetchColumn() === 0) {
-        header('Location: ' . BASE_URL . 'users/setup');
+        header('Location: ' . u('users', 'setup'));
         exit;
     }
 
@@ -285,7 +285,7 @@ function login(): void {
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'users/login');
+        header('Location: ' . u('users', 'login'));
         exit;
     }
 
@@ -326,8 +326,8 @@ function login(): void {
 
     if (
         empty($redirect)
-        || str_contains($redirect, 'users/login')
-        || str_contains($redirect, 'users/validate')
+        || str_contains($redirect, 'a=login')
+        || str_contains($redirect, 'a=validate')
     ) {
         $redirect = post_login_url((int) $user['type']);
     }
@@ -359,7 +359,7 @@ function validate(): void {
 
     if ($email === '' || $password === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Email and password are required.'];
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? BASE_URL . 'users/login'));
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? u('users', 'login')));
         exit;
     }
 
@@ -382,7 +382,7 @@ function validate(): void {
         }
 
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Email or password is incorrect.'];
-        header('Location: ' . BASE_URL . 'users/login');
+        header('Location: ' . u('users', 'login'));
         exit;
 
     } elseif ($type === 'invite') {
@@ -391,7 +391,7 @@ function validate(): void {
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
             $_SESSION['notification'] = ['type' => 'error', 'message' => 'An account already exists for this email.'];
-            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? BASE_URL . 'users/login'));
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? u('users', 'login')));
             exit;
         }
 
@@ -405,7 +405,7 @@ function validate(): void {
 
         if (empty($invite['company_id'])) {
             $_SESSION['notification'] = ['type' => 'error', 'message' => 'This invite link is invalid. Ask your admin to send a new one.'];
-            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? BASE_URL . 'users/login'));
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? u('users', 'login')));
             exit;
         }
 
@@ -434,7 +434,7 @@ function validate(): void {
 function logout(): void {
     // Destroy the session entirely — CSRF token is regenerated on next login.
     session_destroy();
-    header('Location: ' . BASE_URL . 'users/login');
+    header('Location: ' . u('users', 'login'));
     exit;
 }
 
@@ -458,7 +458,7 @@ function forgot(): void {
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'users/forgot');
+        header('Location: ' . u('users', 'forgot'));
         exit;
     }
 
@@ -487,7 +487,7 @@ function forgot(): void {
                     ->messagePlain(
                         "You requested a password reset for your SocialTurn account.\n\n" .
                         "Click the link below to set a new password:\n\n" .
-                        BASE_URL . 'users/setpassword/' . $token . "\n\n" .
+                        u('users', 'setpassword', ['token' => $token]) . "\n\n" .
                         "This link expires in 48 hours.\n\n" .
                         "If you did not request this, you can ignore this email."
                     )
@@ -503,10 +503,9 @@ function forgot(): void {
 
 function invite() {
 	global $template;
-	global $path;
 
-	$email = base64_decode($path[2]);
-	$code = $path[3];
+	$email = base64_decode((string) ($_GET['email'] ?? ''));
+	$code = (string) ($_GET['code'] ?? '');
 
 	if (empty($code) || empty($email)) {
 		error404();

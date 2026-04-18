@@ -36,7 +36,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 <div class="container py-4" style="max-width:720px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= BASE_URL ?>accounts" class="text-muted text-decoration-none">&larr; Accounts</a>
+        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Accounts</a>
         <h1 class="h3 mb-0">
             <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
         </h1>
@@ -47,7 +47,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
         <?php endif; ?>
     </div>
 
-    <form method="POST" action="<?= BASE_URL ?>accounts/update"
+    <form method="POST" action="<?= u('accounts', 'update') ?>"
           enctype="multipart/form-data"
           x-data='{
               scheduleType: "<?= htmlspecialchars($scheduleType, ENT_QUOTES, 'UTF-8') ?>",
@@ -353,7 +353,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="<?= BASE_URL ?>accounts" class="btn btn-outline-secondary">Cancel</a>
+            <a href="<?= u('accounts') ?>" class="btn btn-outline-secondary">Cancel</a>
         </div>
 
     </form>

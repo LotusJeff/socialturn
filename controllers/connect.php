@@ -52,14 +52,14 @@ function twitter(): void
     $service = new TwitterService(new StorageService());
 
     try {
-        $requestToken = $service->getRequestToken(BASE_URL . 'connect/twitterCallback');
+        $requestToken = $service->getRequestToken(u('connect', 'twitterCallback'));
     } catch (Throwable $e) {
         error_log('Twitter connect error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Could not connect to Twitter. Check TWITTER_APIKEY and TWITTER_APISECRET in config.php.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -68,7 +68,7 @@ function twitter(): void
             'type'    => 'error',
             'message' => 'Twitter did not return a valid request token. Check your app credentials.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -99,7 +99,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter authorization was cancelled or did not complete.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -113,7 +113,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter token exchange failed. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -123,7 +123,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter did not return a valid access token. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -138,7 +138,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter token verification failed. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -165,7 +165,7 @@ function twitterCallback(): void
         'type'    => 'success',
         'message' => 'Twitter account @' . htmlspecialchars($screenName, ENT_QUOTES, 'UTF-8') . ' connected.',
     ];
-    header('Location: ' . BASE_URL . 'accounts');
+    header('Location: ' . u('accounts'));
     exit;
 }
 
@@ -190,7 +190,7 @@ function facebook(): void
             'type'    => 'error',
             'message' => 'Could not connect to Facebook. Check META_APP_ID and META_APP_SECRET in config.php.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -199,7 +199,7 @@ function facebook(): void
 
     $params = http_build_query([
         'client_id'     => META_APP_ID,
-        'redirect_uri'  => BASE_URL . 'connect/facebookCallback',
+        'redirect_uri'  => u('connect', 'facebookCallback'),
         'scope'         => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
         'state'         => $state,
         'response_type' => 'code',
@@ -233,7 +233,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization state mismatch. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -245,13 +245,13 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization was cancelled.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
     $service = new FacebookService($dbh, new StorageService());
 
-    $shortLivedToken = $service->exchangeCodeForToken($code, BASE_URL . 'connect/facebookCallback');
+    $shortLivedToken = $service->exchangeCodeForToken($code, u('connect', 'facebookCallback'));
 
     if ($shortLivedToken === null) {
         unset($_SESSION['oauth']);
@@ -259,7 +259,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook token exchange failed. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -271,7 +271,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Could not obtain a long-lived Facebook token. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -308,7 +308,7 @@ function facebookCallback(): void
     $_SESSION['oauth']['facebook_instagram'] = $instagram;
     $_SESSION['oauth']['expires']            = time() + 600;
 
-    header('Location: ' . BASE_URL . 'connect/pages');
+    header('Location: ' . u('connect', 'pages'));
     exit;
 }
 
@@ -329,7 +329,7 @@ function pages(): void
             'type'    => 'error',
             'message' => 'Session expired. Please reconnect.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -342,7 +342,7 @@ function pages(): void
             'type'    => 'error',
             'message' => 'No Facebook Pages found. Make sure your Facebook account manages at least one Page, then try again.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -388,12 +388,12 @@ function savePage(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'connect/pages');
+        header('Location: ' . u('connect', 'pages'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'connect/pages');
+        header('Location: ' . u('connect', 'pages'));
         exit;
     }
 
@@ -403,7 +403,7 @@ function savePage(): void
     $platformUsername  = mb_substr(trim((string) ($_POST['platform_username'] ?? '')), 0, 50);
 
     if (!in_array($platform, ['facebook', 'instagram'], true) || $platformAccountId === '') {
-        header('Location: ' . BASE_URL . 'connect/pages');
+        header('Location: ' . u('connect', 'pages'));
         exit;
     }
 
@@ -420,7 +420,7 @@ function savePage(): void
             'type'    => 'error',
             'message' => 'Session expired. Please reconnect.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -448,7 +448,7 @@ function savePage(): void
         'type'    => 'success',
         'message' => ucfirst($platform) . ' account "' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '" connected.',
     ];
-    header('Location: ' . BASE_URL . 'accounts');
+    header('Location: ' . u('accounts'));
     exit;
 }
 
@@ -458,7 +458,7 @@ function savePage(): void
 function cancel(): void
 {
     unset($_SESSION['oauth']);
-    header('Location: ' . BASE_URL . 'accounts');
+    header('Location: ' . u('accounts'));
     exit;
 }
 
@@ -476,12 +476,12 @@ function disconnect(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -489,7 +489,7 @@ function disconnect(): void
     $connectedPlatformId = (int) ($_POST['connected_platform_id'] ?? 0);
 
     if ($connectedPlatformId === 0) {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -517,7 +517,7 @@ function disconnect(): void
             'type'    => 'error',
             'message' => 'Remove all accounts using this connection before disconnecting.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -533,6 +533,6 @@ function disconnect(): void
         'type'    => 'success',
         'message' => ucfirst((string) $connection['platform']) . ' account "' . $label . '" disconnected.',
     ];
-    header('Location: ' . BASE_URL . 'accounts');
+    header('Location: ' . u('accounts'));
     exit;
 }

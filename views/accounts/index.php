@@ -58,9 +58,9 @@ function connectionStatus(array $account): string
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Accounts</h1>
         <div class="d-flex gap-2">
-            <a href="<?= BASE_URL ?>connect/twitter"  class="btn btn-outline-secondary btn-sm">+ Twitter</a>
-            <a href="<?= BASE_URL ?>connect/facebook" class="btn btn-outline-secondary btn-sm">+ Facebook / Instagram</a>
-            <a href="<?= BASE_URL ?>accounts/create"  class="btn btn-primary btn-sm">New Account</a>
+            <a href="<?= u('connect', 'twitter') ?>"  class="btn btn-outline-secondary btn-sm">+ Twitter</a>
+            <a href="<?= u('connect', 'facebook') ?>" class="btn btn-outline-secondary btn-sm">+ Facebook / Instagram</a>
+            <a href="<?= u('accounts', 'create') ?>"  class="btn btn-primary btn-sm">New Account</a>
         </div>
     </div>
 
@@ -80,8 +80,8 @@ function connectionStatus(array $account): string
                 Connect a Twitter or Facebook account to get started.<br>
                 One Facebook authorization covers both Facebook Pages and Instagram Business accounts.
             </p>
-            <a href="<?= BASE_URL ?>connect/twitter"  class="btn btn-outline-dark me-2">Connect Twitter / X</a>
-            <a href="<?= BASE_URL ?>connect/facebook" class="btn btn-primary">Connect Facebook / Instagram</a>
+            <a href="<?= u('connect', 'twitter') ?>"  class="btn btn-outline-dark me-2">Connect Twitter / X</a>
+            <a href="<?= u('connect', 'facebook') ?>" class="btn btn-primary">Connect Facebook / Instagram</a>
         </div>
     </div>
 
@@ -118,9 +118,9 @@ function connectionStatus(array $account): string
                     <?php endif; ?>
                 </div>
                 <div class="d-flex gap-2 flex-shrink-0">
-                    <a href="<?= BASE_URL ?>accounts/edit/<?= (int) $a['id'] ?>"
+                    <a href="<?= u('accounts', 'edit', ['id' => (int) $a['id']]) ?>"
                        class="btn btn-sm btn-outline-secondary">Edit</a>
-                    <form method="POST" action="<?= BASE_URL ?>accounts/delete"
+                    <form method="POST" action="<?= u('accounts', 'delete') ?>"
                           onsubmit="return confirm('Archive <?= htmlspecialchars(addslashes((string) $a['name']), ENT_QUOTES, 'UTF-8') ?>? This will stop the queue. Posts and history are preserved.')">
                         <input type="hidden" name="id"         value="<?= (int) $a['id'] ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -152,7 +152,7 @@ function connectionStatus(array $account): string
                     </span>
                 <?php endif; ?>
             </div>
-            <a href="<?= BASE_URL ?>accounts/create?platform_id=<?= (int) $cp['id'] ?>"
+            <a href="<?= u('accounts', 'create', ['platform_id' => (int) $cp['id']]) ?>"
                class="btn btn-sm btn-outline-primary">Create Account</a>
         </div>
         <?php endforeach; ?>

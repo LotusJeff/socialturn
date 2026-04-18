@@ -103,7 +103,7 @@ function create(): void
             'type'    => 'info',
             'message' => 'Connect a platform before creating an account.',
         ];
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -126,12 +126,12 @@ function store(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'accounts/create');
+        header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'accounts/create');
+        header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
@@ -142,7 +142,7 @@ function store(): void
 
     if ($name === '' || $connectedPlatformId === 0) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account name and platform are required.'];
-        header('Location: ' . BASE_URL . 'accounts/create');
+        header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
@@ -156,7 +156,7 @@ function store(): void
     $platform = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (empty($platform['id'])) {
-        header('Location: ' . BASE_URL . 'accounts/create');
+        header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
@@ -190,12 +190,12 @@ function store(): void
     } catch (Throwable) {
         $dbh->rollBack();
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not create account. Please try again.'];
-        header('Location: ' . BASE_URL . 'accounts/create');
+        header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
     $_SESSION['notification'] = ['type' => 'success', 'message' => 'Account created. Configure the schedule below.'];
-    header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+    header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
     exit;
 }
 
@@ -208,10 +208,10 @@ function store(): void
  */
 function edit(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
     $companyId = accounts_companyId();
-    $accountId = isset($path[2]) ? (int) $path[2] : 0;
+    $accountId = (int) ($_GET['id'] ?? 0);
 
     if ($accountId === 0) {
         error404();
@@ -302,12 +302,12 @@ function update(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -315,7 +315,7 @@ function update(): void
     $accountId = (int) ($_POST['id'] ?? 0);
 
     if ($accountId === 0) {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -339,7 +339,7 @@ function update(): void
 
     if ($name === '' || $connectedPlatformId === 0) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account name and platform are required.'];
-        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
 
@@ -349,7 +349,7 @@ function update(): void
     );
     $stmt->execute([$connectedPlatformId, $companyId]);
     if (!$stmt->fetchColumn()) {
-        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
 
@@ -392,7 +392,7 @@ function update(): void
             'type'    => 'error',
             'message' => 'A base image is required when dynamic images are enabled. Upload an image or disable dynamic images.',
         ];
-        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
 
@@ -423,7 +423,7 @@ function update(): void
             'type'    => 'error',
             'message' => 'Active hours start must be earlier than end. Cross-midnight windows are not supported.',
         ];
-        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
 
@@ -455,7 +455,7 @@ function update(): void
                     'message' => 'Automated scheduling requires at least ' . $minPosts
                                . ' active recyclable posts. You currently have ' . $activePostCount . '.',
                 ];
-                header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+                header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
                 exit;
             }
         }
@@ -544,12 +544,12 @@ function update(): void
     } catch (Throwable) {
         $dbh->rollBack();
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save changes. Please try again.'];
-        header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
 
     $_SESSION['notification'] = ['type' => 'success', 'message' => 'Account settings saved.'];
-    header('Location: ' . BASE_URL . 'accounts/edit/' . $accountId);
+    header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
     exit;
 }
 
@@ -565,12 +565,12 @@ function delete(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'accounts');
+        header('Location: ' . u('accounts'));
         exit;
     }
 
@@ -594,7 +594,7 @@ function delete(): void
         'type'    => 'success',
         'message' => '"' . htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') . '" has been archived.',
     ];
-    header('Location: ' . BASE_URL . 'accounts');
+    header('Location: ' . u('accounts'));
     exit;
 }
 
@@ -610,10 +610,10 @@ function delete(): void
  */
 function accounts_log(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
     $companyId = accounts_companyId();
-    $accountId = isset($path[2]) ? (int) $path[2] : 0;
+    $accountId = (int) ($_GET['id'] ?? 0);
 
     if ($accountId === 0) {
         error404();

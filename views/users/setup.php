@@ -74,7 +74,7 @@
                     <p class="text-muted mb-4">No accounts exist yet. Send yourself a setup email to
                     create the owner account.</p>
 
-                    <form method="POST" action="<?php echo BASE_URL; ?>users/setup">
+                    <form method="POST" action="<?php echo u('users', 'setup'); ?>">
                         <input type="hidden" name="csrf_token"
                                value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 

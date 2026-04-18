@@ -195,7 +195,7 @@ function create(): void
             'type'    => 'info',
             'message' => 'Create an account before adding content.',
         ];
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -225,12 +225,12 @@ function store(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'content/create');
+        header('Location: ' . u('content', 'create'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'content/create');
+        header('Location: ' . u('content', 'create'));
         exit;
     }
 
@@ -240,7 +240,7 @@ function store(): void
 
     if ($accountId === 0 || $body === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account and post body are required.'];
-        header('Location: ' . BASE_URL . 'content/create');
+        header('Location: ' . u('content', 'create'));
         exit;
     }
 
@@ -307,7 +307,7 @@ function store(): void
     } catch (Throwable) {
         $dbh->rollBack();
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save post. Please try again.'];
-        header('Location: ' . BASE_URL . 'content/create');
+        header('Location: ' . u('content', 'create'));
         exit;
     }
 
@@ -320,7 +320,7 @@ function store(): void
         $_SESSION['notification'] = ['type' => 'success', 'message' => 'Post added to library.'];
     }
 
-    header('Location: ' . BASE_URL . 'content?account_id=' . $accountId);
+    header('Location: ' . u('content', 'index', ['account_id' => $accountId]));
     exit;
 }
 
@@ -331,10 +331,10 @@ function store(): void
  */
 function edit(): void
 {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
     $companyId = content_companyId();
-    $postId    = isset($path[2]) ? (int) $path[2] : 0;
+    $postId    = (int) ($_GET['id'] ?? 0);
 
     if ($postId === 0) {
         error404();
@@ -393,12 +393,12 @@ function update(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -407,7 +407,7 @@ function update(): void
     $shareNow  = isset($_POST['share_now']);
 
     if ($postId === 0) {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -446,7 +446,7 @@ function update(): void
 
     if ($body === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Post body cannot be empty.'];
-        header('Location: ' . BASE_URL . 'content/edit/' . $postId);
+        header('Location: ' . u('content', 'edit', ['id' => $postId]));
         exit;
     }
 
@@ -512,7 +512,7 @@ function update(): void
     } catch (Throwable) {
         $dbh->rollBack();
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save changes. Please try again.'];
-        header('Location: ' . BASE_URL . 'content/edit/' . $postId);
+        header('Location: ' . u('content', 'edit', ['id' => $postId]));
         exit;
     }
 
@@ -525,7 +525,7 @@ function update(): void
         $_SESSION['notification'] = ['type' => 'success', 'message' => 'Post updated.'];
     }
 
-    header('Location: ' . BASE_URL . 'content?account_id=' . $newAccountId);
+    header('Location: ' . u('content', 'index', ['account_id' => $newAccountId]));
     exit;
 }
 
@@ -541,12 +541,12 @@ function delete(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -581,12 +581,12 @@ function delete(): void
     } catch (Throwable) {
         $dbh->rollBack();
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not delete post. Please try again.'];
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
     $_SESSION['notification'] = ['type' => 'success', 'message' => 'Post deleted.'];
-    header('Location: ' . BASE_URL . 'content?account_id=' . (int) $post['account_id']);
+    header('Location: ' . u('content', 'index', ['account_id' => (int) $post['account_id']]));
     exit;
 }
 
@@ -601,12 +601,12 @@ function toggle(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -636,16 +636,15 @@ function toggle(): void
     $accountId = (int) ($_POST['filter_account_id'] ?? 0);
     $search    = trim((string) ($_POST['filter_search'] ?? ''));
 
-    $qs = [];
+    $params = [];
     if ($accountId > 0) {
-        $qs[] = 'account_id=' . $accountId;
+        $params['account_id'] = $accountId;
     }
     if ($search !== '') {
-        $qs[] = 'q=' . urlencode($search);
+        $params['q'] = $search;
     }
 
-    $redirect = BASE_URL . 'content' . (!empty($qs) ? '?' . implode('&', $qs) : '');
-    header('Location: ' . $redirect);
+    header('Location: ' . u('content', 'index', $params));
     exit;
 }
 
@@ -666,7 +665,7 @@ function importForm(): void
             'type'    => 'info',
             'message' => 'Create an account before importing content.',
         ];
-        header('Location: ' . BASE_URL . 'content');
+        header('Location: ' . u('content'));
         exit;
     }
 
@@ -719,12 +718,12 @@ function importProcess(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -735,7 +734,7 @@ function importProcess(): void
     $rawIds = $_POST['account_ids'] ?? [];
     if (!is_array($rawIds) || count($rawIds) === 0) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Select at least one account.'];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -755,7 +754,7 @@ function importProcess(): void
 
     if (empty($selectedIds)) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'No valid accounts selected.'];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -765,7 +764,7 @@ function importProcess(): void
 
     if (!isset($_FILES['csv_file']) || (int) $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'No CSV file uploaded or the upload failed.'];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -775,13 +774,13 @@ function importProcess(): void
             'type'    => 'error',
             'message' => 'Uploaded file must be a CSV. Expected text/csv or text/plain.',
         ];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
     if ((int) $_FILES['csv_file']['size'] > 5 * 1024 * 1024) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'File is too large. Maximum upload size is 5 MB.'];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -819,7 +818,7 @@ function importProcess(): void
 
     if ($parsed['parse_error'] !== null) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => $parsed['parse_error']];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -828,7 +827,7 @@ function importProcess(): void
             'type'    => 'error',
             'message' => 'CSV exceeds the 5,000-row import limit. Split the file and import in batches.',
         ];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -914,7 +913,7 @@ function importProcess(): void
             'type'    => 'error',
             'message' => 'A database error occurred during import. No posts were saved. Please try again.',
         ];
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 
@@ -937,7 +936,7 @@ function importProcess(): void
         'has_errors' => $hasErrors,
     ];
 
-    header('Location: ' . BASE_URL . 'content/importForm');
+    header('Location: ' . u('content', 'importForm'));
     exit;
 }
 
@@ -952,7 +951,7 @@ function importErrors(): void
     $errorFile = $_SESSION['import_error_file'] ?? '';
 
     if ($errorFile === '' || !is_file($errorFile)) {
-        header('Location: ' . BASE_URL . 'content/importForm');
+        header('Location: ' . u('content', 'importForm'));
         exit;
     }
 

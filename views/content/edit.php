@@ -33,7 +33,7 @@ $currentAccountId  = (int) $post['account_id'];
 <div class="container py-4" style="max-width:720px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= BASE_URL ?>content?account_id=<?= $currentAccountId ?>"
+        <a href="<?= u('content', 'index', ['account_id' => $currentAccountId]) ?>"
            class="text-muted text-decoration-none">&larr; Content Library</a>
         <h1 class="h3 mb-0">Edit Post</h1>
     </div>
@@ -50,7 +50,7 @@ $currentAccountId  = (int) $post['account_id'];
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= BASE_URL ?>content/update"
+    <form method="POST" action="<?= u('content', 'update') ?>"
           enctype="multipart/form-data"
           x-data="{
               accountPlatforms: <?= $accountPlatformsJson ?>,
@@ -180,7 +180,7 @@ $currentAccountId  = (int) $post['account_id'];
                     onclick="return confirm('<?= $pendingCount > 0 ? 'This will clear ' . $pendingCount . ' pending queue ' . ($pendingCount === 1 ? 'entry' : 'entries') . ' and post within 5 minutes. Continue?' : 'Post will publish within 5 minutes. Continue?' ?>')">
                 Share Now
             </button>
-            <a href="<?= BASE_URL ?>content?account_id=<?= $currentAccountId ?>"
+            <a href="<?= u('content', 'index', ['account_id' => $currentAccountId]) ?>"
                class="btn btn-outline-secondary">Cancel</a>
         </div>
 

@@ -18,7 +18,7 @@ $count = count($rows);
 <div class="container py-4" style="max-width:900px">
 
     <div class="d-flex align-items-center mb-1 gap-3">
-        <a href="<?= BASE_URL ?>queue/view/<?= (int) $account['id'] ?>"
+        <a href="<?= u('queue', 'view', ['id' => (int) $account['id']]) ?>"
            class="text-muted text-decoration-none">&larr; Queue</a>
         <h1 class="h3 mb-0">
             <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
@@ -38,14 +38,14 @@ $count = count($rows);
     <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
 
         <div class="d-flex gap-2">
-            <a href="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?><?= $search !== '' ? '?q=' . urlencode($search) : '' ?>"
+            <a href="<?= u('queue', 'history', array_merge(['id' => (int) $account['id']], $search !== '' ? ['q' => $search] : [])) ?>"
                class="btn btn-sm btn-primary">
                 All history
                 <?php if ((int) $totalCount > 0): ?>
                 <span class="badge bg-white text-dark ms-1"><?= (int) $totalCount >= 200 ? '200+' : (int) $totalCount ?></span>
                 <?php endif; ?>
             </a>
-            <a href="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?><?= $search !== '' ? '?q=' . urlencode($search) : '' ?>"
+            <a href="<?= u('queue', 'errors', array_merge(['id' => (int) $account['id']], $search !== '' ? ['q' => $search] : [])) ?>"
                class="btn btn-sm <?= (int) $failedCount > 0 ? 'btn-outline-danger' : 'btn-outline-secondary' ?>">
                 Errors
                 <?php if ((int) $failedCount > 0): ?>
@@ -54,15 +54,18 @@ $count = count($rows);
             </a>
         </div>
 
-        <form method="GET" action="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?>"
+        <form method="GET" action="<?= BASE_URL ?>index.php"
               class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="c" value="queue">
+            <input type="hidden" name="a" value="history">
+            <input type="hidden" name="id" value="<?= (int) $account['id'] ?>">
             <input type="text" name="q" class="form-control form-control-sm"
                    style="max-width:240px"
                    placeholder="Search post text&hellip;"
                    value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
             <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
             <?php if ($search !== ''): ?>
-            <a href="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?>"
+            <a href="<?= u('queue', 'history', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear</a>
             <?php endif; ?>
         </form>
@@ -122,7 +125,7 @@ $count = count($rows);
                         #<?= htmlspecialchars(substr((string) $row['platform_post_id'], 0, 8), ENT_QUOTES, 'UTF-8') ?>&hellip;
                     </span>
                     <?php elseif (!$isPosted): ?>
-                    <a href="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?>"
+                    <a href="<?= u('queue', 'errors', ['id' => (int) $account['id']]) ?>"
                        class="btn btn-sm btn-outline-danger">Details</a>
                     <?php endif; ?>
                 </td>
@@ -140,7 +143,7 @@ $count = count($rows);
             <p class="card-text text-muted small mb-0">
                 <?php if ($search !== ''): ?>
                 No posts match &ldquo;<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>&rdquo;.
-                <br><a href="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?>" class="text-decoration-none">Clear search</a>
+                <br><a href="<?= u('queue', 'history', ['id' => (int) $account['id']]) ?>" class="text-decoration-none">Clear search</a>
                 <?php else: ?>
                 Sent posts will appear here after the first cron run.
                 <?php endif; ?>

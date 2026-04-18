@@ -76,12 +76,12 @@ function invited(): void {
     global $dbh, $template;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team/invite');
+        header('Location: ' . u('team', 'invite'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team/invite');
+        header('Location: ' . u('team', 'invite'));
         exit;
     }
 
@@ -90,7 +90,7 @@ function invited(): void {
 
     if ($email === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'A valid email address is required.'];
-        header('Location: ' . BASE_URL . 'team/invite');
+        header('Location: ' . u('team', 'invite'));
         exit;
     }
 
@@ -110,7 +110,7 @@ function invited(): void {
             ->messagePlain(
                 "You've been invited to join a SocialTurn account.\n\n" .
                 "Click the link below to set your password and get started:\n\n" .
-                BASE_URL . 'users/setpassword/' . $token . "\n\n" .
+                u('users', 'setpassword', ['token' => $token]) . "\n\n" .
                 "This link expires in 48 hours.\n\n" .
                 "If you were not expecting this invitation, you can ignore this email."
             )
@@ -121,7 +121,7 @@ function invited(): void {
             'type'    => 'error',
             'message' => 'Invite created but the email could not be sent. Check Postmark settings in config.php.',
         ];
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -139,12 +139,12 @@ function resendInvite(): void {
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -178,7 +178,7 @@ function resendInvite(): void {
             ->messagePlain(
                 "You've been invited to join a SocialTurn account.\n\n" .
                 "Click the link below to set your password and get started:\n\n" .
-                BASE_URL . 'users/setpassword/' . $token . "\n\n" .
+                u('users', 'setpassword', ['token' => $token]) . "\n\n" .
                 "This link expires in 48 hours.\n\n" .
                 "If you were not expecting this invitation, you can ignore this email."
             )
@@ -195,7 +195,7 @@ function resendInvite(): void {
         ];
     }
 
-    header('Location: ' . BASE_URL . 'team');
+    header('Location: ' . u('team'));
     exit;
 }
 
@@ -209,12 +209,12 @@ function revokeInvite(): void {
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -239,7 +239,7 @@ function revokeInvite(): void {
         'message' => 'Invite for ' . htmlspecialchars((string) $invite['email'], ENT_QUOTES, 'UTF-8') . ' has been revoked.',
     ];
 
-    header('Location: ' . BASE_URL . 'team');
+    header('Location: ' . u('team'));
     exit;
 }
 
@@ -249,10 +249,10 @@ function revokeInvite(): void {
  * isSelf is passed so the view can suppress role/active changes and the delete button.
  */
 function manage(): void {
-    global $dbh, $template, $path;
+    global $dbh, $template;
 
     $companyId = team_companyId();
-    $userId    = isset($path[2]) ? (int) $path[2] : 0;
+    $userId    = (int) ($_GET['id'] ?? 0);
 
     if ($userId === 0) {
         error404();
@@ -309,12 +309,12 @@ function update(): void {
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -352,7 +352,7 @@ function update(): void {
                 'type'    => 'error',
                 'message' => 'Cannot remove the last admin. Promote another user to admin first.',
             ];
-            header('Location: ' . BASE_URL . 'team/manage/' . $userId);
+            header('Location: ' . u('team', 'manage', ['id' => $userId]));
             exit;
         }
     }
@@ -381,7 +381,7 @@ function update(): void {
         'message' => 'Permissions updated for ' . htmlspecialchars((string) $user['email'], ENT_QUOTES, 'UTF-8') . '.',
     ];
 
-    header('Location: ' . BASE_URL . 'team');
+    header('Location: ' . u('team'));
     exit;
 }
 
@@ -395,12 +395,12 @@ function delete(): void {
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -410,7 +410,7 @@ function delete(): void {
 
     if ($userId === $selfId) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'You cannot remove yourself.'];
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -435,7 +435,7 @@ function delete(): void {
                 'type'    => 'error',
                 'message' => 'Cannot remove the last admin. Promote another user to admin first.',
             ];
-            header('Location: ' . BASE_URL . 'team');
+            header('Location: ' . u('team'));
             exit;
         }
     }
@@ -448,7 +448,7 @@ function delete(): void {
         'message' => htmlspecialchars((string) $user['email'], ENT_QUOTES, 'UTF-8') . ' has been removed from the team.',
     ];
 
-    header('Location: ' . BASE_URL . 'team');
+    header('Location: ' . u('team'));
     exit;
 }
 
@@ -462,12 +462,12 @@ function forceReset(): void {
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . BASE_URL . 'team');
+        header('Location: ' . u('team'));
         exit;
     }
 
@@ -502,7 +502,7 @@ function forceReset(): void {
             ->messagePlain(
                 "An admin has sent you a password reset link for your SocialTurn account.\n\n" .
                 "Click the link below to set a new password:\n\n" .
-                BASE_URL . 'users/setpassword/' . $token . "\n\n" .
+                u('users', 'setpassword', ['token' => $token]) . "\n\n" .
                 "This link expires in 48 hours.\n\n" .
                 "If you did not request this, you can ignore this email."
             )
@@ -519,6 +519,6 @@ function forceReset(): void {
         ];
     }
 
-    header('Location: ' . BASE_URL . 'team');
+    header('Location: ' . u('team'));
     exit;
 }

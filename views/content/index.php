@@ -45,11 +45,11 @@ $count = count($posts);
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Content Library</h1>
         <div class="d-flex gap-2">
-            <a href="<?= BASE_URL ?>content/create<?= $filterAccountId > 0 ? '?account_id=' . (int) $filterAccountId : '' ?>"
+            <a href="<?= u('content', 'create', $filterAccountId > 0 ? ['account_id' => $filterAccountId] : []) ?>"
                class="btn btn-primary btn-sm">+ New Post</a>
-            <a href="<?= BASE_URL ?>content/importForm"
+            <a href="<?= u('content', 'importForm') ?>"
                class="btn btn-sm btn-outline-secondary">Import CSV</a>
-            <a href="<?= BASE_URL ?>content/content_duplicates"
+            <a href="<?= u('content', 'content_duplicates') ?>"
                class="btn btn-sm btn-outline-secondary">Find Duplicates</a>
         </div>
     </div>
@@ -69,14 +69,16 @@ $count = count($posts);
             <p class="card-text text-muted small mb-4">
                 Create an account before adding content.
             </p>
-            <a href="<?= BASE_URL ?>accounts/create" class="btn btn-primary">Create Account</a>
+            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Account</a>
         </div>
     </div>
 
     <?php else: ?>
 
     <!-- Filter bar -->
-    <form method="GET" action="<?= BASE_URL ?>content" class="d-flex flex-wrap gap-2 align-items-end mb-4">
+    <form method="GET" action="<?= BASE_URL ?>index.php" class="d-flex flex-wrap gap-2 align-items-end mb-4">
+        <input type="hidden" name="c" value="content">
+        <input type="hidden" name="a" value="index">
 
         <div>
             <label for="account_id" class="form-label form-label-sm mb-1">Account</label>
@@ -101,7 +103,7 @@ $count = count($posts);
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
             <?php if ($filterAccountId > 0 || $filterSearch !== ''): ?>
-            <a href="<?= BASE_URL ?>content" class="btn btn-sm btn-outline-secondary">Clear</a>
+            <a href="<?= u('content') ?>" class="btn btn-sm btn-outline-secondary">Clear</a>
             <?php endif; ?>
         </div>
 
@@ -170,11 +172,11 @@ $count = count($posts);
                 <div class="d-flex flex-column gap-2 flex-shrink-0 align-items-end">
 
                     <div class="d-flex gap-2">
-                        <a href="<?= BASE_URL ?>content/edit/<?= (int) $p['id'] ?>"
+                        <a href="<?= u('content', 'edit', ['id' => (int) $p['id']]) ?>"
                            class="btn btn-sm btn-outline-secondary">Edit</a>
 
                         <!-- Delete -->
-                        <form method="POST" action="<?= BASE_URL ?>content/delete"
+                        <form method="POST" action="<?= u('content', 'delete') ?>"
                               onsubmit="return confirm('Delete this post? It will be removed from the queue.')">
                             <input type="hidden" name="id"         value="<?= (int) $p['id'] ?>">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -183,7 +185,7 @@ $count = count($posts);
                     </div>
 
                     <!-- Recycle toggle -->
-                    <form method="POST" action="<?= BASE_URL ?>content/toggle">
+                    <form method="POST" action="<?= u('content', 'toggle') ?>">
                         <input type="hidden" name="id"                value="<?= (int) $p['id'] ?>">
                         <input type="hidden" name="filter_account_id" value="<?= (int) $filterAccountId ?>">
                         <input type="hidden" name="filter_search"     value="<?= htmlspecialchars($filterSearch, ENT_QUOTES, 'UTF-8') ?>">
@@ -214,12 +216,12 @@ $count = count($posts);
             <p class="card-text text-muted small mb-4">
                 <?php if ($filterAccountId > 0 || $filterSearch !== ''): ?>
                 No posts match the current filters.
-                <br><a href="<?= BASE_URL ?>content" class="text-decoration-none">Clear filters</a> to see all posts.
+                <br><a href="<?= u('content') ?>" class="text-decoration-none">Clear filters</a> to see all posts.
                 <?php else: ?>
                 Add your first post to get started.
                 <?php endif; ?>
             </p>
-            <a href="<?= BASE_URL ?>content/create<?= $filterAccountId > 0 ? '?account_id=' . (int) $filterAccountId : '' ?>"
+            <a href="<?= u('content', 'create', $filterAccountId > 0 ? ['account_id' => $filterAccountId] : []) ?>"
                class="btn btn-primary">+ New Post</a>
         </div>
     </div>

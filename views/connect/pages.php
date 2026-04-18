@@ -16,7 +16,7 @@
         <?php foreach ($pageList as $page): ?>
         <div class="list-group-item d-flex align-items-center justify-content-between gap-3">
             <span><?= htmlspecialchars((string) $page['name'], ENT_QUOTES, 'UTF-8') ?></span>
-            <form method="POST" action="<?= BASE_URL ?>connect/savePage" class="flex-shrink-0">
+            <form method="POST" action="<?= u('connect', 'savePage') ?>" class="flex-shrink-0">
                 <input type="hidden" name="platform"            value="facebook">
                 <input type="hidden" name="platform_account_id" value="<?= htmlspecialchars((string) $page['id'],   ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="platform_name"       value="<?= htmlspecialchars((string) $page['name'], ENT_QUOTES, 'UTF-8') ?>">
@@ -52,7 +52,7 @@
                     <?= htmlspecialchars((string) $ig['name'], ENT_QUOTES, 'UTF-8') ?>
                 <?php endif; ?>
             </span>
-            <form method="POST" action="<?= BASE_URL ?>connect/savePage" class="flex-shrink-0">
+            <form method="POST" action="<?= u('connect', 'savePage') ?>" class="flex-shrink-0">
                 <input type="hidden" name="platform"            value="instagram">
                 <input type="hidden" name="platform_account_id" value="<?= htmlspecialchars((string) $ig['id'],       ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="platform_name"       value="<?= htmlspecialchars((string) $ig['name'],     ENT_QUOTES, 'UTF-8') ?>">
@@ -67,7 +67,7 @@
     <?php endif; ?>
 
     <hr class="my-4">
-    <a href="<?= BASE_URL ?>connect/cancel" class="text-muted small">
+    <a href="<?= u('connect', 'cancel') ?>" class="text-muted small">
         Cancel — return to accounts without connecting
     </a>
 

@@ -32,11 +32,11 @@ $platformLimits = json_encode([
 <div class="container py-4" style="max-width:720px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= BASE_URL ?>content" class="text-muted text-decoration-none">&larr; Content Library</a>
+        <a href="<?= u('content') ?>" class="text-muted text-decoration-none">&larr; Content Library</a>
         <h1 class="h3 mb-0">New Post</h1>
     </div>
 
-    <form method="POST" action="<?= BASE_URL ?>content/store"
+    <form method="POST" action="<?= u('content', 'store') ?>"
           enctype="multipart/form-data"
           x-data="{
               accountPlatforms: <?= $accountPlatformsJson ?>,
@@ -154,7 +154,7 @@ $platformLimits = json_encode([
                     onclick="return confirm('Post will publish within 5 minutes. Continue?')">
                 Share Now
             </button>
-            <a href="<?= BASE_URL ?>content" class="btn btn-outline-secondary">Cancel</a>
+            <a href="<?= u('content') ?>" class="btn btn-outline-secondary">Cancel</a>
             <span class="text-muted small ms-2">Share Now adds the post to the library and queues it for the next cron run.</span>
         </div>
 

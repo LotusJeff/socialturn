@@ -1,6 +1,6 @@
 <?php
 
 function index() {
-	header("Location: ".BASE_URL."queue/index");
+	header('Location: ' . u('queue', 'index'));
 	exit;
 }

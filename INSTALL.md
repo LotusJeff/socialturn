@@ -6,7 +6,7 @@
 
 - **PHP 8.2+** with extensions: `pdo`, `pdo_mysql`, `gd`, `mbstring`, `finfo`, `curl`
 - **MySQL 8.0+**
-- **Web server:** Apache with mod_rewrite, or nginx with PHP-FPM
+- **Web server:** Apache, or nginx with PHP-FPM (no URL rewriting required)
 - **Composer** — [getcomposer.org](https://getcomposer.org)
 - **Cron access** on your server
 - **HTTPS** — OAuth tokens are stored in the database; plain HTTP installs are a security risk
@@ -96,16 +96,6 @@ Open your existing nginx server block configuration and add
 these location blocks inside the `server {}` block:
 
 ```nginx
-# SocialTurn — URL rewriting
-# nginx does not populate PATH_INFO via try_files the same way Apache does.
-# The if/rewrite pattern passes the path as a query string (?/controller/action),
-# which index.php reads from QUERY_STRING when PATH_INFO is empty.
-location /socialturn/ {
-    if (!-e $request_filename){
-        rewrite ^/socialturn/(.*)$ /socialturn/index.php?/$1 last;
-    }
-}
-
 # SocialTurn — block direct access to configuration files
 # Exact-match locations take priority over regex and prefix locations.
 location = /socialturn/config.php {
@@ -150,26 +140,16 @@ sudo nginx -t        # test config for errors first
 sudo nginx -s reload # reload if test passes
 ```
 
-**PHP-FPM PATH_INFO requirement**
-
-Your existing PHP-FPM location block must pass PATH_INFO
-to PHP or the SocialTurn router will not work. Verify these
-lines are present in your PHP location block:
-
-```nginx
-fastcgi_split_path_info ^(.+?\.php)(/.*)?$;
-fastcgi_param PATH_INFO $fastcgi_path_info;
-```
-
-If they are missing, add them to your existing PHP-FPM location block.
-
 ---
 
 #### Apache (subdirectory install)
 
-Enable mod_rewrite and ensure AllowOverride is set to All
-for your install directory. The included `.htaccess` handles
-all routing and security rules automatically.
+SocialTurn uses query-string routing — no mod_rewrite is required.
+The included `.htaccess` handles only security rules (blocking
+direct access to config files and the images directory).
+
+Ensure AllowOverride is set to at least `Limit` or `All` so that
+the `.htaccess` security rules are applied:
 
 ```apache
 <Directory /path/to/yourdomain/socialturn>
@@ -177,7 +157,7 @@ all routing and security rules automatically.
 </Directory>
 ```
 
-No additional configuration is needed — `.htaccess` is already in place.
+No URL rewriting configuration is needed.
 
 ### 8. Verify config.php is not web-accessible
 

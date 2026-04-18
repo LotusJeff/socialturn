@@ -28,7 +28,7 @@
                 </div>
                 <?php endif; ?>
 
-                <form method="POST" action="<?php echo BASE_URL; ?>users/login">
+                <form method="POST" action="<?php echo u('users', 'login'); ?>">
                     <input type="hidden" name="csrf_token"
                            value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
@@ -58,7 +58,7 @@
                     </div>
 
                     <div class="text-center">
-                        <a href="<?php echo BASE_URL; ?>users/forgot"
+                        <a href="<?php echo u('users', 'forgot'); ?>"
                            class="text-muted small">Forgot password?</a>
                     </div>
 

@@ -17,32 +17,13 @@
 #     - index index.php
 #     - A PHP-FPM location block with fastcgi_pass
 #
-#   Your PHP-FPM location block must pass PATH_INFO to PHP-FPM:
-#     fastcgi_split_path_info ^(.+?\.php)(/.*)?$;
-#     fastcgi_param PATH_INFO $fastcgi_path_info;
+#   SocialTurn uses query-string routing (?c=controller&a=action).
+#   No URL rewriting is required — all links point to index.php
+#   directly. No PATH_INFO or try_files configuration is needed.
 #
 #   nginx include documentation:
 #   https://nginx.org/en/docs/ngx_core_module.html#include
 # ============================================================
-
-# ------------------------------------------------------------
-# URL rewriting — route all requests through index.php
-#
-# Equivalent to the mod_rewrite block in .htaccess:
-#   RewriteCond %{REQUEST_FILENAME} !-f
-#   RewriteCond %{REQUEST_FILENAME} !-d
-#   RewriteRule ^(.*)$ index.php/$1 [PT,L]
-#
-# nginx does not populate PATH_INFO via try_files the same way
-# Apache does. The if/rewrite pattern passes the path as a query
-# string parameter (?/controller/action), which index.php reads
-# from QUERY_STRING when PATH_INFO is empty.
-# ------------------------------------------------------------
-location / {
-    if (!-e $request_filename){
-        rewrite ^/(.*)$ /index.php?/$1 last;
-    }
-}
 
 # ------------------------------------------------------------
 # Security: block direct access to configuration files.

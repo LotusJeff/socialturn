@@ -17,7 +17,7 @@ $count = count($rows);
 <div class="container py-4" style="max-width:900px">
 
     <div class="d-flex align-items-center mb-1 gap-3">
-        <a href="<?= BASE_URL ?>queue/view/<?= (int) $account['id'] ?>"
+        <a href="<?= u('queue', 'view', ['id' => (int) $account['id']]) ?>"
            class="text-muted text-decoration-none">&larr; Queue</a>
         <h1 class="h3 mb-0">
             <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
@@ -39,9 +39,9 @@ $count = count($rows);
     <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
 
         <div class="d-flex gap-2">
-            <a href="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?><?= $search !== '' ? '?q=' . urlencode($search) : '' ?>"
+            <a href="<?= u('queue', 'history', array_merge(['id' => (int) $account['id']], $search !== '' ? ['q' => $search] : [])) ?>"
                class="btn btn-sm btn-outline-secondary">All history</a>
-            <a href="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?><?= $search !== '' ? '?q=' . urlencode($search) : '' ?>"
+            <a href="<?= u('queue', 'errors', array_merge(['id' => (int) $account['id']], $search !== '' ? ['q' => $search] : [])) ?>"
                class="btn btn-sm btn-danger">
                 Errors
                 <?php if ((int) $totalCount > 0): ?>
@@ -50,15 +50,18 @@ $count = count($rows);
             </a>
         </div>
 
-        <form method="GET" action="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?>"
+        <form method="GET" action="<?= BASE_URL ?>index.php"
               class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="c" value="queue">
+            <input type="hidden" name="a" value="errors">
+            <input type="hidden" name="id" value="<?= (int) $account['id'] ?>">
             <input type="text" name="q" class="form-control form-control-sm"
                    style="max-width:240px"
                    placeholder="Search text or error&hellip;"
                    value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
             <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
             <?php if ($search !== ''): ?>
-            <a href="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?>"
+            <a href="<?= u('queue', 'errors', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear</a>
             <?php endif; ?>
         </form>
@@ -109,7 +112,7 @@ $count = count($rows);
                 </div>
 
                 <div class="flex-shrink-0">
-                    <a href="<?= BASE_URL ?>content/edit/<?= (int) $row['post_id'] ?>"
+                    <a href="<?= u('content', 'edit', ['id' => (int) $row['post_id']]) ?>"
                        class="btn btn-sm btn-outline-secondary">Edit post</a>
                 </div>
 
@@ -127,7 +130,7 @@ $count = count($rows);
             <p class="card-text text-muted small mb-4">
                 <?= (int) $totalCount ?> failed <?= (int) $totalCount === 1 ? 'post' : 'posts' ?> on record.
             </p>
-            <a href="<?= BASE_URL ?>queue/errors/<?= (int) $account['id'] ?>"
+            <a href="<?= u('queue', 'errors', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear search</a>
             <?php else: ?>
             <h5 class="card-title text-success">No failed posts</h5>

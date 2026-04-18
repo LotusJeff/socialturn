@@ -46,7 +46,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
 
-            <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo BASE_URL; ?>queue/index">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo u('queue', 'index'); ?>">
                 <img src="<?php echo BASE_URL; ?>assets/img/logo.png" alt="SocialTurn" height="32">
                 SocialTurn
             </a>
@@ -63,13 +63,13 @@
                     <!-- Queue — all authenticated users -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'queue') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>queue/index">Queue</a>
+                           href="<?php echo u('queue', 'index'); ?>">Queue</a>
                     </li>
 
                     <!-- Content — all authenticated users -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'content') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>content/index">Content</a>
+                           href="<?php echo u('content', 'index'); ?>">Content</a>
                     </li>
 
                     <?php if (hasPermission(1)): ?>
@@ -77,13 +77,13 @@
                     <!-- Accounts — admin only -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'accounts') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>accounts">Accounts</a>
+                           href="<?php echo u('accounts'); ?>">Accounts</a>
                     </li>
 
                     <!-- Team — admin only -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'team') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>team">Team</a>
+                           href="<?php echo u('team'); ?>">Team</a>
                     </li>
 
                     <?php endif; ?>
@@ -91,7 +91,7 @@
                     <!-- Logout — all authenticated users -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'users') ? ' active' : ''; ?>"
-                           href="<?php echo BASE_URL; ?>users/logout">Logout</a>
+                           href="<?php echo u('users', 'logout'); ?>">Logout</a>
                     </li>
 
                 </ul>

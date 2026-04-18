@@ -17,7 +17,7 @@ $count = count($rows);
 <div class="container py-4" style="max-width:900px">
 
     <div class="d-flex align-items-center mb-1 gap-3">
-        <a href="<?= BASE_URL ?>queue" class="text-muted text-decoration-none">&larr; Queue</a>
+        <a href="<?= u('queue') ?>" class="text-muted text-decoration-none">&larr; Queue</a>
         <h1 class="h3 mb-0">
             <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
             &mdash; Pending Queue
@@ -29,7 +29,7 @@ $count = count($rows);
     <p class="text-muted small mb-4">
         <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?>
         &middot;
-        <a href="<?= BASE_URL ?>queue/history/<?= (int) $account['id'] ?>" class="text-decoration-none">History</a>
+        <a href="<?= u('queue', 'history', ['id' => (int) $account['id']]) ?>" class="text-decoration-none">History</a>
     </p>
 
     <?php if (!empty($_SESSION['notification'])): ?>
@@ -42,8 +42,11 @@ $count = count($rows);
     <!-- Search + Flush -->
     <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
 
-        <form method="GET" action="<?= BASE_URL ?>queue/view/<?= (int) $account['id'] ?>"
+        <form method="GET" action="<?= BASE_URL ?>index.php"
               class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="c" value="queue">
+            <input type="hidden" name="a" value="view">
+            <input type="hidden" name="id" value="<?= (int) $account['id'] ?>">
             <div>
                 <label for="q" class="form-label form-label-sm mb-1">Search</label>
                 <input type="text" id="q" name="q" class="form-control form-control-sm"
@@ -53,13 +56,13 @@ $count = count($rows);
             </div>
             <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
             <?php if ($search !== ''): ?>
-            <a href="<?= BASE_URL ?>queue/view/<?= (int) $account['id'] ?>"
+            <a href="<?= u('queue', 'view', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear</a>
             <?php endif; ?>
         </form>
 
         <?php if ((int) $pendingTotal > 0): ?>
-        <form method="POST" action="<?= BASE_URL ?>queue/queue_flush"
+        <form method="POST" action="<?= u('queue', 'queue_flush') ?>"
               onsubmit="return confirm('Remove all <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?> from the queue? The queue will refill automatically on the next cron run.')">
             <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
             <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -114,7 +117,7 @@ $count = count($rows);
                     <div class="d-flex gap-2 justify-content-end flex-wrap">
 
                         <!-- Post Now — reschedules this pending row to NOW() -->
-                        <form method="POST" action="<?= BASE_URL ?>queue/sharenow"
+                        <form method="POST" action="<?= u('queue', 'sharenow') ?>"
                               onsubmit="return confirm('Move this post to the front of the queue? It will publish within 5 minutes.')">
                             <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
                             <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
@@ -124,11 +127,11 @@ $count = count($rows);
                         </form>
 
                         <!-- Edit source post in content library -->
-                        <a href="<?= BASE_URL ?>content/edit/<?= (int) $row['post_id'] ?>"
+                        <a href="<?= u('content', 'edit', ['id' => (int) $row['post_id']]) ?>"
                            class="btn btn-sm btn-outline-secondary">Edit</a>
 
                         <!-- Remove this queue entry -->
-                        <form method="POST" action="<?= BASE_URL ?>queue/remove"
+                        <form method="POST" action="<?= u('queue', 'remove') ?>"
                               onsubmit="return confirm('Remove this post from the queue?')">
                             <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
                             <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
@@ -158,7 +161,7 @@ $count = count($rows);
             <p class="card-text text-muted small mb-4">
                 <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?> in queue.
             </p>
-            <a href="<?= BASE_URL ?>queue/view/<?= (int) $account['id'] ?>"
+            <a href="<?= u('queue', 'view', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear search</a>
             <?php else: ?>
             <h5 class="card-title text-muted">Queue is empty</h5>
@@ -167,11 +170,11 @@ $count = count($rows);
                 recycle threshold on the next cron run.
                 <?php if (!(int) $account['is_posting']): ?>
                 <br><strong>Note:</strong> this account is paused &mdash; enable posting in
-                <a href="<?= BASE_URL ?>accounts/edit/<?= (int) $account['id'] ?>">account settings</a>
+                <a href="<?= u('accounts', 'edit', ['id' => (int) $account['id']]) ?>">account settings</a>
                 for the queue engine to run.
                 <?php endif; ?>
             </p>
-            <a href="<?= BASE_URL ?>content?account_id=<?= (int) $account['id'] ?>"
+            <a href="<?= u('content', 'index', ['account_id' => (int) $account['id']]) ?>"
                class="btn btn-outline-secondary btn-sm">View content library</a>
             <?php endif; ?>
         </div>

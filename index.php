@@ -25,22 +25,8 @@ session_start();
 
 /* Get Basic Details */
 
-if (empty($_SERVER['PATH_INFO'])) {
-	$qs = $_SERVER['QUERY_STRING'] ?? '';
-	if (str_starts_with($qs, '/')) {
-		$_SERVER['PATH_INFO'] = strtok($qs, '&');
-	} else {
-		$_SERVER['PATH_INFO'] = '';
-	}
-}
-
-$path = explode("/", (substr($_SERVER['PATH_INFO'],1)));
-
-$controller = 'home';
-$action = 'index';
-
-if (!empty($path[0])) { $controller = str_replace("-","",$path[0]); }
-if (!empty($path[1])) { $action = str_replace("-","",$path[1]); }
+$controller = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($_GET['c'] ?? '')) ?: 'home';
+$action     = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($_GET['a'] ?? '')) ?: 'index';
 
 /* Composer Autoloader */
 
@@ -72,7 +58,7 @@ if (!$firstRunBypassed) {
     $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
     $stmt->execute();
     if ((int) $stmt->fetchColumn() === 0) {
-        header('Location: ' . BASE_URL . 'users/setup');
+        header('Location: ' . u('users', 'setup'));
         exit;
     }
 }

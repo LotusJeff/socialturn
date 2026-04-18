@@ -15,7 +15,7 @@
 
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Duplicate Posts</h1>
-        <a href="<?= BASE_URL ?>content" class="text-muted text-decoration-none">&larr; Content Library</a>
+        <a href="<?= u('content') ?>" class="text-muted text-decoration-none">&larr; Content Library</a>
     </div>
 
     <?php if (!empty($_SESSION['notification'])): ?>
@@ -83,10 +83,10 @@
                     </div>
 
                     <div class="flex-shrink-0 d-flex gap-2 align-items-start">
-                        <a href="<?= BASE_URL ?>content/edit/<?= (int) $p['id'] ?>"
+                        <a href="<?= u('content', 'edit', ['id' => (int) $p['id']]) ?>"
                            class="btn btn-sm btn-outline-secondary">Edit</a>
 
-                        <form method="POST" action="<?= BASE_URL ?>content/delete"
+                        <form method="POST" action="<?= u('content', 'delete') ?>"
                               onsubmit="return confirm('Delete this post? It will be removed from the queue.')">
                             <input type="hidden" name="id"         value="<?= (int) $p['id'] ?>">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">

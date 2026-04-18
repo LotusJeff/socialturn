@@ -34,9 +34,9 @@
                     </p>
 
                     <div class="d-flex gap-2 justify-content-center flex-wrap">
-                        <a href="<?php echo BASE_URL; ?>team/invite"
+                        <a href="<?php echo u('team', 'invite'); ?>"
                            class="btn btn-outline-secondary">Invite another</a>
-                        <a href="<?php echo BASE_URL; ?>team"
+                        <a href="<?php echo u('team'); ?>"
                            class="btn btn-primary">Back to team</a>
                     </div>
 

@@ -38,7 +38,7 @@
                         <p class="mb-1 fw-semibold">Check your inbox</p>
                         <p class="text-muted mb-4">If that address has an account, a reset link
                         is on its way. The link expires in 48 hours.</p>
-                        <a href="<?php echo BASE_URL; ?>users/login"
+                        <a href="<?php echo u('users', 'login'); ?>"
                            class="btn btn-outline-secondary">Back to sign in</a>
                     </div>
 
@@ -48,7 +48,7 @@
                     <p class="text-muted mb-4">Enter your email address and we&rsquo;ll send
                     you a link to reset your password.</p>
 
-                    <form method="POST" action="<?php echo BASE_URL; ?>users/forgot">
+                    <form method="POST" action="<?php echo u('users', 'forgot'); ?>">
                         <input type="hidden" name="csrf_token"
                                value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
@@ -68,7 +68,7 @@
                         </div>
 
                         <div class="text-center">
-                            <a href="<?php echo BASE_URL; ?>users/login"
+                            <a href="<?php echo u('users', 'login'); ?>"
                                class="text-muted small">Back to sign in</a>
                         </div>
 

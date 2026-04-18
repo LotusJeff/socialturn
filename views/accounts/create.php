@@ -11,13 +11,13 @@
 <div class="container py-4" style="max-width:600px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= BASE_URL ?>accounts" class="text-muted text-decoration-none">&larr; Accounts</a>
+        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Accounts</a>
         <h1 class="h3 mb-0">New Account</h1>
     </div>
 
     <div class="card">
         <div class="card-body">
-            <form method="POST" action="<?= BASE_URL ?>accounts/store">
+            <form method="POST" action="<?= u('accounts', 'store') ?>">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
                 <div class="mb-3">
@@ -54,8 +54,8 @@
                     </select>
                     <div class="form-text">
                         Don't see your platform?
-                        <a href="<?= BASE_URL ?>connect/twitter">Connect Twitter</a> or
-                        <a href="<?= BASE_URL ?>connect/facebook">Connect Facebook / Instagram</a> first.
+                        <a href="<?= u('connect', 'twitter') ?>">Connect Twitter</a> or
+                        <a href="<?= u('connect', 'facebook') ?>">Connect Facebook / Instagram</a> first.
                     </div>
                 </div>
 
@@ -75,7 +75,7 @@
 
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Create Account</button>
-                    <a href="<?= BASE_URL ?>accounts" class="btn btn-outline-secondary">Cancel</a>
+                    <a href="<?= u('accounts') ?>" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>
         </div>

@@ -13,7 +13,7 @@
 
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Import Posts</h1>
-        <a href="<?= BASE_URL ?>content" class="text-muted text-decoration-none">&larr; Back to Content Library</a>
+        <a href="<?= u('content') ?>" class="text-muted text-decoration-none">&larr; Back to Content Library</a>
     </div>
 
     <!-- ============================================================
@@ -76,7 +76,7 @@
             <?php endif; ?>
 
             <?php if ($resHasErrors): ?>
-            <a href="<?= BASE_URL ?>content/importErrors"
+            <a href="<?= u('content', 'importErrors') ?>"
                class="btn btn-sm btn-outline-danger mt-1">Download Error Report</a>
             <?php endif; ?>
 
@@ -102,7 +102,7 @@
                 <li>Maximum 5,000 data rows per import. Split larger sets into batches.</li>
                 <li>Lines beginning with <code>#</code> are treated as comments and ignored.</li>
             </ul>
-            <a href="<?= BASE_URL ?>content/importSample"
+            <a href="<?= u('content', 'importSample') ?>"
                class="small text-decoration-none">Download sample CSV</a>
         </div>
     </div>
@@ -110,7 +110,7 @@
     <!-- ============================================================
          Import form
          ============================================================ -->
-    <form method="POST" action="<?= BASE_URL ?>content/importProcess"
+    <form method="POST" action="<?= u('content', 'importProcess') ?>"
           enctype="multipart/form-data">
 
         <input type="hidden" name="csrf_token"
@@ -174,7 +174,7 @@
 
         <div class="d-flex gap-2 align-items-center">
             <button type="submit" class="btn btn-primary">Import Posts</button>
-            <a href="<?= BASE_URL ?>content" class="btn btn-outline-secondary">Cancel</a>
+            <a href="<?= u('content') ?>" class="btn btn-outline-secondary">Cancel</a>
         </div>
 
     </form>
