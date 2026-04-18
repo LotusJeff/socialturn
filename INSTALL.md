@@ -85,8 +85,10 @@ Click **Install SocialTurn** on the final step. The wizard:
 
 > **After the wizard completes, delete `install.php` immediately.**
 > SocialTurn will display a security warning on every page until the file is removed.
-> Run: `rm /path/to/socialturn/install.php`
-
+> Run:
+```
+sudo rm /path/to/socialturn/install.php
+```
 
 ### 6. Set up the cron job
 
