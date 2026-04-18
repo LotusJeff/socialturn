@@ -100,29 +100,29 @@
         </div>
     </nav>
 
-    <!-- ============================================================
-         Flash notifications
-         ============================================================ -->
-    <?php if (!empty($_SESSION['notification'])): ?>
-    <?php
-        $notifType    = $_SESSION['notification']['type']    ?? 'info';
-        $notifMessage = $_SESSION['notification']['message'] ?? '';
-        $alertClass   = match ($notifType) {
-            'success' => 'alert-success',
-            'error'   => 'alert-danger',
-            'warning' => 'alert-warning',
-            default   => 'alert-info',
-        };
-        unset($_SESSION['notification']);
-    ?>
-    <div class="container mt-3">
-        <div class="alert <?php echo $alertClass; ?> alert-dismissible fade show" role="alert">
-            <?php echo htmlspecialchars($notifMessage, ENT_QUOTES, 'UTF-8'); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    </div>
-    <?php endif; ?>
+<?php endif; ?>
 
+<!-- ============================================================
+     Flash notifications
+     ============================================================ -->
+<?php if (!empty($_SESSION['notification'])): ?>
+<?php
+    $notifType    = $_SESSION['notification']['type']    ?? 'info';
+    $notifMessage = $_SESSION['notification']['message'] ?? '';
+    $alertClass   = match ($notifType) {
+        'success' => 'alert-success',
+        'error'   => 'alert-danger',
+        'warning' => 'alert-warning',
+        default   => 'alert-info',
+    };
+    unset($_SESSION['notification']);
+?>
+<div class="container mt-3">
+    <div class="alert <?php echo $alertClass; ?> alert-dismissible fade show" role="alert">
+        <?php echo htmlspecialchars($notifMessage, ENT_QUOTES, 'UTF-8'); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+</div>
 <?php endif; ?>
 
 <!-- Page content begins below -->

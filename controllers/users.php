@@ -475,6 +475,9 @@ function forgot(): void {
             if ($user) {
                 $token = bin2hex(random_bytes(32));
 
+                $dbh->prepare('DELETE FROM invites WHERE company_id = ? AND email = ? AND used_at IS NULL')
+                    ->execute([(int) $user['company_id'], $email]);
+
                 $dbh->prepare('INSERT INTO invites (company_id, email, token) VALUES (?, ?, ?)')
                     ->execute([(int) $user['company_id'], $email, $token]);
 

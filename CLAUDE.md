@@ -464,9 +464,9 @@ Merge dev to main. Tag 1.0.0. Public release.
 - `INSTALL.md` — updated with subdirectory install instructions, file permissions step, Postmark sender verification, DKIM/SPF DNS guidance
 - Twitter credential naming — `config.sample.php` and `INSTALL.md` updated to note Consumer Key/Consumer Secret labeling in Twitter developer portal
 - Migration 024 — `active_hours_start` and `active_hours_end` changed to NULL DEFAULT NULL in `account_schedules`
+- Spurious "link expired or already used" notification after successful password set — two-part fix: (1) flash notification block moved outside `$noextra` guard in `views/header.php` so notifications are shown and cleared on all pages; (2) `forgot()` in `controllers/users.php` now deletes existing unused tokens before inserting a new one, preventing stale token accumulation
 
 ### Open
-- Password reset link shows "expired or already used" message after successful first-time password set — needs investigation
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
 
 ---
