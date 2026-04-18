@@ -25,7 +25,7 @@ function authenticate($force = 0) {
 	global $action;
 
 	// Routes that never require authentication
-	$unauthenticatedActions = ['login', 'validate', 'invite', 'register', 'setup', 'setpassword', 'forgot'];
+	$unauthenticatedActions = ['login', 'validate', 'invite', 'register', 'setpassword', 'forgot'];
 	if ($controller === 'users' && in_array($action, $unauthenticatedActions, true)) {
 		return;
 	}
@@ -34,7 +34,7 @@ function authenticate($force = 0) {
 	}
 
 	// Admin-only routes — type=1 required
-	$adminOnlyControllers = ['team', 'accounts', 'connect'];
+	$adminOnlyControllers = ['team', 'accounts', 'connect', 'settings'];
 	if (in_array($controller, $adminOnlyControllers, true) && isLoggedIn()) {
 		if ((int) ($_SESSION['user']['type'] ?? 999) !== 1) {
 			header('Location: ' . u('oops', 'permissions'));
@@ -172,11 +172,59 @@ function db() {
 	try {
 	  $dbh = new PDO("mysql:host=".SERVERNAME.";dbname=".DBNAME, DBUSERNAME, DBPASSWORD);
 	  $dbh->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+	  load_admin_settings($dbh);
 	}
 	catch(PDOException $e) {
 		echo "We are experiencing very heavy load at the moment. Please try again in 10 minutes.";
 		file_put_contents('PDOErrors.txt', $e->getMessage(), FILE_APPEND);
 		exit;
+	}
+}
+
+/**
+ * Loads all rows from admin_settings and defines them as PHP constants.
+ * Called from db() immediately after the PDO connection is established.
+ * Constants already defined (e.g. in tests/bootstrap.php) are never overwritten.
+ */
+function load_admin_settings(PDO $dbh): void {
+	static $keyMap = [
+		'owner_email'                   => 'OWNER_EMAIL',
+		'recycle_threshold_default'     => 'RECYCLE_THRESHOLD_DEFAULT',
+		'recycle_lookahead_days'        => 'RECYCLE_LOOKAHEAD_DAYS',
+		'schedule_min_posts'            => 'SCHEDULE_MIN_POSTS',
+		'twitter_apikey'                => 'TWITTER_APIKEY',
+		'twitter_apisecret'             => 'TWITTER_APISECRET',
+		'meta_app_id'                   => 'META_APP_ID',
+		'meta_app_secret'               => 'META_APP_SECRET',
+		'postmarkapp_api_key'           => 'POSTMARKAPP_API_KEY',
+		'postmarkapp_mail_from_address' => 'POSTMARKAPP_MAIL_FROM_ADDRESS',
+		'postmarkapp_mail_from_name'    => 'POSTMARKAPP_MAIL_FROM_NAME',
+	];
+
+	try {
+		$stmt = $dbh->query('SELECT setting_key, setting_val FROM admin_settings');
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$map  = array_column($rows, 'setting_val', 'setting_key');
+
+		foreach ($keyMap as $dbKey => $phpConst) {
+			if (!defined($phpConst)) {
+				$val = $map[$dbKey] ?? '';
+				// Numeric settings are cast so arithmetic works as expected
+				if (in_array($phpConst, ['RECYCLE_THRESHOLD_DEFAULT', 'RECYCLE_LOOKAHEAD_DAYS', 'SCHEDULE_MIN_POSTS'], true)) {
+					define($phpConst, (int) $val);
+				} else {
+					define($phpConst, (string) $val);
+				}
+			}
+		}
+	} catch (Throwable) {
+		// admin_settings table may not exist yet (migration 026 not run).
+		// Define constants as empty/default values so the app remains functional.
+		foreach ($keyMap as $phpConst) {
+			if (!defined($phpConst)) {
+				define($phpConst, '');
+			}
+		}
 	}
 }
 

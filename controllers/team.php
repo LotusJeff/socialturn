@@ -119,7 +119,7 @@ function invited(): void {
         // Invite row exists — admin can use Force Reset from the team index to resend.
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Invite created but the email could not be sent. Check Postmark settings in config.php.',
+            'message' => 'Invite created but the email could not be sent. Check Email settings in Settings.',
         ];
         header('Location: ' . u('team'));
         exit;
@@ -191,7 +191,7 @@ function resendInvite(): void {
     } catch (Throwable) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Token refreshed but the email could not be sent. Check Postmark settings in config.php.',
+            'message' => 'Token refreshed but the email could not be sent. Check Email settings in Settings.',
         ];
     }
 
@@ -515,7 +515,7 @@ function forceReset(): void {
     } catch (Throwable) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Reset token created but the email could not be sent. Check Postmark settings in config.php.',
+            'message' => 'Reset token created but the email could not be sent. Check Email settings in Settings.',
         ];
     }
 

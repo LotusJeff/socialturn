@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.9.1] — 2026-04-18
+
+### Install Wizard & Settings UI
+
+- **Install wizard** (`install.php`) — self-contained multi-step setup replacing
+  manual `config.php` editing. Collects database credentials, admin account,
+  Postmark email settings, and platform API keys. Runs `db/schema.sql` and
+  migration 026 automatically. Writes `config.ini` and sets permissions 0600.
+- **config.ini** replaces `config.php` as the runtime configuration file.
+  Contains only five values: `db_host`, `db_name`, `db_user`, `db_pass`,
+  `base_url`. All other settings move to `admin_settings` in the database.
+- **admin_settings table** (migration 026) — stores all application
+  configuration beyond DB credentials and BASE_URL, loaded at bootstrap as PHP
+  constants by `load_admin_settings()`.
+- **Settings UI** — new Settings section in the admin nav with four sub-pages:
+  Database & Site URL, Email, Platform Credentials, Application Settings.
+  All settings previously in `config.php` are now editable in the UI.
+- **Security warning banner** — index.php checks for the presence of
+  `install.php` after every request and displays a persistent alert to admin
+  users until the file is deleted.
+- **config.sample.php removed** — superseded by the install wizard.
+- **setup() removed** from `controllers/users.php` — first-run setup is now
+  handled entirely by the install wizard.
+
+### Query-String Routing (0.9.1 also includes the Phase A changes)
+
+- All internal URLs use query-string routing (`?c=controller&a=action`) via
+  the `u()` helper. PATH_INFO routing removed.
+- `.htaccess` mod_rewrite block removed — no URL rewriting required.
+- `nginx.conf.sample` updated with working subdirectory install configuration.
+- `INSTALL.md` updated to reflect no mod_rewrite requirement.
+
+### Migrations
+
+- Run `db/migrations/026_admin_settings.sql` when upgrading from 0.9.0.
+  Fresh installs use `db/schema.sql` which includes all tables.
+
+---
+
 ## [0.9.0] — 2026-04-16
 
 > **Pre-release.** Gates 3 and 4 of the test suite (integration and platform

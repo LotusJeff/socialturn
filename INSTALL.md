@@ -30,34 +30,20 @@ cd socialturn
 composer install --no-dev
 ```
 
-### 3. Configure the application
-
-```bash
-cp config.sample.php config.php
-```
-
-Open `config.php` and fill in every value. All constants are documented inline.
-Do not leave any placeholder values in place before proceeding.
-
-### 4. Create the database
+### 3. Create the database
 
 ```sql
 CREATE DATABASE socialturn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 5. Load the schema
+The install wizard loads the schema automatically — you only need to create the empty database first.
 
-```bash
-mysql -u your_db_user -p socialturn < db/schema.sql
-```
+### 4. Set file permissions
 
-This creates all tables. Run this once on a fresh database.
-For upgrades from an existing install, run `db/migrations/` in numbered order instead.
-
-### 6. Set file permissions
-
-The web server user needs write access to the images/ directory
-for image uploads to work.
+The web server user needs:
+- **Write access to `images/`** for uploaded images
+- **Write access to the socialturn root directory** so the install wizard can write `boot.php`
+- **Write access to the directory where `socialturn.ini` will be stored** (ideally one level above the web root — the wizard auto-detects this path and lets you confirm it)
 
 ```bash
 # Set ownership to the web server user
@@ -68,32 +54,42 @@ sudo chmod -R 755 /path/to/socialturn
 
 # Allow the web server to write uploaded images
 sudo chmod -R 775 /path/to/socialturn/images
+
+# Allow the web server to write socialturn.ini above the web root
+# Replace /var/www/yoursite.com with the parent of your document root
+sudo chmod 775 /var/www/yoursite.com
 ```
 
-If your web server runs as a different user, replace `www-data`
-with the correct user. To check:
+If your web server runs as a different user, replace `www-data` with the correct user.
+To check:
 
 ```bash
 ps aux | grep -E 'apache|nginx|php-fpm' | grep -v grep
 ```
 
-The user in the first column of the worker process row is your
-web server user.
+The user in the first column of the worker process row is your web server user.
 
-### 7. Configure your web server
+After the install wizard runs, you can tighten directory permissions:
+
+```bash
+sudo chmod 755 /path/to/socialturn
+sudo chmod 755 /var/www/yoursite.com
+```
+
+### 5. Configure your web server
 
 #### nginx (subdirectory install)
 
-SocialTurn is designed to run as a subdirectory app alongside
-your existing site — for example `https://yourdomain.com/socialturn/`.
+SocialTurn is designed to run as a subdirectory app alongside your existing site —
+for example `https://yourdomain.com/socialturn/`.
 
-Your existing nginx server block handles SSL, domain, root, and
-PHP-FPM. You only need to add the SocialTurn location blocks.
+Your existing nginx server block handles SSL, domain, root, and PHP-FPM. You only
+need to add the SocialTurn location blocks.
 
 **Option A — Add directly to your existing server block**
 
-Open your existing nginx server block configuration and add
-these location blocks inside the `server {}` block:
+Open your existing nginx server block configuration and add these location blocks
+inside the `server {}` block:
 
 ```nginx
 # SocialTurn — block direct access to configuration files
@@ -109,6 +105,16 @@ location ~* ^/socialturn/(composer\.(json|lock)|\.gitignore|\.gitkeep)$ {
     deny all;
 }
 
+# SocialTurn — block access to socialturn.ini / config.ini (if inside web root)
+location ~* \.ini$ {
+    deny all;
+}
+
+# SocialTurn — block direct access to boot.php
+location = /socialturn/boot.php {
+    deny all;
+}
+
 # SocialTurn — block PHP execution in images directory
 location ~* ^/socialturn/images/.*\.ph(p[0-9]?|tml)$ {
     deny all;
@@ -119,19 +125,14 @@ Replace `/socialturn/` with your actual subdirectory path if different.
 
 **Option B — Drop-in config file**
 
-If your nginx setup includes a directory that auto-loads
-additional config files (commonly `/etc/nginx/conf.d/` or
-`/etc/nginx/sites-enabled/`), create a new file there:
+If your nginx setup includes a directory that auto-loads additional config files
+(commonly `/etc/nginx/conf.d/` or `/etc/nginx/sites-enabled/`), create a new file:
 
 ```bash
 sudo nano /etc/nginx/conf.d/socialturn.conf
 ```
 
-Add the same location blocks from Option A into that file
-and save. nginx will pick them up automatically on reload.
-
-This approach keeps SocialTurn's config separate from your
-main server block — easier to manage and remove if needed.
+Add the same location blocks from Option A and save.
 
 **Both options — reload nginx after making changes:**
 
@@ -145,11 +146,11 @@ sudo nginx -s reload # reload if test passes
 #### Apache (subdirectory install)
 
 SocialTurn uses query-string routing — no mod_rewrite is required.
-The included `.htaccess` handles only security rules (blocking
-direct access to config files and the images directory).
+The included `.htaccess` handles security rules (blocking direct access to
+`config.ini`, config files, and the images directory).
 
-Ensure AllowOverride is set to at least `Limit` or `All` so that
-the `.htaccess` security rules are applied:
+Ensure AllowOverride is set to at least `Limit` or `All` so that the `.htaccess`
+security rules are applied:
 
 ```apache
 <Directory /path/to/yourdomain/socialturn>
@@ -159,14 +160,60 @@ the `.htaccess` security rules are applied:
 
 No URL rewriting configuration is needed.
 
-### 8. Verify config.php is not web-accessible
+### 6. Run the install wizard
 
-Browse directly to `https://yoursite.com/config.php`. You should receive
-a 403 Forbidden response. If you receive a blank page or PHP output,
-your web server is not enforcing the `.htaccess` or nginx rules. Do not
-proceed until this is confirmed.
+Open your browser and navigate to:
 
-### 9. Set up the cron job
+```
+https://yoursite.com/socialturn/install.php
+```
+
+The wizard walks you through four steps:
+
+1. **Database & Site URL** — enter your MySQL credentials and the full public URL
+   to your installation (with trailing slash). The wizard also shows the path where
+   `socialturn.ini` will be written — by default one level above your web root
+   (e.g. `/var/www/yoursite.com/socialturn.ini`). You can change this path. A
+   yellow advisory is shown if the path resolves inside the web root; this is
+   non-blocking but less secure.
+2. **Admin Account** — choose your admin email address and password.
+   This creates the first admin user directly — no email verification required.
+3. **Email (optional)** — enter Postmark credentials for password resets and team invites.
+   You can skip this step and configure it later in Settings → Email.
+4. **Platform Credentials (optional)** — enter Twitter/X and Facebook/Instagram
+   developer app keys. You can skip and configure later in Settings → Platform Credentials.
+
+Click **Install SocialTurn** on the final step. The wizard:
+- Tests the database connection
+- Loads the schema (`db/schema.sql`)
+- Creates your organization and admin account
+- Writes `socialturn.ini` (credentials) at your chosen path
+- Writes `boot.php` in the web root pointing to `socialturn.ini`
+
+> **After the wizard completes, delete `install.php` immediately.**
+> SocialTurn will display a security warning on every page until the file is removed.
+> Run: `rm /path/to/socialturn/install.php`
+
+### 7. Verify credentials are not web-accessible
+
+If `socialturn.ini` was written above the web root, it is not web-accessible by
+definition. If it was written inside the web root (advisory path warning shown during
+install), verify it is blocked:
+
+```
+https://yoursite.com/socialturn/socialturn.ini  → must return 403 Forbidden
+```
+
+Also verify `boot.php` is blocked (it reveals the filesystem path):
+
+```
+https://yoursite.com/socialturn/boot.php  → must return 403 Forbidden
+```
+
+If either returns anything other than 403, your web server is not enforcing the
+`.htaccess` or nginx rules. Do not proceed until this is confirmed.
+
+### 8. Set up the cron job
 
 Add this to your crontab (`crontab -e`):
 
@@ -181,18 +228,11 @@ The cron job runs every 5 minutes. It checks for pending posts, dispatches
 them to their platforms, and refills the queue when it drops below the
 recycle threshold. It must be running for SocialTurn to post autonomously.
 
-### 10. Complete first-run setup
+### 9. Connect your first platform account
 
-Open your site in a browser. SocialTurn detects that no users exist and
-sends a setup email to the `OWNER_EMAIL` address you configured in `config.php`.
-
-Check your inbox for the setup email and follow the link to set your password.
-
-### 11. Connect your first platform account
-
-Log in, navigate to **Accounts**, create an account, and connect it to a
-platform. See [Platform Credentials](#platform-credentials) for what you
-will need before starting an OAuth flow.
+Log in, navigate to **Accounts**, create an account, and connect it to a platform.
+See [Platform Credentials](#platform-credentials) for what you will need before
+starting an OAuth flow.
 
 ---
 
@@ -200,22 +240,23 @@ will need before starting an OAuth flow.
 
 ### Twitter / X
 
-**Config constants:** `TWITTER_APIKEY`, `TWITTER_APISECRET`
+**Settings location:** Settings → Platform Credentials → Consumer Key / Consumer Secret
 
 **Developer portal:** [developer.twitter.com](https://developer.twitter.com)
 
 Create a project and app. Set app permissions to **Read and Write** (required
-for posting). Copy the **API Key** and **API Key Secret** from the app's
-Keys and Tokens page.
+for posting). Copy the **Consumer Key** (API Key) and **Consumer Secret** (API Key Secret)
+from the app's Keys and Tokens page. In the developer portal these are labelled
+"API Key" and "API Key Secret" — Twitter uses both names interchangeably.
 
 **OAuth callback URL** to register in your app settings:
 ```
-https://yoursite.com/connect/twitterCallback
+https://yoursite.com/socialturn/index.php?c=connect&a=twitterCallback
 ```
 
 ### Facebook Pages + Instagram Business
 
-**Config constants:** `META_APP_ID`, `META_APP_SECRET`
+**Settings location:** Settings → Platform Credentials → App ID / App Secret
 
 **Developer portal:** [developers.facebook.com](https://developers.facebook.com)
 
@@ -227,7 +268,7 @@ Copy the **App ID** and **App Secret** from App Settings > Basic.
 
 **OAuth callback URL** to register in your app settings:
 ```
-https://yoursite.com/connect/facebookCallback
+https://yoursite.com/socialturn/index.php?c=connect&a=facebookCallback
 ```
 
 Instagram connects through the same Facebook app and OAuth flow — no
@@ -235,7 +276,7 @@ separate Instagram app is needed.
 
 ### Email (Postmark)
 
-**Config constants:** `POSTMARKAPP_API_KEY`, `POSTMARKAPP_MAIL_FROM_ADDRESS`, `POSTMARKAPP_MAIL_FROM_NAME`
+**Settings location:** Settings → Email
 
 **Portal:** [postmarkapp.com](https://postmarkapp.com)
 
@@ -244,8 +285,8 @@ API Tokens tab.
 
 **Sender verification (required)**
 
-`POSTMARKAPP_MAIL_FROM_ADDRESS` must be an email address at your own domain —
-public email providers (Gmail, Yahoo, Outlook, etc.) are not permitted as senders.
+The From address must be at your own domain — public email providers (Gmail,
+Yahoo, Outlook, etc.) are not permitted as senders.
 
 In the Postmark dashboard, create a Sender Signature for your from address
 (e.g. `noreply@yourdomain.com`). Postmark will send a verification email —
@@ -268,7 +309,7 @@ DNS changes can take up to 24-48 hours to propagate. Postmark's dashboard
 shows verification status for both records.
 
 The free tier (100 emails/month) is sufficient for all system emails
-(setup, invites, password resets) in a single-tenant install.
+(invites, password resets) in a single-tenant install.
 
 ---
 
@@ -293,19 +334,26 @@ Install the AWS SDK (not included by default):
 composer require aws/aws-sdk-php
 ```
 
-Set `STORAGE_DRIVER` to `'s3'` in `config.php` and fill in the `S3_*`
-constants: `S3_BUCKET`, `S3_REGION`, `S3_KEY`, `S3_SECRET`.
+Set `STORAGE_DRIVER` to `'s3'` and configure S3 credentials via the Settings
+interface (S3 support is planned for v2.0).
 
 ---
 
 ## Security Notes
 
-- `config.php` is blocked by `.htaccess` and `nginx.conf.sample`. Verify
-  the 403 check in step 8 passes before going live.
-- The `images/` directory blocks PHP execution via `.htaccess` and nginx
-  rules. Uploaded files are never interpreted as PHP.
+- `socialturn.ini` is ideally stored **above the web root** (the install wizard
+  auto-detects this path). If stored inside the web root, it is blocked by
+  `.htaccess` and the nginx deny rules. Verify the 403 checks in step 7 pass
+  before going live.
+- `socialturn.ini` is written with permissions `0644` by the install wizard.
+- `boot.php` is blocked by `.htaccess` and the nginx deny rules. It contains
+  no credentials but does reveal the filesystem path to `socialturn.ini`.
+- The `images/` directory blocks PHP execution via `.htaccess` and nginx rules.
+  Uploaded files are never interpreted as PHP.
 - HTTPS is mandatory for production installs. OAuth tokens stored in the
   database are at risk on plain HTTP.
 - Token encryption at rest is not implemented in v0.9.0. Restrict database
   access to localhost or a trusted host. Do not expose MySQL directly to
   the internet.
+- Delete `install.php` immediately after installation. SocialTurn displays
+  a persistent security warning until the file is removed.

@@ -42,6 +42,22 @@ location ~* ^/(composer\.(json|lock)|\.gitignore|\.gitkeep)$ {
 }
 
 # ------------------------------------------------------------
+# Security: block direct access to .ini files (socialturn.ini / config.ini).
+# ------------------------------------------------------------
+location ~* \.ini$ {
+    deny all;
+}
+
+# ------------------------------------------------------------
+# Security: block direct access to boot.php.
+# boot.php is the config path locator — it contains no credentials
+# but reveals the filesystem path to socialturn.ini.
+# ------------------------------------------------------------
+location = /boot.php {
+    deny all;
+}
+
+# ------------------------------------------------------------
 # Security: block PHP execution inside the images/ directory.
 # Uploaded files must never be interpreted as PHP.
 # Equivalent to images/.htaccess FilesMatch + php_flag engine off.

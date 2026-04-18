@@ -1,4 +1,10 @@
 # Live configuration — never commit
+# boot.php is the path locator; socialturn.ini holds DB credentials and base_url
+boot.php
+socialturn.ini
+# Legacy credential file (superseded by socialturn.ini) — keep ignored for safety
+config.ini
+# Per-install credential file — superseded by install wizard + admin_settings
 config.php
 
 # Local test/debug files — never commit

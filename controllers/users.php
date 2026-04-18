@@ -21,108 +21,6 @@ function post_login_url(int $type): string
 }
 
 /**
- * Initial setup — runs exactly once on a fresh install.
- *
- * GET:  If users exist, redirects to login (setup already complete).
- *       If a company already exists but no user, shows State B
- *       (setup email was already sent — check inbox).
- *       Otherwise renders the setup form (State A).
- *
- * POST: Creates the default company, generates a 48-hour invite token,
- *       inserts it into the invites table, and sends a password-set email
- *       to OWNER_EMAIL via Postmark. Company and invite are inserted inside
- *       a transaction so a failed email send leaves no orphaned rows.
- *       On success renders State B. On failure renders an error card.
- *
- * CSRF: validated on POST. Token is per-session (not per-request).
- */
-function setup(): void {
-    global $dbh, $template;
-
-    $template->set('noextra', true);
-    $template->set('sent', false);
-    $template->set('setupError', null);
-
-    // If users already exist, setup is complete
-    $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
-    $stmt->execute();
-    if ((int) $stmt->fetchColumn() > 0) {
-        header('Location: ' . u('users', 'login'));
-        exit;
-    }
-
-    $ownerEmailDefined = defined('OWNER_EMAIL')
-        && OWNER_EMAIL !== ''
-        && OWNER_EMAIL !== 'your@email.com';
-
-    $template->set('ownerEmailDefined', $ownerEmailDefined);
-    $template->set('ownerEmail', $ownerEmailDefined ? OWNER_EMAIL : '');
-
-    // If company already exists the setup email was already sent — show State B
-    $stmt = $dbh->prepare('SELECT COUNT(*) FROM companies');
-    $stmt->execute();
-    if ((int) $stmt->fetchColumn() > 0) {
-        $template->set('sent', true);
-        $template->set('csrfToken', csrf_token());
-        return;
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (!csrf_validate()) {
-            header('Location: ' . u('users', 'setup'));
-            exit;
-        }
-
-        if (!$ownerEmailDefined) {
-            $template->set('setupError', 'OWNER_EMAIL is not set in config.php. Add it and try again.');
-            $template->set('csrfToken', csrf_token());
-            return;
-        }
-
-        $dbh->beginTransaction();
-        try {
-            // Create the default company — name can be changed in Settings after login
-            $stmt = $dbh->prepare('INSERT INTO companies (name, active) VALUES (?, 1)');
-            $stmt->execute(['SocialTurn']);
-            $companyId = (int) $dbh->lastInsertId();
-
-            // Generate a secure 48-hour invite token
-            $token = bin2hex(random_bytes(32));
-
-            $stmt = $dbh->prepare('INSERT INTO invites (company_id, email, token) VALUES (?, ?, ?)');
-            $stmt->execute([$companyId, OWNER_EMAIL, $token]);
-
-            $setupUrl = u('users', 'setpassword', ['token' => $token]);
-
-            Mail_Postmark::compose()
-                ->to(OWNER_EMAIL)
-                ->subject('Set up your SocialTurn password')
-                ->messagePlain(
-                    "Welcome to SocialTurn!\n\n" .
-                    "Click the link below to set your password and complete setup:\n\n" .
-                    $setupUrl . "\n\n" .
-                    "This link expires in 48 hours.\n\n" .
-                    "If you did not request this, you can ignore this email."
-                )
-                ->send();
-
-            $dbh->commit();
-            $template->set('sent', true);
-
-        } catch (Throwable) {
-            $dbh->rollBack();
-            $template->set('setupError',
-                'Could not send the setup email. ' .
-                'Check POSTMARKAPP_API_KEY, POSTMARKAPP_MAIL_FROM_ADDRESS, and ' .
-                'POSTMARKAPP_MAIL_FROM_NAME in config.php and try again.'
-            );
-        }
-    }
-
-    $template->set('csrfToken', csrf_token());
-}
-
-/**
  * Password set and password reset — shared flow.
  *
  * Used by: initial owner setup, team member invites, and forgot-password resets.
@@ -269,15 +167,6 @@ function login(): void {
 
     $template->set('noextra', true);
     $template->set('loginError', null);
-
-    // First-run guard — redirect to setup if no users exist
-    $stmt = $dbh->prepare('SELECT COUNT(*) FROM users');
-    $stmt->execute();
-    if ((int) $stmt->fetchColumn() === 0) {
-        header('Location: ' . u('users', 'setup'));
-        exit;
-    }
-
     $template->set('csrfToken', csrf_token());
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

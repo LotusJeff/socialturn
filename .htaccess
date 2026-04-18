@@ -22,3 +22,18 @@ DirectoryIndex index.php
     Require all denied
 </FilesMatch>
 
+# -----------------------------------------------------------------------
+# Security: block direct access to config.ini / socialturn.ini
+# -----------------------------------------------------------------------
+<FilesMatch "\.ini$">
+    Require all denied
+</FilesMatch>
+
+# -----------------------------------------------------------------------
+# Security: block direct access to boot.php (path locator — no credentials
+# but reveals the filesystem path to socialturn.ini)
+# -----------------------------------------------------------------------
+<FilesMatch "^boot\.php$">
+    Require all denied
+</FilesMatch>
+

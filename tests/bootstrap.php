@@ -10,18 +10,23 @@ declare(strict_types=1);
 define('RUNNING_TESTS', true);
 
 // ---------------------------------------------------------------------------
-// Constants that config.php normally provides.
-// All credential-shaped values use obvious test placeholders — they are
-// never sent to any real API during PHPUnit runs.
+// Constants normally provided by config.ini (bootstrap) and admin_settings
+// (load_admin_settings). All credential-shaped values use obvious test
+// placeholders — they are never sent to any real API during PHPUnit runs.
 // ---------------------------------------------------------------------------
 define('BASE_URL',                   'http://localhost/');
 define('STORAGE_DRIVER',             'local');
 define('RECYCLE_THRESHOLD_DEFAULT',  10);
 define('RECYCLE_LOOKAHEAD_DAYS',     30);
+define('SCHEDULE_MIN_POSTS',         5);
+define('OWNER_EMAIL',                'test@example.com');
 define('TWITTER_APIKEY',             'test_twitter_api_key');
 define('TWITTER_APISECRET',          'test_twitter_api_secret');
 define('META_APP_ID',                'test_meta_app_id');
 define('META_APP_SECRET',            'test_meta_app_secret');
+define('POSTMARKAPP_API_KEY',        'test_postmark_key');
+define('POSTMARKAPP_MAIL_FROM_ADDRESS', 'noreply@test.example.com');
+define('POSTMARKAPP_MAIL_FROM_NAME', 'SocialTurn Test');
 define('SERVER_SALT',                str_repeat('x', 32));
 
 // ---------------------------------------------------------------------------

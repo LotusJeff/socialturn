@@ -57,7 +57,7 @@ function twitter(): void
         error_log('Twitter connect error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not connect to Twitter. Check TWITTER_APIKEY and TWITTER_APISECRET in config.php.',
+            'message' => 'Could not connect to Twitter. Check Platform Credentials in Settings.',
         ];
         header('Location: ' . u('accounts'));
         exit;
@@ -188,7 +188,7 @@ function facebook(): void
     ) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not connect to Facebook. Check META_APP_ID and META_APP_SECRET in config.php.',
+            'message' => 'Could not connect to Facebook. Check Platform Credentials in Settings.',
         ];
         header('Location: ' . u('accounts'));
         exit;

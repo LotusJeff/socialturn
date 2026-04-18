@@ -59,7 +59,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- companies
 -- Top-level tenant. Single-tenant installs have exactly one row.
 -- ------------------------------------------------------------
-CREATE TABLE `companies` (
+CREATE TABLE IF NOT EXISTS `companies` (
     `id`         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `name`       VARCHAR(255)  NOT NULL                           COMMENT 'Organization or team name',
     `active`     TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '0=suspended, 1=active',
@@ -73,7 +73,7 @@ CREATE TABLE `companies` (
 -- type=1: admin (full access to all accounts)
 -- type=100: team member (limited to accounts in users_accounts)
 -- ------------------------------------------------------------
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
     `id`         INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     `company_id` INT UNSIGNED     NOT NULL                        COMMENT 'Owning company',
     `email`      VARCHAR(255)     NOT NULL                        COMMENT 'Login email address',
@@ -97,7 +97,7 @@ CREATE TABLE `users` (
 -- Created by admins; consumed when a new user registers.
 -- Also created in migration 001 for upgrades from old installs.
 -- ------------------------------------------------------------
-CREATE TABLE `invites` (
+CREATE TABLE IF NOT EXISTS `invites` (
     `id`         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `company_id` INT UNSIGNED  NOT NULL                           COMMENT 'Company that issued the invite',
     `email`      VARCHAR(255)  NOT NULL                           COMMENT 'Invited email address',
@@ -118,7 +118,7 @@ CREATE TABLE `invites` (
 -- page/profile. Accounts reference these via connected_platform_id.
 -- Layer 2 of the credential architecture; Layer 1 is in config.php.
 -- ------------------------------------------------------------
-CREATE TABLE `connected_platforms` (
+CREATE TABLE IF NOT EXISTS `connected_platforms` (
     `id`                  INT UNSIGNED   NOT NULL AUTO_INCREMENT,
     `company_id`          INT UNSIGNED   NOT NULL                           COMMENT 'Owning company',
     `platform`            ENUM('twitter','facebook','instagram') NOT NULL   COMMENT 'Platform identifier',
@@ -154,7 +154,7 @@ CREATE TABLE `connected_platforms` (
 --               Separate from is_active. Queue engine checks this before
 --               processing an account.
 -- ------------------------------------------------------------
-CREATE TABLE `accounts` (
+CREATE TABLE IF NOT EXISTS `accounts` (
     `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `company_id`            INT UNSIGNED  NOT NULL                           COMMENT 'Owning company',
     `connected_platform_id` INT UNSIGNED  NOT NULL                           COMMENT 'Required: must exist before account is created',
@@ -185,7 +185,7 @@ CREATE TABLE `accounts` (
 -- Maps team members to accounts they are authorized to access.
 -- Admin users (type=1) have implicit access; they do not appear here.
 -- ------------------------------------------------------------
-CREATE TABLE `users_accounts` (
+CREATE TABLE IF NOT EXISTS `users_accounts` (
     `id`         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `company_id` INT UNSIGNED  NOT NULL                           COMMENT 'Denormalized for fast permission queries',
     `user_id`    INT UNSIGNED  NOT NULL                           COMMENT 'The team member being granted access',
@@ -211,7 +211,7 @@ CREATE TABLE `users_accounts` (
 -- Temporary OAuth handshake state. Replaces SESSION storage in
 -- the platform connection flow. Purge rows older than 15 minutes.
 -- ------------------------------------------------------------
-CREATE TABLE `oauth_states` (
+CREATE TABLE IF NOT EXISTS `oauth_states` (
     `id`                   INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `state_key`            CHAR(64)      NOT NULL                           COMMENT 'Random key for this OAuth session; passed as state parameter',
     `platform`             ENUM('twitter','facebook','instagram') NOT NULL  COMMENT 'Platform being connected',
@@ -240,7 +240,7 @@ CREATE TABLE `oauth_states` (
 -- Slot times for interval mode are snapped to the nearest 15-minute
 -- boundary (:00, :15, :30, :45) to prevent schedule drift.
 -- ------------------------------------------------------------
-CREATE TABLE `account_schedules` (
+CREATE TABLE IF NOT EXISTS `account_schedules` (
     `id`                      INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     `account_id`              INT UNSIGNED     NOT NULL                           COMMENT 'One schedule per account',
     `schedule_type`           ENUM('interval','time_specific') NOT NULL           COMMENT 'interval: uses interval+active_hours; time_specific: uses account_schedule_slots',
@@ -265,7 +265,7 @@ CREATE TABLE `account_schedules` (
 -- Slots fire every day; no day-of-week control.
 -- Times are interpreted in account_schedules.timezone.
 -- ------------------------------------------------------------
-CREATE TABLE `account_schedule_slots` (
+CREATE TABLE IF NOT EXISTS `account_schedule_slots` (
     `id`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `account_id`  INT UNSIGNED  NOT NULL                           COMMENT 'Owning account',
     `time_of_day` TIME          NOT NULL                           COMMENT 'Exact post time e.g. 07:15:00; interpreted in account_schedules.timezone',
@@ -284,7 +284,7 @@ CREATE TABLE `account_schedule_slots` (
 -- Per-account queue engine configuration.
 -- One row per account; seeded from config.php defaults at creation.
 -- ------------------------------------------------------------
-CREATE TABLE `account_settings` (
+CREATE TABLE IF NOT EXISTS `account_settings` (
     `id`                     INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     `account_id`             INT UNSIGNED     NOT NULL                           COMMENT 'One settings row per account',
     `recycle_threshold`      SMALLINT UNSIGNED NOT NULL DEFAULT 10               COMMENT 'Pending queue depth below which the recycler runs',
@@ -307,7 +307,7 @@ CREATE TABLE `account_settings` (
 -- is_recyclable=0: sent once, then is_active set to 0 automatically.
 -- internal_note: operator-facing only, never sent to any platform.
 -- ------------------------------------------------------------
-CREATE TABLE `posts` (
+CREATE TABLE IF NOT EXISTS `posts` (
     `id`             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `account_id`     INT UNSIGNED  NOT NULL                           COMMENT 'Which account this content belongs to',
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
@@ -340,7 +340,7 @@ CREATE TABLE `posts` (
 -- locked_at: set atomically by cron to prevent double-posting
 --   when two cron runs overlap; cleared on failure.
 -- ------------------------------------------------------------
-CREATE TABLE `scheduled_posts` (
+CREATE TABLE IF NOT EXISTS `scheduled_posts` (
     `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `connected_platform_id` INT UNSIGNED  NOT NULL                           COMMENT 'Which platform connection to post through',
     `post_id`               INT UNSIGNED  NOT NULL                           COMMENT 'Which content to post',
@@ -367,7 +367,7 @@ CREATE TABLE `scheduled_posts` (
 -- Key columns are denormalized so the log survives source record deletion.
 -- Never updated after insert -- only appended.
 -- ------------------------------------------------------------
-CREATE TABLE `post_history` (
+CREATE TABLE IF NOT EXISTS `post_history` (
     `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `connected_platform_id` INT UNSIGNED  NOT NULL                           COMMENT 'FK preserved for dashboard queries while connection exists',
     `post_id`               INT UNSIGNED  NOT NULL                           COMMENT 'FK preserved while post exists',
@@ -404,7 +404,7 @@ CREATE TABLE `post_history` (
 -- population. NOT a permanent audit trail; post_history is.
 -- Tokens must never appear in message or context columns.
 -- ------------------------------------------------------------
-CREATE TABLE `activity_log` (
+CREATE TABLE IF NOT EXISTS `activity_log` (
     `id`                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     `company_id`            INT UNSIGNED  NOT NULL                           COMMENT 'Owning company',
     `account_id`            INT UNSIGNED  NULL     DEFAULT NULL              COMMENT 'Account context; NULL for company-level events (e.g. cron_run)',
@@ -426,5 +426,34 @@ CREATE TABLE `activity_log` (
     INDEX `idx_activity_log_account_time`   (`account_id`,            `created_at`),
     INDEX `idx_activity_log_platform_time`  (`connected_platform_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- admin_settings
+-- Application configuration store. Loaded at bootstrap by
+-- load_admin_settings() in libraries/shared.php and exposed
+-- as PHP define() constants. Replaces constants that were
+-- previously defined in config.php.
+-- DB credentials and BASE_URL are stored in config.ini only.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `admin_settings` (
+    `id`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `setting_key` VARCHAR(100)  NOT NULL                           COMMENT 'Constant name in snake_case (e.g. twitter_apikey)',
+    `setting_val` TEXT          NULL DEFAULT NULL                  COMMENT 'Setting value; NULL treated as empty string by load_admin_settings()',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_admin_settings_key` (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `admin_settings` (`setting_key`, `setting_val`) VALUES
+('owner_email',                   ''),
+('recycle_threshold_default',     '10'),
+('recycle_lookahead_days',        '30'),
+('schedule_min_posts',            '5'),
+('twitter_apikey',                ''),
+('twitter_apisecret',             ''),
+('meta_app_id',                   ''),
+('meta_app_secret',               ''),
+('postmarkapp_api_key',           ''),
+('postmarkapp_mail_from_address', ''),
+('postmarkapp_mail_from_name',    '');
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -86,6 +86,12 @@
                            href="<?php echo u('team'); ?>">Team</a>
                     </li>
 
+                    <!-- Settings — admin only -->
+                    <li class="nav-item">
+                        <a class="nav-link<?php echo ($controller === 'settings') ? ' active' : ''; ?>"
+                           href="<?php echo u('settings'); ?>">Settings</a>
+                    </li>
+
                     <?php endif; ?>
 
                     <!-- Logout — all authenticated users -->
@@ -100,6 +106,16 @@
         </div>
     </nav>
 
+<?php endif; ?>
+
+<!-- install.php security warning — shown to admin users until the file is deleted -->
+<?php if (!empty($installPhpWarning)): ?>
+<div class="container mt-3">
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Security Notice:</strong> <code>install.php</code> was found on your server and must be deleted immediately.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+</div>
 <?php endif; ?>
 
 <!-- ============================================================
