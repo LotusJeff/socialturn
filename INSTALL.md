@@ -32,6 +32,8 @@ composer install --no-dev
 
 ### 3. Create the database
 
+You can create the database within your hosting panel or via phpmyadmin or via the mysql command below
+
 ```sql
 CREATE DATABASE socialturn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
@@ -49,11 +51,6 @@ The web server user needs:
 # Set ownership to the web server user
 # If your webserver runs as a different user, replace `www-data` with the correct user.
 sudo chown -R www-data:www-data /path/to/socialturn
-
-# Allow the web server to write socialturn.ini outside of the web root
-# Replace /var/socilturn.ini with a directory not within your web folder
-sudo touch /var/socialturn.ini
-sudo chown www-data:www-data /var/socialturn.ini
 ```
 
 ### 5. Run the install wizard
