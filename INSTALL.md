@@ -95,15 +95,17 @@ sudo rm /path/to/socialturn/install.php
 Add this to your crontab (`crontab -e`):
 
 ```
-*/5 * * * * /usr/bin/php /path/to/socialturn/index.php cron/run
+*/5 * * * * /usr/bin/php /path/to/socialturn/cron.php >> /var/log/socialturn-cron.log 2>&1
 ```
 
-Replace `/path/to/socialturn` with the absolute path to your install.
-Replace `/usr/bin/php` with the output of `which php` if different.
+Replace `/path/to/socialturn/` with the absolute path to your install.
+Verify your PHP binary path with: `which php`
 
 The cron job runs every 5 minutes. It checks for pending posts, dispatches
 them to their platforms, and refills the queue when it drops below the
 recycle threshold. It must be running for SocialTurn to post autonomously.
+Output is appended to the log file — check it to confirm posts are being sent.
+`cron.php` cannot be triggered via HTTP; all web requests are blocked.
 
 ### 7. Connect your first platform account
 

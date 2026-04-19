@@ -58,6 +58,13 @@ location = /boot.php {
 }
 
 # ------------------------------------------------------------
+# Security: cron.php is CLI-only — block all HTTP access.
+# ------------------------------------------------------------
+location = /cron.php {
+    deny all;
+}
+
+# ------------------------------------------------------------
 # Security: block PHP execution inside the images/ directory.
 # Uploaded files must never be interpreted as PHP.
 # Equivalent to images/.htaccess FilesMatch + php_flag engine off.

@@ -37,3 +37,10 @@ DirectoryIndex index.php
     Require all denied
 </FilesMatch>
 
+# -----------------------------------------------------------------------
+# Security: cron.php is CLI-only — block all HTTP access
+# -----------------------------------------------------------------------
+<FilesMatch "^cron\.php$">
+    Require all denied
+</FilesMatch>
+
