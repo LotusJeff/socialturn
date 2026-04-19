@@ -3,12 +3,18 @@
  * Content library index view — rendered by content/index.
  *
  * Template variables:
- *   $posts            array   Post rows (id, body, attributed_to, image_filename,
- *                             is_recyclable, internal_note, created_at,
- *                             account_id, account_name, platform)
+ *   $posts            array   Post rows (current page):
+ *                               id, body, attributed_to, image_filename,
+ *                               is_recyclable, internal_note, created_at,
+ *                               account_id, account_name, platform
  *   $accounts         array   Accessible accounts (id, name, platform) for filter dropdown
  *   $filterAccountId  int     Currently active account_id filter, or 0 for all
  *   $filterSearch     string  Currently active text search, or ''
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Total posts matching current filters
+ *   $paginationParams array
  *   $csrfToken        string
  */
 
@@ -37,8 +43,6 @@ function content_platformLabel(string $platform): string
         default     => ucfirst($platform),
     };
 }
-
-$count = count($posts);
 ?>
 <div class="container py-4">
 
@@ -109,14 +113,9 @@ $count = count($posts);
 
     </form>
 
-    <!-- Result count -->
-    <?php if ($filterAccountId > 0 || $filterSearch !== ''): ?>
-    <p class="text-muted small mb-3">
-        Showing <?= $count ?> <?= $count === 1 ? 'post' : 'posts' ?>
-    </p>
-    <?php endif; ?>
+    <?php if ($totalItems > 0): ?>
 
-    <?php if ($count > 0): ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <!-- Post list -->
     <div class="list-group">
@@ -189,6 +188,8 @@ $count = count($posts);
                         <input type="hidden" name="id"                value="<?= (int) $p['id'] ?>">
                         <input type="hidden" name="filter_account_id" value="<?= (int) $filterAccountId ?>">
                         <input type="hidden" name="filter_search"     value="<?= htmlspecialchars($filterSearch, ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="page"              value="<?= $page ?>">
+                        <input type="hidden" name="per_page"          value="<?= $perPage ?>">
                         <input type="hidden" name="csrf_token"        value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                         <button type="submit"
                                 class="btn btn-sm <?= (int) $p['is_recyclable'] ? 'btn-outline-secondary' : 'btn-outline-warning' ?>"
@@ -203,9 +204,7 @@ $count = count($posts);
         <?php endforeach; ?>
     </div>
 
-    <?php if ($count >= 200): ?>
-    <p class="text-muted small mt-3">Showing first 200 results. Use filters to narrow results.</p>
-    <?php endif; ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <?php else: ?>
 

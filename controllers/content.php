@@ -107,6 +107,11 @@ function index(): void
         $template->set('accounts',         []);
         $template->set('filterAccountId',  0);
         $template->set('filterSearch',     '');
+        $template->set('page',             1);
+        $template->set('perPage',          50);
+        $template->set('totalPages',       1);
+        $template->set('totalItems',       0);
+        $template->set('paginationParams', []);
         $template->set('csrfToken',        csrf_token());
         return;
     }
@@ -123,7 +128,7 @@ function index(): void
         $filterAccountId = 0;
     }
 
-    // Build query dynamically
+    // Build WHERE clause dynamically — shared by count and data queries
     $conditions = ['p.is_active = 1', 'a.company_id = ?'];
     $params     = [$companyId];
 
@@ -146,6 +151,19 @@ function index(): void
 
     $where = implode(' AND ', $conditions);
 
+    // Count query — same WHERE, no ORDER BY or LIMIT
+    $countStmt = $dbh->prepare(
+        "SELECT COUNT(*)
+           FROM posts p
+           JOIN accounts a ON a.id = p.account_id
+           JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+          WHERE $where"
+    );
+    $countStmt->execute($params);
+    $totalItems = (int) $countStmt->fetchColumn();
+
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($totalItems);
+
     $stmt = $dbh->prepare(
         "SELECT p.id, p.body, p.attributed_to, p.image_filename,
                 p.is_recyclable, p.internal_note, p.created_at,
@@ -155,16 +173,29 @@ function index(): void
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
           WHERE $where
           ORDER BY p.created_at DESC
-          LIMIT 200"
+          LIMIT $perPage OFFSET $offset"
     );
     $stmt->execute($params);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('posts',           $posts);
-    $template->set('accounts',        $accounts);
-    $template->set('filterAccountId', $filterAccountId);
-    $template->set('filterSearch',    $filterSearch);
-    $template->set('csrfToken',       csrf_token());
+    $paginationParams = ['c' => 'content', 'a' => 'index'];
+    if ($filterAccountId > 0) {
+        $paginationParams['account_id'] = $filterAccountId;
+    }
+    if ($filterSearch !== '') {
+        $paginationParams['q'] = $filterSearch;
+    }
+
+    $template->set('posts',            $posts);
+    $template->set('accounts',         $accounts);
+    $template->set('filterAccountId',  $filterAccountId);
+    $template->set('filterSearch',     $filterSearch);
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $totalItems);
+    $template->set('paginationParams', $paginationParams);
+    $template->set('csrfToken',        csrf_token());
 }
 
 /**
@@ -621,9 +652,12 @@ function toggle(): void
     $dbh->prepare('UPDATE posts SET is_recyclable = ? WHERE id = ?')
         ->execute([$newValue, $postId]);
 
-    // Preserve filter params from hidden inputs in the toggle form
+    // Preserve filter and pagination params from hidden inputs in the toggle form
     $accountId = (int) ($_POST['filter_account_id'] ?? 0);
     $search    = trim((string) ($_POST['filter_search'] ?? ''));
+    $page      = max(1, (int) ($_POST['page'] ?? 1));
+    $perPage   = in_array((int) ($_POST['per_page'] ?? 50), [25, 50, 100], true)
+                    ? (int) $_POST['per_page'] : 50;
 
     $params = [];
     if ($accountId > 0) {
@@ -632,6 +666,10 @@ function toggle(): void
     if ($search !== '') {
         $params['q'] = $search;
     }
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+    $params['per_page'] = $perPage;
 
     header('Location: ' . u('content', 'index', $params));
     exit;

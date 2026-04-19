@@ -3,10 +3,17 @@
  * Queue status overview — rendered by queue/index.
  *
  * Template variables:
- *   $rows       array   One row per account:
- *                         id, name, is_posting, platform, platform_name,
- *                         pending_count, posted_count, failed_count
- *   $csrfToken  string
+ *   $rows             array   One row per account (paginated):
+ *                               id, name, is_posting, platform, platform_name,
+ *                               platform_active, token_expires_at,
+ *                               recycled_count, pending_count,
+ *                               posted_count (30d), failed_count (30d)
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Total accessible account count
+ *   $paginationParams array
+ *   $csrfToken        string
  */
 
 function queue_index_platformBadge(string $platform): string
@@ -28,6 +35,25 @@ function queue_index_platformLabel(string $platform): string
         default     => ucfirst($platform),
     };
 }
+
+/**
+ * Returns connection status badge HTML — identical logic to connectionStatus()
+ * in accounts/index, using platform_active and token_expires_at from the row.
+ */
+function queue_index_connectionStatus(array $r): string
+{
+    if (!(int) $r['platform_active']) {
+        return '<span class="badge bg-danger">Disconnected</span>';
+    }
+    if (!empty($r['token_expires_at'])) {
+        $expiresAt = new DateTimeImmutable($r['token_expires_at']);
+        $threshold = new DateTimeImmutable('+7 days');
+        if ($expiresAt <= $threshold) {
+            return '<span class="badge bg-warning text-dark">Expires soon</span>';
+        }
+    }
+    return '<span class="badge bg-success">Connected</span>';
+}
 ?>
 <div class="container py-4">
 
@@ -42,7 +68,7 @@ function queue_index_platformLabel(string $platform): string
     </div>
     <?php unset($_SESSION['notification']); endif; ?>
 
-    <?php if (empty($rows)): ?>
+    <?php if ($totalItems === 0): ?>
 
     <div class="card text-center py-5">
         <div class="card-body">
@@ -56,32 +82,51 @@ function queue_index_platformLabel(string $platform): string
 
     <?php else: ?>
 
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
+
     <div class="table-responsive">
         <table class="table table-sm align-middle">
             <thead class="table-light">
                 <tr>
+                    <th style="width:80px"></th>
+                    <th style="width:200px">Status</th>
                     <th>Account</th>
+                    <th style="width:130px">Recycled Queue</th>
                     <th style="width:100px">Pending</th>
-                    <th style="width:100px">Posted</th>
-                    <th style="width:100px">Failed</th>
-                    <th style="width:180px"></th>
+                    <th style="width:110px">Posted (30d)</th>
+                    <th style="width:110px">Failed (30d)</th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ($rows as $r): ?>
             <tr>
                 <td>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge <?= queue_index_platformBadge((string) $r['platform']) ?>">
-                            <?= queue_index_platformLabel((string) $r['platform']) ?>
-                        </span>
-                        <span class="fw-semibold">
-                            <?= htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8') ?>
-                        </span>
-                        <?php if (!(int) $r['is_posting']): ?>
+                    <span class="badge <?= queue_index_platformBadge((string) $r['platform']) ?>">
+                        <?= queue_index_platformLabel((string) $r['platform']) ?>
+                    </span>
+                </td>
+                <td>
+                    <div class="d-flex gap-1">
+                        <?= queue_index_connectionStatus($r) ?>
+                        <?php if ((int) $r['is_posting']): ?>
+                        <span class="badge bg-success">Posting</span>
+                        <?php else: ?>
                         <span class="badge bg-secondary">Paused</span>
                         <?php endif; ?>
                     </div>
+                </td>
+                <td class="fw-semibold">
+                    <?= htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8') ?>
+                </td>
+                <td>
+                    <?php if ((int) $r['recycled_count'] > 0): ?>
+                    <a href="<?= u('content', 'index', ['account_id' => (int) $r['id']]) ?>"
+                       class="text-decoration-none">
+                        <?= (int) $r['recycled_count'] ?>
+                    </a>
+                    <?php else: ?>
+                    <span class="text-muted">0</span>
+                    <?php endif; ?>
                 </td>
                 <td>
                     <?php if ((int) $r['pending_count'] > 0): ?>
@@ -113,19 +158,13 @@ function queue_index_platformLabel(string $platform): string
                     <span class="text-muted">0</span>
                     <?php endif; ?>
                 </td>
-                <td class="text-end">
-                    <div class="d-flex gap-2 justify-content-end">
-                        <a href="<?= u('queue', 'view', ['id' => (int) $r['id']]) ?>"
-                           class="btn btn-sm btn-outline-secondary">Queue</a>
-                        <a href="<?= u('queue', 'history', ['id' => (int) $r['id']]) ?>"
-                           class="btn btn-sm btn-outline-secondary">History</a>
-                    </div>
-                </td>
             </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
     </div>
+
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <?php endif; ?>
 

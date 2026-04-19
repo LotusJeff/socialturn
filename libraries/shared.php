@@ -6,6 +6,24 @@ function u(string $controller, string $action = 'index', array $params = []): st
 }
 
 /**
+ * Validates and computes pagination values from the current GET request.
+ *
+ * Returns [$page, $perPage, $offset, $totalPages].
+ * per_page is clamped to 25|50|100; page is clamped to 1..$totalPages.
+ */
+function pagination_calc(int $total): array
+{
+    $allowed    = [25, 50, 100];
+    $rawPerPage = (int) ($_GET['per_page'] ?? 50);
+    $perPage    = in_array($rawPerPage, $allowed, true) ? $rawPerPage : 50;
+    $total      = max(0, $total);
+    $totalPages = max(1, (int) ceil($total / $perPage));
+    $page       = max(1, min((int) ($_GET['page'] ?? 1), $totalPages));
+    $offset     = ($page - 1) * $perPage;
+    return [$page, $perPage, $offset, $totalPages];
+}
+
+/**
  * Returns true when a valid user session exists.
  *
  * Accepts both company_id (new session key, set by setpassword/login going

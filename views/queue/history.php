@@ -3,17 +3,20 @@
  * Post history view — rendered by queue/history.
  *
  * Template variables:
- *   $account      array   Account row (id, name, is_posting, platform, platform_name)
- *   $rows         array   post_history rows:
- *                           id, body_snapshot, image_filename, platform_post_id,
- *                           status, posted_at, post_id
- *   $totalCount   int     Unfiltered row count (for cap notice)
- *   $failedCount  int     Failed rows count (for Errors tab badge)
- *   $search       string  Current ?q= search value, or ''
- *   $csrfToken    string
+ *   $account          array   Account row (id, name, is_posting, platform, platform_name)
+ *   $rows             array   post_history rows (current page):
+ *                               id, body_snapshot, image_filename, platform_post_id,
+ *                               status, posted_at, post_id
+ *   $totalCount       int     Filter-aware count (for tab badge and pagination)
+ *   $failedCount      int     Unfiltered failed count (for Errors tab badge)
+ *   $search           string  Current ?q= search value, or ''
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Same as $totalCount
+ *   $paginationParams array
+ *   $csrfToken        string
  */
-
-$count = count($rows);
 ?>
 <div class="container py-4" style="max-width:900px">
 
@@ -42,7 +45,7 @@ $count = count($rows);
                class="btn btn-sm btn-primary">
                 All history
                 <?php if ((int) $totalCount > 0): ?>
-                <span class="badge bg-white text-dark ms-1"><?= (int) $totalCount >= 200 ? '200+' : (int) $totalCount ?></span>
+                <span class="badge bg-white text-dark ms-1"><?= (int) $totalCount ?></span>
                 <?php endif; ?>
             </a>
             <a href="<?= u('queue', 'errors', array_merge(['id' => (int) $account['id']], $search !== '' ? ['q' => $search] : [])) ?>"
@@ -72,16 +75,9 @@ $count = count($rows);
 
     </div>
 
-    <?php if ($count > 0): ?>
+    <?php if ((int) $totalItems > 0): ?>
 
-    <?php if ((int) $totalCount >= 200 && $search === ''): ?>
-    <p class="text-muted small mb-3">Showing the 200 most recent entries.</p>
-    <?php elseif ($search !== ''): ?>
-    <p class="text-muted small mb-3">
-        <?= $count ?> <?= $count === 1 ? 'result' : 'results' ?> for
-        &ldquo;<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>&rdquo;
-    </p>
-    <?php endif; ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -134,6 +130,8 @@ $count = count($rows);
             </tbody>
         </table>
     </div>
+
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <?php else: ?>
 

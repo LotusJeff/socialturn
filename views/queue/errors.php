@@ -3,16 +3,19 @@
  * Failed posts view — rendered by queue/errors.
  *
  * Template variables:
- *   $account     array   Account row (id, name, is_posting, platform, platform_name)
- *   $rows        array   Failed post_history rows:
- *                          id, body_snapshot, image_filename,
- *                          error_message, posted_at, post_id
- *   $totalCount  int     Unfiltered failed count (for heading and cap notice)
- *   $search      string  Current ?q= search value, or ''
- *   $csrfToken   string
+ *   $account          array   Account row (id, name, is_posting, platform, platform_name)
+ *   $rows             array   Failed post_history rows (current page):
+ *                               id, body_snapshot, image_filename,
+ *                               error_message, posted_at, post_id
+ *   $totalCount       int     Filter-aware failed count (for tab badge and pagination)
+ *   $search           string  Current ?q= search value, or ''
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Same as $totalCount
+ *   $paginationParams array
+ *   $csrfToken        string
  */
-
-$count = count($rows);
 ?>
 <div class="container py-4" style="max-width:900px">
 
@@ -45,7 +48,7 @@ $count = count($rows);
                class="btn btn-sm btn-danger">
                 Errors
                 <?php if ((int) $totalCount > 0): ?>
-                <span class="badge bg-white text-dark ms-1"><?= (int) $totalCount >= 200 ? '200+' : (int) $totalCount ?></span>
+                <span class="badge bg-white text-dark ms-1"><?= (int) $totalCount ?></span>
                 <?php endif; ?>
             </a>
         </div>
@@ -68,16 +71,9 @@ $count = count($rows);
 
     </div>
 
-    <?php if ($count > 0): ?>
+    <?php if ((int) $totalItems > 0): ?>
 
-    <?php if ((int) $totalCount >= 200 && $search === ''): ?>
-    <p class="text-muted small mb-3">Showing the 200 most recent failures.</p>
-    <?php elseif ($search !== ''): ?>
-    <p class="text-muted small mb-3">
-        <?= $count ?> <?= $count === 1 ? 'result' : 'results' ?> for
-        &ldquo;<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>&rdquo;
-    </p>
-    <?php endif; ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <div class="list-group">
         <?php foreach ($rows as $row): ?>
@@ -121,15 +117,15 @@ $count = count($rows);
         <?php endforeach; ?>
     </div>
 
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
+
     <?php else: ?>
 
     <div class="card text-center py-5">
         <div class="card-body">
-            <?php if ($search !== '' && (int) $totalCount > 0): ?>
+            <?php if ($search !== ''): ?>
             <h5 class="card-title text-muted">No results for &ldquo;<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>&rdquo;</h5>
-            <p class="card-text text-muted small mb-4">
-                <?= (int) $totalCount ?> failed <?= (int) $totalCount === 1 ? 'post' : 'posts' ?> on record.
-            </p>
+            <p class="card-text text-muted small mb-4">Try a different search term.</p>
             <a href="<?= u('queue', 'errors', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear search</a>
             <?php else: ?>

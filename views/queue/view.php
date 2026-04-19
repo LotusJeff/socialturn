@@ -3,16 +3,19 @@
  * Pending queue view — rendered by queue/view.
  *
  * Template variables:
- *   $account       array   Account row (id, name, is_posting, platform, platform_name)
- *   $rows          array   Pending scheduled_posts rows:
- *                            id, scheduled_time, final_body, final_image_filename,
- *                            post_id, attributed_to
- *   $pendingTotal  int     Unfiltered pending count (for heading and empty-state)
- *   $search        string  Current ?q= search value, or ''
- *   $csrfToken     string
+ *   $account          array   Account row (id, name, is_posting, platform, platform_name)
+ *   $rows             array   Pending scheduled_posts rows (current page):
+ *                               id, scheduled_time, final_body, final_image_filename,
+ *                               post_id, attributed_to
+ *   $pendingTotal     int     Filter-aware pending count (for subtitle and pagination)
+ *   $search           string  Current ?q= search value, or ''
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Same as $pendingTotal
+ *   $paginationParams array
+ *   $csrfToken        string
  */
-
-$count = count($rows);
 ?>
 <div class="container py-4" style="max-width:900px">
 
@@ -27,7 +30,7 @@ $count = count($rows);
         <?php endif; ?>
     </div>
     <p class="text-muted small mb-4">
-        <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?>
+        <?= (int) $pendingTotal ?> <?= $search !== '' ? 'matching' : 'pending' ?> <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?>
         &middot;
         <a href="<?= u('queue', 'history', ['id' => (int) $account['id']]) ?>" class="text-decoration-none">History</a>
     </p>
@@ -61,7 +64,7 @@ $count = count($rows);
             <?php endif; ?>
         </form>
 
-        <?php if ((int) $pendingTotal > 0): ?>
+        <?php if ((int) $pendingTotal > 0 && $search === ''): ?>
         <form method="POST" action="<?= u('queue', 'queue_flush') ?>"
               onsubmit="return confirm('Remove all <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?> from the queue? The queue will refill automatically on the next cron run.')">
             <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
@@ -72,13 +75,9 @@ $count = count($rows);
 
     </div>
 
-    <?php if ($count > 0): ?>
+    <?php if ((int) $totalItems > 0): ?>
 
-    <?php if ($search !== ''): ?>
-    <p class="text-muted small mb-3">
-        Showing <?= $count ?> of <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?>
-    </p>
-    <?php endif; ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -122,6 +121,8 @@ $count = count($rows);
                             <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
                             <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
                             <input type="hidden" name="search"      value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="page"        value="<?= $page ?>">
+                            <input type="hidden" name="per_page"    value="<?= $perPage ?>">
                             <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit" class="btn btn-sm btn-outline-success">Post Now</button>
                         </form>
@@ -136,6 +137,8 @@ $count = count($rows);
                             <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
                             <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
                             <input type="hidden" name="search"      value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="page"        value="<?= $page ?>">
+                            <input type="hidden" name="per_page"    value="<?= $perPage ?>">
                             <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                         </form>
@@ -148,19 +151,15 @@ $count = count($rows);
         </table>
     </div>
 
-    <?php if ($count >= 200): ?>
-    <p class="text-muted small mt-2">Showing first 200 results. Use search to narrow results.</p>
-    <?php endif; ?>
+    <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
     <?php else: ?>
 
     <div class="card text-center py-5">
         <div class="card-body">
-            <?php if ($search !== '' && (int) $pendingTotal > 0): ?>
+            <?php if ($search !== ''): ?>
             <h5 class="card-title text-muted">No results for &ldquo;<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>&rdquo;</h5>
-            <p class="card-text text-muted small mb-4">
-                <?= (int) $pendingTotal ?> pending <?= (int) $pendingTotal === 1 ? 'post' : 'posts' ?> in queue.
-            </p>
+            <p class="card-text text-muted small mb-4">Try a different search term.</p>
             <a href="<?= u('queue', 'view', ['id' => (int) $account['id']]) ?>"
                class="btn btn-sm btn-outline-secondary">Clear search</a>
             <?php else: ?>

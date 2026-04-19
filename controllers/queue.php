@@ -116,17 +116,31 @@ function index(): void
     $accounts  = queue_accessibleAccounts();
 
     if (empty($accounts)) {
-        $template->set('rows',      []);
-        $template->set('csrfToken', csrf_token());
+        $template->set('rows',             []);
+        $template->set('page',             1);
+        $template->set('perPage',          50);
+        $template->set('totalPages',       1);
+        $template->set('totalItems',       0);
+        $template->set('paginationParams', ['c' => 'queue', 'a' => 'index']);
+        $template->set('csrfToken',        csrf_token());
         return;
     }
 
     $accessibleIds = array_column($accounts, 'id');
     $inList        = implode(',', array_fill(0, count($accessibleIds), '?'));
+    $totalAccounts = count($accessibleIds);
+
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($totalAccounts);
 
     // Correlated subqueries keep this as a single round-trip.
     $stmt = $dbh->prepare(
         "SELECT a.id, a.name, a.is_posting, cp.platform, cp.platform_name,
+                cp.is_active AS platform_active, cp.token_expires_at,
+                (SELECT COUNT(*)
+                   FROM posts p
+                  WHERE p.account_id = a.id
+                    AND p.is_active = 1
+                    AND p.is_recyclable = 1)    AS recycled_count,
                 (SELECT COUNT(*)
                    FROM scheduled_posts sp
                   WHERE sp.connected_platform_id = a.connected_platform_id
@@ -134,22 +148,30 @@ function index(): void
                 (SELECT COUNT(*)
                    FROM post_history ph
                   WHERE ph.connected_platform_id = a.connected_platform_id
-                    AND ph.status = 'posted')   AS posted_count,
+                    AND ph.status = 'posted'
+                    AND ph.posted_at >= NOW() - INTERVAL 30 DAY) AS posted_count,
                 (SELECT COUNT(*)
                    FROM post_history ph
                   WHERE ph.connected_platform_id = a.connected_platform_id
-                    AND ph.status = 'failed')   AS failed_count
+                    AND ph.status = 'failed'
+                    AND ph.posted_at >= NOW() - INTERVAL 30 DAY) AS failed_count
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
           WHERE a.company_id = ? AND a.is_active = 1
             AND a.id IN ($inList)
-          ORDER BY a.name ASC"
+          ORDER BY a.name ASC
+          LIMIT $perPage OFFSET $offset"
     );
     $stmt->execute(array_merge([$companyId], $accessibleIds));
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('rows',      $rows);
-    $template->set('csrfToken', csrf_token());
+    $template->set('rows',             $rows);
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $totalAccounts);
+    $template->set('paginationParams', ['c' => 'queue', 'a' => 'index']);
+    $template->set('csrfToken',        csrf_token());
 }
 
 /**
@@ -157,8 +179,8 @@ function index(): void
  *
  * Ordered by scheduled_time ASC so the next-due post is always at the top.
  * Accepts optional ?q= search against final_body (LIKE).
- * Passes $pendingTotal (unfiltered count) so the view can distinguish
- * "no posts" from "search returned nothing."
+ * The count query is filter-aware so pagination math reflects the current
+ * search; $pendingTotal drives both the subtitle and page calculation.
  */
 function view(): void
 {
@@ -173,57 +195,64 @@ function view(): void
     $companyId = queue_companyId();
     $search    = trim((string) ($_GET['q'] ?? ''));
 
-    // Unfiltered pending count for the heading and empty-state messaging
+    // Count — filter-aware so pagination math reflects current search
+    $countConditions = ["a.id = ?", "a.company_id = ?", "sp.status = 'pending'"];
+    $countParams     = [$accountId, $companyId];
+
+    if ($search !== '') {
+        $countConditions[] = 'sp.final_body LIKE ?';
+        $countParams[]     = '%' . $search . '%';
+    }
+
+    $countWhere = implode(' AND ', $countConditions);
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM scheduled_posts sp
            JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
-          WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending'"
+          WHERE $countWhere"
     );
-    $stmt->execute([$accountId, $companyId]);
+    $stmt->execute($countParams);
     $pendingTotal = (int) $stmt->fetchColumn();
 
-    if ($search !== '') {
-        $stmt = $dbh->prepare(
-            "SELECT sp.id, sp.scheduled_time, sp.final_body, sp.final_image_filename,
-                    p.id AS post_id, p.attributed_to
-               FROM scheduled_posts sp
-               JOIN posts p ON p.id = sp.post_id
-               JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending'
-                AND sp.final_body LIKE ?
-              ORDER BY sp.scheduled_time ASC
-              LIMIT 200"
-        );
-        $stmt->execute([$accountId, $companyId, '%' . $search . '%']);
-    } else {
-        $stmt = $dbh->prepare(
-            "SELECT sp.id, sp.scheduled_time, sp.final_body, sp.final_image_filename,
-                    p.id AS post_id, p.attributed_to
-               FROM scheduled_posts sp
-               JOIN posts p ON p.id = sp.post_id
-               JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending'
-              ORDER BY sp.scheduled_time ASC
-              LIMIT 200"
-        );
-        $stmt->execute([$accountId, $companyId]);
-    }
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($pendingTotal);
+
+    // Data query — same conditions, paginated
+    $stmt = $dbh->prepare(
+        "SELECT sp.id, sp.scheduled_time, sp.final_body, sp.final_image_filename,
+                p.id AS post_id, p.attributed_to
+           FROM scheduled_posts sp
+           JOIN posts p ON p.id = sp.post_id
+           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+          WHERE $countWhere
+          ORDER BY sp.scheduled_time ASC
+          LIMIT $perPage OFFSET $offset"
+    );
+    $stmt->execute($countParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('account',      $account);
-    $template->set('rows',         $rows);
-    $template->set('pendingTotal', $pendingTotal);
-    $template->set('search',       $search);
-    $template->set('csrfToken',    csrf_token());
+    $paginationParams = ['c' => 'queue', 'a' => 'view', 'id' => $accountId];
+    if ($search !== '') {
+        $paginationParams['q'] = $search;
+    }
+
+    $template->set('account',          $account);
+    $template->set('rows',             $rows);
+    $template->set('pendingTotal',     $pendingTotal);
+    $template->set('search',           $search);
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $pendingTotal);
+    $template->set('paginationParams', $paginationParams);
+    $template->set('csrfToken',        csrf_token());
 }
 
 /**
  * History — post_history log for one account, newest first.
  *
  * Shows all statuses. Accepts ?q= search against body_snapshot.
- * Passes $totalCount (unfiltered) for the 200-row cap notice and
- * $failedCount for the Errors tab badge.
+ * $totalCount is filter-aware and drives both the tab badge and pagination.
+ * $failedCount is always unfiltered (used only for the Errors tab badge).
  */
 function history(): void
 {
@@ -238,15 +267,26 @@ function history(): void
     $companyId = queue_companyId();
     $search    = trim((string) ($_GET['q'] ?? ''));
 
+    // Total count — filter-aware for pagination and tab badge
+    $countConditions = ['a.id = ?', 'a.company_id = ?'];
+    $countParams     = [$accountId, $companyId];
+
+    if ($search !== '') {
+        $countConditions[] = 'ph.body_snapshot LIKE ?';
+        $countParams[]     = '%' . $search . '%';
+    }
+
+    $countWhere = implode(' AND ', $countConditions);
     $stmt = $dbh->prepare(
-        'SELECT COUNT(*)
+        "SELECT COUNT(*)
            FROM post_history ph
            JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-          WHERE a.id = ? AND a.company_id = ?'
+          WHERE $countWhere"
     );
-    $stmt->execute([$accountId, $companyId]);
+    $stmt->execute($countParams);
     $totalCount = (int) $stmt->fetchColumn();
 
+    // Failed count for Errors tab badge — always unfiltered
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM post_history ph
@@ -256,38 +296,37 @@ function history(): void
     $stmt->execute([$accountId, $companyId]);
     $failedCount = (int) $stmt->fetchColumn();
 
-    if ($search !== '') {
-        $stmt = $dbh->prepare(
-            'SELECT ph.id, ph.body_snapshot, ph.image_filename, ph.platform_post_id,
-                    ph.status, ph.posted_at, ph.post_id
-               FROM post_history ph
-               JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ?
-                AND ph.body_snapshot LIKE ?
-              ORDER BY ph.posted_at DESC
-              LIMIT 200'
-        );
-        $stmt->execute([$accountId, $companyId, '%' . $search . '%']);
-    } else {
-        $stmt = $dbh->prepare(
-            'SELECT ph.id, ph.body_snapshot, ph.image_filename, ph.platform_post_id,
-                    ph.status, ph.posted_at, ph.post_id
-               FROM post_history ph
-               JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ?
-              ORDER BY ph.posted_at DESC
-              LIMIT 200'
-        );
-        $stmt->execute([$accountId, $companyId]);
-    }
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($totalCount);
+
+    // Data query — same conditions, paginated
+    $stmt = $dbh->prepare(
+        "SELECT ph.id, ph.body_snapshot, ph.image_filename, ph.platform_post_id,
+                ph.status, ph.posted_at, ph.post_id
+           FROM post_history ph
+           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+          WHERE $countWhere
+          ORDER BY ph.posted_at DESC
+          LIMIT $perPage OFFSET $offset"
+    );
+    $stmt->execute($countParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('account',     $account);
-    $template->set('rows',        $rows);
-    $template->set('totalCount',  $totalCount);
-    $template->set('failedCount', $failedCount);
-    $template->set('search',      $search);
-    $template->set('csrfToken',   csrf_token());
+    $paginationParams = ['c' => 'queue', 'a' => 'history', 'id' => $accountId];
+    if ($search !== '') {
+        $paginationParams['q'] = $search;
+    }
+
+    $template->set('account',          $account);
+    $template->set('rows',             $rows);
+    $template->set('totalCount',       $totalCount);
+    $template->set('failedCount',      $failedCount);
+    $template->set('search',           $search);
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $totalCount);
+    $template->set('paginationParams', $paginationParams);
+    $template->set('csrfToken',        csrf_token());
 }
 
 /**
@@ -295,6 +334,7 @@ function history(): void
  *
  * Search runs against both body_snapshot and error_message so operators
  * can find failures by platform error text as well as post content.
+ * $totalCount is filter-aware and drives both the tab badge and pagination.
  */
 function errors(): void
 {
@@ -309,46 +349,56 @@ function errors(): void
     $companyId = queue_companyId();
     $search    = trim((string) ($_GET['q'] ?? ''));
 
+    // Total count — filter-aware for pagination and tab badge
+    $countConditions = ["a.id = ?", "a.company_id = ?", "ph.status = 'failed'"];
+    $countParams     = [$accountId, $companyId];
+
+    if ($search !== '') {
+        $countConditions[] = '(ph.body_snapshot LIKE ? OR ph.error_message LIKE ?)';
+        $countParams[]     = '%' . $search . '%';
+        $countParams[]     = '%' . $search . '%';
+    }
+
+    $countWhere = implode(' AND ', $countConditions);
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM post_history ph
            JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-          WHERE a.id = ? AND a.company_id = ? AND ph.status = 'failed'"
+          WHERE $countWhere"
     );
-    $stmt->execute([$accountId, $companyId]);
+    $stmt->execute($countParams);
     $totalCount = (int) $stmt->fetchColumn();
 
-    if ($search !== '') {
-        $stmt = $dbh->prepare(
-            "SELECT ph.id, ph.body_snapshot, ph.image_filename,
-                    ph.error_message, ph.posted_at, ph.post_id
-               FROM post_history ph
-               JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ? AND ph.status = 'failed'
-                AND (ph.body_snapshot LIKE ? OR ph.error_message LIKE ?)
-              ORDER BY ph.posted_at DESC
-              LIMIT 200"
-        );
-        $stmt->execute([$accountId, $companyId, '%' . $search . '%', '%' . $search . '%']);
-    } else {
-        $stmt = $dbh->prepare(
-            "SELECT ph.id, ph.body_snapshot, ph.image_filename,
-                    ph.error_message, ph.posted_at, ph.post_id
-               FROM post_history ph
-               JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
-              WHERE a.id = ? AND a.company_id = ? AND ph.status = 'failed'
-              ORDER BY ph.posted_at DESC
-              LIMIT 200"
-        );
-        $stmt->execute([$accountId, $companyId]);
-    }
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($totalCount);
+
+    // Data query — same conditions, paginated
+    $stmt = $dbh->prepare(
+        "SELECT ph.id, ph.body_snapshot, ph.image_filename,
+                ph.error_message, ph.posted_at, ph.post_id
+           FROM post_history ph
+           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+          WHERE $countWhere
+          ORDER BY ph.posted_at DESC
+          LIMIT $perPage OFFSET $offset"
+    );
+    $stmt->execute($countParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $template->set('account',    $account);
-    $template->set('rows',       $rows);
-    $template->set('totalCount', $totalCount);
-    $template->set('search',     $search);
-    $template->set('csrfToken',  csrf_token());
+    $paginationParams = ['c' => 'queue', 'a' => 'errors', 'id' => $accountId];
+    if ($search !== '') {
+        $paginationParams['q'] = $search;
+    }
+
+    $template->set('account',          $account);
+    $template->set('rows',             $rows);
+    $template->set('totalCount',       $totalCount);
+    $template->set('search',           $search);
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $totalCount);
+    $template->set('paginationParams', $paginationParams);
+    $template->set('csrfToken',        csrf_token());
 }
 
 /**
@@ -356,7 +406,7 @@ function errors(): void
  *
  * The DELETE JOIN ensures the row belongs to an account this user controls.
  * status = 'pending' in the WHERE prevents removing a row cron has already
- * claimed or posted.
+ * claimed or posted. Redirects back preserving search, page, and per_page.
  */
 function remove(): void
 {
@@ -375,7 +425,10 @@ function remove(): void
     $companyId       = queue_companyId();
     $scheduledPostId = (int) ($_POST['id']         ?? 0);
     $accountId       = (int) ($_POST['account_id'] ?? 0);
-    $search          = trim((string) ($_POST['search'] ?? ''));
+    $search          = trim((string) ($_POST['search']   ?? ''));
+    $page            = max(1, (int) ($_POST['page']    ?? 1));
+    $perPage         = in_array((int) ($_POST['per_page'] ?? 50), [25, 50, 100], true)
+                        ? (int) $_POST['per_page'] : 50;
 
     if ($scheduledPostId === 0 || $accountId === 0) {
         header('Location: ' . u('queue'));
@@ -398,9 +451,12 @@ function remove(): void
         ];
     }
 
-    $params = ['id' => $accountId];
+    $params = ['id' => $accountId, 'per_page' => $perPage];
     if ($search !== '') {
         $params['q'] = $search;
+    }
+    if ($page > 1) {
+        $params['page'] = $page;
     }
     header('Location: ' . u('queue', 'view', $params));
     exit;
@@ -465,6 +521,7 @@ function queue_flush(): void
  *
  * Does NOT create a new row. Does NOT touch the posts library or cascade the
  * queue. The existing final_body and final_image_filename are sent as-is.
+ * Redirects back preserving search, page, and per_page.
  */
 function sharenow(): void
 {
@@ -483,7 +540,10 @@ function sharenow(): void
     $companyId       = queue_companyId();
     $scheduledPostId = (int) ($_POST['id']         ?? 0);
     $accountId       = (int) ($_POST['account_id'] ?? 0);
-    $search          = trim((string) ($_POST['search'] ?? ''));
+    $search          = trim((string) ($_POST['search']   ?? ''));
+    $page            = max(1, (int) ($_POST['page']    ?? 1));
+    $perPage         = in_array((int) ($_POST['per_page'] ?? 50), [25, 50, 100], true)
+                        ? (int) $_POST['per_page'] : 50;
 
     if ($scheduledPostId === 0 || $accountId === 0) {
         header('Location: ' . u('queue'));
@@ -513,9 +573,12 @@ function sharenow(): void
         ];
     }
 
-    $params = ['id' => $accountId];
+    $params = ['id' => $accountId, 'per_page' => $perPage];
     if ($search !== '') {
         $params['q'] = $search;
+    }
+    if ($page > 1) {
+        $params['page'] = $page;
     }
     header('Location: ' . u('queue', 'view', $params));
     exit;
