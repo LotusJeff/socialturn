@@ -32,6 +32,8 @@ composer install --no-dev
 
 ### 3. Create the database
 
+You can create the database within your hosting panel or via phpmyadmin or via the mysql command below
+
 ```sql
 CREATE DATABASE socialturn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
@@ -49,11 +51,6 @@ The web server user needs:
 # Set ownership to the web server user
 # If your webserver runs as a different user, replace `www-data` with the correct user.
 sudo chown -R www-data:www-data /path/to/socialturn
-
-# Allow the web server to write socialturn.ini above the web root
-# Replace /var/www/yoursite.com with the parent of your document root
-sudo touch /var/socialturn.ini
-sudo chmod chown www-data:www-data /var/socialturn.ini
 ```
 
 ### 5. Run the install wizard
@@ -88,8 +85,10 @@ Click **Install SocialTurn** on the final step. The wizard:
 
 > **After the wizard completes, delete `install.php` immediately.**
 > SocialTurn will display a security warning on every page until the file is removed.
-> Run: `rm /path/to/socialturn/install.php`
-
+> Run:
+```
+sudo rm /path/to/socialturn/install.php
+```
 
 ### 6. Set up the cron job
 
