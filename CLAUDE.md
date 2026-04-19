@@ -132,6 +132,59 @@ Never use mysql_* functions under any circumstances.
 $template->set('key', $value) → available as $key in views via extract().
 Flash notifications: $_SESSION['notification']['type'] and ['message'].
 
+### URL Helper
+u(string $controller, string $action, array $params): string
+defined in libraries/shared.php. All internal links, redirects,
+and form actions use u() — never raw BASE_URL string concatenation.
+
+### Config and Boot
+- socialturn.ini — five keys only (db_host, db_name, db_user,
+  db_pass, base_url). Stored above the web root. Never committed.
+- boot.php — one line: define('CONFIG_PATH', '/absolute/path/
+  socialturn.ini'). Lives in web root. Never committed. Written
+  by install wizard.
+- index.php loads boot.php first, then parses socialturn.ini via
+  CONFIG_PATH. If boot.php is missing, redirects to install wizard.
+
+### Install Wizard
+install.php in the web root. Runs on first visit when boot.php is
+absent. Writes socialturn.ini and boot.php, runs schema.sql and
+migration 026, creates first admin user and company. Must be
+deleted after install. index.php shows a warning banner to admin
+users until install.php is removed.
+
+### Admin Settings
+admin_settings table stores all non-boot configuration: Postmark
+credentials, Twitter/Meta API keys, recycle threshold, lookahead
+days, schedule min posts, owner email. Loaded at bootstrap via
+load_admin_settings() in libraries/shared.php which defines each
+value as a PHP constant. Editable via controllers/settings.php
+(admin only).
+
+### Cron Entry Point
+cron.php in the web root. CLI only — exits with 403 if called via
+HTTP. Bootstraps the app without session or template, calls post()
+in controllers/cron.php directly. Blocked by .htaccess and nginx
+deny rules. Crontab: */5 * * * * /usr/bin/php /path/to/cron.php
+>> /var/log/socialturn-cron.log 2>&1
+
+### Post Body Assembly
+build_final_body(string $body, string $attributedTo,
+?string $defaultTagsJson, string $platform): string
+Defined in libraries/shared.php. Single source of truth for
+assembling final_body. Format: [body] - [attribution] #hashtags.
+Called by QueuePopulationService::populate(), content/store(),
+and content/update(). Never called from image template logic —
+images receive raw body only.
+
+### Pagination
+pagination_calc(int $total): array defined in libraries/shared.php.
+Returns [$page, $perPage, $offset, $totalPages]. Reusable partial
+at views/partials/pagination.php — three-column layout (count left,
+nav center, per-page right). Default 50 per page; options 25/50/100.
+Used on: queue/index, queue/view, queue/history, queue/errors,
+content/index.
+
 ---
 
 ## The Queue Engine — Understand Before Touching
@@ -207,6 +260,7 @@ path needed. UI must display: "Post will publish within 5 minutes."
 | posts | Content library — master record for all postable content |
 | scheduled_posts | Queue — a scheduled instance of a post at a specific datetime |
 | post_history | Immutable log of every successfully sent post |
+| admin_settings | Key/value store for all non-boot application configuration |
 
 ### connected_platforms columns
 - id, account_id
@@ -226,6 +280,8 @@ Every schema change ships with a numbered migration file in db/migrations/.
 Format: 001_description.sql, 002_description.sql
 Never make a breaking schema change without a migration file.
 CHANGELOG.md must document which migrations to run for each version upgrade.
+- Migration 025: scheduling_enabled added to account_settings
+- Migration 026: admin_settings table created with default rows
 
 ---
 
@@ -423,6 +479,10 @@ Run PHPUnit automated test suite. Manual testing of all features including
 queue engine, OAuth flows, platform posting, auth, CSV import, and duplicate
 detection. Bug tracking and fixes. Each fix gets a point release (0.9.1,
 0.9.2, etc.). Both automated and manual testing must pass before Phase 10.
+Architectural changes completed during Phase 9:
+- Phase A: Query-string routing replaces PATH_INFO/rewrite routing
+- Phase B: config.php replaced by socialturn.ini + boot.php +
+  install wizard + admin settings screen
 
 ### Phase 10 — 1.0 Release
 Merge to master. Tag 1.0.0. Public release.
@@ -465,9 +525,30 @@ Merge to master. Tag 1.0.0. Public release.
 - Twitter credential naming — `config.sample.php` and `INSTALL.md` updated to note Consumer Key/Consumer Secret labeling in Twitter developer portal
 - Migration 024 — `active_hours_start` and `active_hours_end` changed to NULL DEFAULT NULL in `account_schedules`
 - Spurious "link expired or already used" notification after successful password set — two-part fix: (1) flash notification block moved outside `$noextra` guard in `views/header.php` so notifications are shown and cleared on all pages; (2) `forgot()` in `controllers/users.php` now deletes existing unused tokens before inserting a new one, preventing stale token accumulation
+- Pending invited users not shown on team page — second query added for invites WHERE
+  used_at IS NULL; resend and revoke invite actions added to controllers/team.php
+- "Link expired or already used" error after successful password set — flash notification
+  block moved outside if (empty($noextra)) guard in views/header.php so notifications
+  are shown and cleared on all pages including login, setpassword, and forgot
+- forgot() stale token accumulation — DELETE existing unused tokens for company+email
+  before INSERT, matching invited() pattern
+- Attribution missing from Twitter posts — build_final_body() extracted to
+  libraries/shared.php as single source of truth; called by QueuePopulationService,
+  content/store(), and content/update(); format: [body] - [attribution] #hashtags
+- CSV import page blank — views/content/import.php renamed to
+  views/content/importForm.php to match action name
+- Duplicates page blank — views/content/duplicates.php renamed to
+  views/content/content_duplicates.php to match action name
+- Queue index counts showing wrong account — join pattern corrected across 11 queries
+  in 6 actions in controllers/queue.php; now routes through posts.account_id instead
+  of connected_platform_id
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
+- Queue reschedule on schedule change — when a schedule is edited, pending
+  scheduled_posts are not automatically rescheduled to the new timing. Tabled for
+  future implementation. Decision: no auto-clear; user will be prompted with a choice
+  when implemented.
 
 ---
 

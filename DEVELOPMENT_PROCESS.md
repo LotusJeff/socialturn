@@ -131,7 +131,7 @@ Do not write until I approve.
 ### Confirm and Continue
 ```
 [Section/Phase] confirmed.
-Commit to dev branch with descriptive message.
+Commit to master with descriptive message.
 Then present [next section] plan before writing any code.
 ```
 
