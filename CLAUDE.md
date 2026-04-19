@@ -20,7 +20,7 @@ Development workflow: See DEVELOPMENT_PROCESS.md in the repo root for the full b
 ## Current Stack
 - PHP 8.2+
 - MySQL 8.0+
-- Apache with mod_rewrite (all requests route through index.php)
+- Apache or nginx (all requests route through index.php via query-string routing — no mod_rewrite required)
 - Composer for dependency management
 - Bootstrap 5, vanilla JS — no frontend build tools
 
@@ -425,7 +425,7 @@ detection. Bug tracking and fixes. Each fix gets a point release (0.9.1,
 0.9.2, etc.). Both automated and manual testing must pass before Phase 10.
 
 ### Phase 10 — 1.0 Release
-Merge dev to main. Tag 1.0.0. Public release.
+Merge to master. Tag 1.0.0. Public release.
 
 ---
 
@@ -590,8 +590,6 @@ Do not build AI generation into the application itself.
 
 ## What Not To Do
 
-- Do not modify legacy libraries/facebook/ or libraries/twitter/ —
-  they will be deleted when Phase 4 is complete
 - Do not add new features before Phase 3 (queue engine) is stable
 - Do not combine posts (content) with scheduled_posts (queue instances) —
   this separation is intentional and must be preserved

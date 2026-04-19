@@ -99,7 +99,11 @@ class QueuePopulationService
             $rows = [];
             foreach ($newSlots as $i => $utcTime) {
                 $post     = $postPool[$i % $postCount];
-                $appended = $this->tagger->append($post['body'], $account['default_tags'], $account['platform']);
+                $body = $post['body'];
+                if (!empty($post['attributed_to'])) {
+                    $body .= ' - ' . $post['attributed_to'];
+                }
+                $appended = $this->tagger->append($body, $account['default_tags'], $account['platform']);
                 if ($appended['tags_skipped'] > 0) {
                     $result['tags_truncated']++;
                 }

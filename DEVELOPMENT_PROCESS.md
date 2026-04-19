@@ -71,8 +71,8 @@ Explicit confirmation: `[Section X] confirmed.`
 
 #### Step 6: Commit (Code)
 ```
-[Section X] confirmed. Commit all changes to dev branch with descriptive message.
-Confirm branch is dev and main is untouched.
+[Section X] confirmed. Commit all changes to master with descriptive message.
+Confirm branch is master.
 ```
 
 ---
