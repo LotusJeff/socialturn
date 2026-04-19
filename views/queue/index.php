@@ -91,10 +91,11 @@ function queue_index_connectionStatus(array $r): string
                     <th style="width:80px"></th>
                     <th style="width:200px">Status</th>
                     <th>Account</th>
-                    <th style="width:130px">Recycled Queue</th>
-                    <th style="width:100px">Pending</th>
-                    <th style="width:110px">Posted (30d)</th>
-                    <th style="width:110px">Failed (30d)</th>
+                    <th class="text-center" style="width:130px">Recycled Queue</th>
+                    <th class="text-center" style="width:100px">Pending</th>
+                    <th class="text-center" style="width:110px">Posted (30d)</th>
+                    <th class="text-center" style="width:110px">Failed (30d)</th>
+                    <th style="width:1%;white-space:nowrap"></th>
                 </tr>
             </thead>
             <tbody>
@@ -118,7 +119,7 @@ function queue_index_connectionStatus(array $r): string
                 <td class="fw-semibold">
                     <?= htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8') ?>
                 </td>
-                <td>
+                <td class="text-center">
                     <?php if ((int) $r['recycled_count'] > 0): ?>
                     <a href="<?= u('content', 'index', ['account_id' => (int) $r['id']]) ?>"
                        class="text-decoration-none">
@@ -128,7 +129,7 @@ function queue_index_connectionStatus(array $r): string
                     <span class="text-muted">0</span>
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="text-center">
                     <?php if ((int) $r['pending_count'] > 0): ?>
                     <a href="<?= u('queue', 'view', ['id' => (int) $r['id']]) ?>"
                        class="fw-semibold text-decoration-none">
@@ -138,7 +139,7 @@ function queue_index_connectionStatus(array $r): string
                     <span class="text-muted">0</span>
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="text-center">
                     <?php if ((int) $r['posted_count'] > 0): ?>
                     <a href="<?= u('queue', 'history', ['id' => (int) $r['id']]) ?>"
                        class="text-success text-decoration-none">
@@ -148,7 +149,7 @@ function queue_index_connectionStatus(array $r): string
                     <span class="text-muted">0</span>
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="text-center">
                     <?php if ((int) $r['failed_count'] > 0): ?>
                     <a href="<?= u('queue', 'errors', ['id' => (int) $r['id']]) ?>"
                        class="text-danger fw-semibold text-decoration-none">
@@ -157,6 +158,10 @@ function queue_index_connectionStatus(array $r): string
                     <?php else: ?>
                     <span class="text-muted">0</span>
                     <?php endif; ?>
+                </td>
+                <td style="white-space:nowrap">
+                    <a href="<?= u('content', 'create', ['account_id' => (int) $r['id']]) ?>"
+                       class="btn btn-sm btn-outline-primary">New Post</a>
                 </td>
             </tr>
             <?php endforeach; ?>

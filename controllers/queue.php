@@ -143,16 +143,19 @@ function index(): void
                     AND p.is_recyclable = 1)    AS recycled_count,
                 (SELECT COUNT(*)
                    FROM scheduled_posts sp
-                  WHERE sp.connected_platform_id = a.connected_platform_id
+                   JOIN posts p ON p.id = sp.post_id
+                  WHERE p.account_id = a.id
                     AND sp.status = 'pending')  AS pending_count,
                 (SELECT COUNT(*)
                    FROM post_history ph
-                  WHERE ph.connected_platform_id = a.connected_platform_id
+                   JOIN posts p ON p.id = ph.post_id
+                  WHERE p.account_id = a.id
                     AND ph.status = 'posted'
                     AND ph.posted_at >= NOW() - INTERVAL 30 DAY) AS posted_count,
                 (SELECT COUNT(*)
                    FROM post_history ph
-                  WHERE ph.connected_platform_id = a.connected_platform_id
+                   JOIN posts p ON p.id = ph.post_id
+                  WHERE p.account_id = a.id
                     AND ph.status = 'failed'
                     AND ph.posted_at >= NOW() - INTERVAL 30 DAY) AS failed_count
            FROM accounts a
@@ -208,7 +211,8 @@ function view(): void
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM scheduled_posts sp
-           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+           JOIN posts p ON p.id = sp.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere"
     );
     $stmt->execute($countParams);
@@ -222,7 +226,7 @@ function view(): void
                 p.id AS post_id, p.attributed_to
            FROM scheduled_posts sp
            JOIN posts p ON p.id = sp.post_id
-           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere
           ORDER BY sp.scheduled_time ASC
           LIMIT $perPage OFFSET $offset"
@@ -280,7 +284,8 @@ function history(): void
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM post_history ph
-           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere"
     );
     $stmt->execute($countParams);
@@ -290,7 +295,8 @@ function history(): void
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM post_history ph
-           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE a.id = ? AND a.company_id = ? AND ph.status = 'failed'"
     );
     $stmt->execute([$accountId, $companyId]);
@@ -303,7 +309,8 @@ function history(): void
         "SELECT ph.id, ph.body_snapshot, ph.image_filename, ph.platform_post_id,
                 ph.status, ph.posted_at, ph.post_id
            FROM post_history ph
-           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere
           ORDER BY ph.posted_at DESC
           LIMIT $perPage OFFSET $offset"
@@ -363,7 +370,8 @@ function errors(): void
     $stmt = $dbh->prepare(
         "SELECT COUNT(*)
            FROM post_history ph
-           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere"
     );
     $stmt->execute($countParams);
@@ -376,7 +384,8 @@ function errors(): void
         "SELECT ph.id, ph.body_snapshot, ph.image_filename,
                 ph.error_message, ph.posted_at, ph.post_id
            FROM post_history ph
-           JOIN accounts a ON a.connected_platform_id = ph.connected_platform_id
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE $countWhere
           ORDER BY ph.posted_at DESC
           LIMIT $perPage OFFSET $offset"
@@ -439,7 +448,8 @@ function remove(): void
 
     $stmt = $dbh->prepare(
         "DELETE sp FROM scheduled_posts sp
-           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+           JOIN posts p ON p.id = sp.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE sp.id = ? AND a.id = ? AND a.company_id = ? AND sp.status = 'pending'"
     );
     $stmt->execute([$scheduledPostId, $accountId, $companyId]);
@@ -495,7 +505,8 @@ function queue_flush(): void
 
     $stmt = $dbh->prepare(
         "DELETE sp FROM scheduled_posts sp
-           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+           JOIN posts p ON p.id = sp.post_id
+           JOIN accounts a ON a.id = p.account_id
           WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending'"
     );
     $stmt->execute([$accountId, $companyId]);
@@ -554,7 +565,8 @@ function sharenow(): void
 
     $stmt = $dbh->prepare(
         "UPDATE scheduled_posts sp
-           JOIN accounts a ON a.connected_platform_id = sp.connected_platform_id
+           JOIN posts p ON p.id = sp.post_id
+           JOIN accounts a ON a.id = p.account_id
             SET sp.scheduled_time = NOW()
           WHERE sp.id = ? AND a.id = ? AND a.company_id = ?
             AND sp.status = 'pending' AND sp.locked_at IS NULL"

@@ -676,6 +676,91 @@ function toggle(): void
 }
 
 /**
+ * Send Now — POST: inserts a scheduled_posts row with scheduled_time = NOW()
+ * for an existing post so the next cron run (within 5 minutes) sends it.
+ */
+function sendNow(): void
+{
+    global $dbh;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Location: ' . u('content'));
+        exit;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . u('content'));
+        exit;
+    }
+
+    $companyId       = content_companyId();
+    $postId          = (int) ($_POST['post_id']           ?? 0);
+    $filterAccountId = (int) ($_POST['filter_account_id'] ?? 0);
+
+    if ($postId === 0) {
+        header('Location: ' . u('content'));
+        exit;
+    }
+
+    // Load post — verify it belongs to this company and is active
+    $stmt = $dbh->prepare(
+        'SELECT p.id, p.body, p.attributed_to, p.image_filename, p.account_id
+           FROM posts p
+           JOIN accounts a ON a.id = p.account_id
+          WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
+    );
+    $stmt->execute([$postId, $companyId]);
+    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($post['id'])) {
+        error404();
+    }
+
+    authorizeAccount((int) $post['account_id']);
+
+    // Load connected platform for final_body assembly
+    $stmt = $dbh->prepare(
+        'SELECT cp.id AS cp_id, cp.platform, a.default_tags
+           FROM accounts a
+           JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+          WHERE a.id = ? AND a.company_id = ? AND a.is_active = 1'
+    );
+    $stmt->execute([(int) $post['account_id'], $companyId]);
+    $account = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($account['cp_id'])) {
+        error404();
+    }
+
+    $finalBody = build_final_body(
+        (string) $post['body'],
+        (string) ($post['attributed_to'] ?? ''),
+        (string) ($account['default_tags'] ?? ''),
+        (string) $account['platform']
+    );
+
+    $dbh->prepare(
+        "INSERT INTO scheduled_posts
+             (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
+         VALUES (?, ?, NOW(), 'pending', ?, ?)"
+    )->execute([
+        $account['cp_id'],
+        $postId,
+        $finalBody,
+        $post['image_filename'],
+    ]);
+
+    $_SESSION['notification'] = [
+        'type'    => 'success',
+        'message' => 'Post will be sent within 5 minutes.',
+    ];
+
+    $params = $filterAccountId > 0 ? ['account_id' => $filterAccountId] : [];
+    header('Location: ' . u('content', 'index', $params));
+    exit;
+}
+
+/**
  * Import Form — GET: renders the CSV import form.
  *
  * Checks for a completed-import result in SESSION and passes it to the
@@ -702,7 +787,14 @@ function importForm(): void
         unset($_SESSION['import_result']);
     }
 
+    $preselect     = (int) ($_GET['account_id'] ?? 0);
+    $accessibleIds = array_column($accounts, 'id');
+    if (!in_array($preselect, $accessibleIds, true)) {
+        $preselect = 0;
+    }
+
     $template->set('accounts',     $accounts);
+    $template->set('preselect',    $preselect);
     $template->set('importResult', $importResult);
     $template->set('csrfToken',    csrf_token());
 }

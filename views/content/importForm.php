@@ -132,7 +132,8 @@
                         <input class="form-check-input" type="checkbox"
                                name="account_ids[]"
                                id="acct_<?= (int) $a['id'] ?>"
-                               value="<?= (int) $a['id'] ?>">
+                               value="<?= (int) $a['id'] ?>"
+                               <?= $preselect > 0 && (int) $a['id'] === $preselect ? 'checked' : '' ?>>
                         <label class="form-check-label" for="acct_<?= (int) $a['id'] ?>">
                             <?= htmlspecialchars((string) $a['name'], ENT_QUOTES, 'UTF-8') ?>
                             <span class="text-muted">
