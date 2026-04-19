@@ -85,17 +85,6 @@ function content_accessibleAccounts(): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-/**
- * Builds a final_body for a Share Now queue insert.
- * Uses TagAppenderService to append default_tags up to the platform limit.
- */
-function content_buildFinalBody(string $body, ?string $defaultTagsJson, string $platform): string
-{
-    $appender = new TagAppenderService();
-    $result   = $appender->append($body, $defaultTagsJson, $platform);
-    return $result['body'];
-}
-
 // -----------------------------------------------------------------------
 // Actions
 // -----------------------------------------------------------------------
@@ -295,7 +284,7 @@ function store(): void
         $postId = (int) $dbh->lastInsertId();
 
         if ($shareNow) {
-            $finalBody = content_buildFinalBody($body, $account['default_tags'], (string) $account['platform']);
+            $finalBody = build_final_body($body, $attributedTo, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
@@ -500,7 +489,7 @@ function update(): void
         ]);
 
         if ($shareNow) {
-            $finalBody = content_buildFinalBody($body, $account['default_tags'], (string) $account['platform']);
+            $finalBody = build_final_body($body, $attributedTo, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)

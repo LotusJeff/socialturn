@@ -506,6 +506,22 @@ function normalize_body(string $body): string
     return mb_substr($n, 0, 280);
 }
 
+/**
+ * Assembles the final post body for queue insertion.
+ * Appends attribution (if present) then hashtags up to the platform limit.
+ * Single source of truth for final_body assembly across all code paths.
+ */
+function build_final_body(string $body, ?string $attributedTo, ?string $defaultTagsJson, string $platform): string
+{
+    $assembled = $body;
+    if (!empty($attributedTo)) {
+        $assembled .= ' - ' . $attributedTo;
+    }
+    $appender = new SocialTurn\Services\TagAppenderService();
+    $result   = $appender->append($assembled, $defaultTagsJson, $platform);
+    return $result['body'];
+}
+
 if (!defined('RUNNING_TESTS')) {
     db();
     authenticate();

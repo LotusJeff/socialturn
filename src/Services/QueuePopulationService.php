@@ -35,7 +35,6 @@ class QueuePopulationService
      *     slots_examined: int,
      *     posts_scheduled: int,
      *     duplicates_skipped: int,
-     *     tags_truncated: int,
      *     error: string|null
      * }
      */
@@ -46,7 +45,6 @@ class QueuePopulationService
             'slots_examined'     => 0,
             'posts_scheduled'    => 0,
             'duplicates_skipped' => 0,
-            'tags_truncated'     => 0,
             'error'              => null,
         ];
 
@@ -99,14 +97,7 @@ class QueuePopulationService
             $rows = [];
             foreach ($newSlots as $i => $utcTime) {
                 $post     = $postPool[$i % $postCount];
-                $body = $post['body'];
-                if (!empty($post['attributed_to'])) {
-                    $body .= ' - ' . $post['attributed_to'];
-                }
-                $appended = $this->tagger->append($body, $account['default_tags'], $account['platform']);
-                if ($appended['tags_skipped'] > 0) {
-                    $result['tags_truncated']++;
-                }
+                $finalBody = build_final_body($post['body'], $post['attributed_to'] ?? null, $account['default_tags'], $account['platform']);
 
                 // Determine final_image_filename at population time so cron dispatches
                 // a ready-to-post image without any processing overhead at send time.
@@ -134,7 +125,7 @@ class QueuePopulationService
                     $finalImageFilename = null;
                 }
 
-                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $appended['body'], $finalImageFilename];
+                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $finalBody, $finalImageFilename];
             }
 
             $this->insertScheduledPosts($rows);
