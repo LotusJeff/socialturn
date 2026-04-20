@@ -254,9 +254,12 @@ function store(): void
         exit;
     }
 
-    $accountId  = (int) ($_POST['account_id'] ?? 0);
-    $body       = trim((string) ($_POST['body'] ?? ''));
-    $shareNow   = isset($_POST['share_now']);
+    $accountId   = (int) ($_POST['account_id'] ?? 0);
+    $body        = trim((string) ($_POST['body'] ?? ''));
+    $intent      = in_array((string) ($_POST['intent'] ?? ''), ['save', 'share_now', 'schedule'], true)
+                       ? (string) $_POST['intent'] : 'save';
+    $scheduleDay  = trim((string) ($_POST['schedule_day']  ?? ''));
+    $scheduleTime = trim((string) ($_POST['schedule_time'] ?? ''));
 
     if ($accountId === 0 || $body === '') {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account and post body are required.'];
@@ -274,11 +277,13 @@ function store(): void
     $internalNote = trim((string) ($_POST['internal_note'] ?? '')) ?: null;
     $isRecyclable = isset($_POST['is_recyclable']) ? 1 : 0;
 
-    // Verify account belongs to this company
+    // Verify account belongs to this company; also fetch schedule timezone for Future Schedule
     $stmt = $dbh->prepare(
-        'SELECT a.id, cp.platform, cp.id AS cp_id, a.default_tags
+        'SELECT a.id, cp.platform, cp.id AS cp_id, a.default_tags,
+                COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+           LEFT JOIN account_schedules s ON s.account_id = a.id
           WHERE a.id = ? AND a.company_id = ? AND a.is_active = 1'
     );
     $stmt->execute([$accountId, $companyId]);
@@ -286,6 +291,34 @@ function store(): void
 
     if (empty($account['id'])) {
         error404();
+    }
+
+    // Validate Future Schedule inputs before opening the transaction
+    $scheduledTime    = null;
+    $scheduledDisplay = null;
+    if ($intent === 'schedule') {
+        if ($scheduleDay === '' || $scheduleTime === '') {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Date and time are required for scheduled posts.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
+        try {
+            $tz      = new DateTimeZone($account['timezone']);
+            $utcZone = new DateTimeZone('UTC');
+            $now     = new DateTimeImmutable('now', $tz);
+            $localDt = new DateTimeImmutable("{$scheduleDay} {$scheduleTime}", $tz);
+            if ($localDt <= $now) {
+                $_SESSION['notification'] = ['type' => 'error', 'message' => 'Scheduled time must be in the future.'];
+                header('Location: ' . u('content', 'create'));
+                exit;
+            }
+            $scheduledTime    = $localDt->setTimezone($utcZone)->format('Y-m-d H:i:s');
+            $scheduledDisplay = $localDt->format('D M j \a\t g:ia') . ' (' . $account['timezone'] . ')';
+        } catch (\Exception $e) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Invalid date or time. Please try again.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
     }
 
     // Image upload
@@ -315,13 +348,17 @@ function store(): void
         ]);
         $postId = (int) $dbh->lastInsertId();
 
-        if ($shareNow) {
+        if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
-                 VALUES (?, ?, NOW(), 'pending', ?, ?)"
-            )->execute([$account['cp_id'], $postId, $finalBody, $imageFilename]);
+                 VALUES (?, ?, ?, 'pending', ?, ?)"
+            )->execute([
+                $account['cp_id'], $postId,
+                $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
+                $finalBody, $imageFilename,
+            ]);
         }
 
         $dbh->commit();
@@ -332,16 +369,22 @@ function store(): void
         exit;
     }
 
-    if ($shareNow) {
+    if ($intent === 'share_now') {
         $_SESSION['notification'] = [
             'type'    => 'success',
             'message' => 'Post saved and will publish within 5 minutes.',
         ];
+        header('Location: ' . u('queue', 'view', ['id' => $account['id']]));
+    } elseif ($intent === 'schedule') {
+        $_SESSION['notification'] = [
+            'type'    => 'success',
+            'message' => 'Post saved and scheduled for ' . $scheduledDisplay . '.',
+        ];
+        header('Location: ' . u('queue', 'view', ['id' => $account['id']]));
     } else {
         $_SESSION['notification'] = ['type' => 'success', 'message' => 'Post added to library.'];
+        header('Location: ' . u('content', 'index', ['account_id' => $accountId]));
     }
-
-    header('Location: ' . u('content', 'index', ['account_id' => $accountId]));
     exit;
 }
 

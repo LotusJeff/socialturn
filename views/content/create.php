@@ -52,6 +52,9 @@ $platformLimits = json_encode([
               platformLimits:     <?= $platformLimits ?>,
               selectedAccountId: <?= $preselect > 0 ? $preselect : 0 ?>,
               bodyLength: 0,
+              intent: "save",
+              scheduleDay: "",
+              scheduleTime: "",
               get platform() {
                   return this.accountPlatforms[this.selectedAccountId] || "";
               },
@@ -63,6 +66,14 @@ $platformLimits = json_encode([
               },
               get currentAccountTags() {
                   return this.accountDefaultTags[this.selectedAccountId] || [];
+              },
+              get schedulePicked() {
+                  return this.scheduleDay !== "" && this.scheduleTime !== "";
+              },
+              get canSubmit() {
+                  if (this.overLimit) return false;
+                  if (this.intent === "schedule" && !this.schedulePicked) return false;
+                  return true;
               }
           }'>
 
@@ -158,6 +169,54 @@ $platformLimits = json_encode([
                     <div class="form-text">JPG or PNG. Leave blank for a text-only post.</div>
                 </div>
 
+                <!-- Posting intent -->
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Posting intent</label>
+                    <div class="d-flex gap-4">
+                        <div class="form-check">
+                            <input type="radio" id="intent_save" name="_intent"
+                                   class="form-check-input" value="save"
+                                   x-model="intent">
+                            <label for="intent_save" class="form-check-label">Save to Library</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="intent_share_now" name="_intent"
+                                   class="form-check-input" value="share_now"
+                                   x-model="intent">
+                            <label for="intent_share_now" class="form-check-label">Post Now</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" id="intent_schedule" name="_intent"
+                                   class="form-check-input" value="schedule"
+                                   x-model="intent">
+                            <label for="intent_schedule" class="form-check-label">Schedule for Later</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule date/time picker -->
+                <div class="mb-3" x-show="intent === 'schedule'" x-cloak>
+                    <div class="d-flex gap-3 align-items-end flex-wrap">
+                        <div>
+                            <label for="schedule_day" class="form-label">Date</label>
+                            <input type="date" id="schedule_day" name="schedule_day"
+                                   class="form-control" style="max-width:180px"
+                                   min="<?= date('Y-m-d') ?>"
+                                   max="<?= date('Y-m-d', strtotime('+30 days')) ?>"
+                                   x-model="scheduleDay">
+                        </div>
+                        <div>
+                            <label for="schedule_time" class="form-label">Time</label>
+                            <input type="time" id="schedule_time" name="schedule_time"
+                                   class="form-control" style="max-width:140px"
+                                   x-model="scheduleTime">
+                        </div>
+                    </div>
+                    <div class="form-text mt-1">
+                        Time is interpreted in this account&rsquo;s posting timezone.
+                    </div>
+                </div>
+
                 <!-- Recycle toggle -->
                 <div class="mb-3">
                     <div class="form-check">
@@ -182,16 +241,14 @@ $platformLimits = json_encode([
         </div>
 
         <!-- Actions -->
-        <div class="d-flex gap-2 flex-wrap align-items-center">
-            <button type="submit" name="save" class="btn btn-primary"
-                    :disabled="overLimit">Save to Library</button>
-            <button type="submit" name="share_now" value="1" class="btn btn-success"
-                    :disabled="overLimit"
-                    onclick="return confirm('Post will publish within 5 minutes. Continue?')">
-                Share Now
+        <div class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="intent" :value="intent">
+            <button type="submit" class="btn btn-primary"
+                    :disabled="!canSubmit"
+                    x-text="intent === 'share_now' ? 'Post Now' : (intent === 'schedule' ? 'Schedule Post' : 'Save to Library')">
+                Save to Library
             </button>
             <a href="<?= u('content') ?>" class="btn btn-outline-secondary">Cancel</a>
-            <span class="text-muted small ms-2">Share Now adds the post to the library and queues it for the next cron run.</span>
         </div>
 
     </form>
