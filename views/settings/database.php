@@ -65,10 +65,13 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label" for="base_url">Base URL</label>
+                            <label class="form-label" for="base_url">Base URL
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Full public URL with trailing slash — e.g. https://example.com/socialturn/"
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                             <input type="url" class="form-control" id="base_url" name="base_url"
                                    value="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>" required>
-                            <div class="form-text">Full public URL with trailing slash — e.g. <code>https://example.com/socialturn/</code></div>
                         </div>
 
                         <p class="text-muted small mb-4">

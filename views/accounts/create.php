@@ -22,13 +22,14 @@
 
                 <div class="mb-3">
                     <label for="name" class="form-label fw-semibold">
-                        Account name <span class="text-danger">*</span>
+                        Account name
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Internal label — not shown publicly. Helps you tell accounts apart."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-danger">*</span>
                     </label>
                     <input type="text" id="name" name="name" class="form-control"
                            placeholder="e.g. Brand X — Morning Posts" required autofocus>
-                    <div class="form-text">
-                        Internal label — not shown publicly. Helps you tell accounts apart.
-                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -65,11 +66,10 @@
                                class="form-check-input" value="1">
                         <label for="is_posting" class="form-check-label">
                             Start posting immediately
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="Leave unchecked to configure the schedule first. You can enable posting from the account settings page."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
                         </label>
-                    </div>
-                    <div class="form-text ms-4">
-                        Leave unchecked to configure the schedule first. You can enable posting
-                        from the account settings page.
                     </div>
                 </div>
 

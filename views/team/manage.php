@@ -137,10 +137,11 @@
                                    value="1"
                                    class="form-check-input"
                                    <?php echo $user['active'] ? 'checked' : ''; ?>>
-                            <label class="form-check-label" for="active">Active</label>
-                        </div>
-                        <div class="form-text">
-                            Inactive users cannot log in. Their history is preserved.
+                            <label class="form-check-label" for="active">Active
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Inactive users cannot log in. Their history is preserved."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                         </div>
                     </div>
                 </div>

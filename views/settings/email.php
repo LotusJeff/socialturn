@@ -45,24 +45,27 @@
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
                         <div class="mb-3">
-                            <label class="form-label" for="postmarkapp_api_key">Server API Token</label>
+                            <label class="form-label" for="postmarkapp_api_key">Server API Token
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="From your Postmark Server's API Tokens tab."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                             <input type="text" class="form-control font-monospace" id="postmarkapp_api_key"
                                    name="postmarkapp_api_key"
                                    value="<?php echo htmlspecialchars($pmKey, ENT_QUOTES, 'UTF-8'); ?>"
                                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                            <div class="form-text">From your Postmark Server &rsquo;s API Tokens tab.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="postmarkapp_mail_from_address">From address</label>
+                            <label class="form-label" for="postmarkapp_mail_from_address">From address
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Must be a verified sender signature in Postmark. Public email providers (Gmail, Yahoo, Outlook) are not permitted."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                             <input type="email" class="form-control" id="postmarkapp_mail_from_address"
                                    name="postmarkapp_mail_from_address"
                                    value="<?php echo htmlspecialchars($pmFrom, ENT_QUOTES, 'UTF-8'); ?>"
                                    placeholder="noreply@yourdomain.com">
-                            <div class="form-text">
-                                Must be a verified sender signature in Postmark.
-                                Public email providers (Gmail, Yahoo, Outlook) are not permitted.
-                            </div>
                         </div>
 
                         <div class="mb-4">

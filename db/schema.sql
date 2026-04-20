@@ -455,6 +455,10 @@ INSERT IGNORE INTO `admin_settings` (`setting_key`, `setting_val`) VALUES
 ('meta_app_secret',               ''),
 ('postmarkapp_api_key',           ''),
 ('postmarkapp_mail_from_address', ''),
-('postmarkapp_mail_from_name',    '');
+('postmarkapp_mail_from_name',    ''),
+('notify_post_failure',           '1'),
+('notify_recap_frequency',        'weekly'),
+('notify_recipient_email',        ''),
+('notify_recap_last_sent',        '');
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -84,8 +84,14 @@
                 <div class="card-body">
                     <h5 class="card-title">Application</h5>
                     <p class="card-text text-muted small">
-                        Owner email, queue thresholds, and scheduling defaults.
+                        Owner email, queue thresholds, scheduling defaults, and email notifications.
                     </p>
+                    <?php if ($notifyFailure === '1'): ?>
+                        <span class="badge bg-success mb-2">Failure alerts on</span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary mb-2">Failure alerts off</span>
+                    <?php endif; ?>
+                    <br>
                     <a href="<?php echo u('settings', 'app'); ?>" class="btn btn-sm btn-outline-primary">Edit</a>
                 </div>
             </div>

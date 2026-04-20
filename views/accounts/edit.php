@@ -104,10 +104,11 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                     <input type="checkbox" id="is_posting" name="is_posting"
                            class="form-check-input" value="1"
                            <?= (int) $account['is_posting'] ? 'checked' : '' ?>>
-                    <label for="is_posting" class="form-check-label">Actively posting</label>
-                </div>
-                <div class="form-text ms-4 mb-0">
-                    Uncheck to pause the queue without deleting it.
+                    <label for="is_posting" class="form-check-label">Actively posting
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Uncheck to pause the queue without deleting it."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                    </label>
                 </div>
 
             </div>
@@ -128,15 +129,14 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                            <?= !$canEnableSchedule ? 'disabled' : '' ?>>
                     <label for="scheduling_enabled" class="form-check-label fw-semibold">
                         Enable automated scheduling
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="When enabled, the queue population engine automatically refills this account's schedule."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
                     </label>
                 </div>
                 <?php if (!$canEnableSchedule): ?>
                 <div class="text-muted small mb-3">
                     Automated scheduling requires at least <?= $minPosts ?> active recyclable posts — you currently have <?= $activePostCount ?>.
-                </div>
-                <?php else: ?>
-                <div class="form-text mb-3">
-                    When enabled, the queue population engine automatically refills this account's schedule.
                 </div>
                 <?php endif; ?>
 
@@ -189,7 +189,11 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 
                     <div class="row g-3 mb-3">
                         <div class="col-auto">
-                            <label for="active_hours_start" class="form-label">Active hours start</label>
+                            <label for="active_hours_start" class="form-label">Active hours start
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Start must be earlier than end. Select 24:00 to post through end of day."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                             <select id="active_hours_start" name="active_hours_start" class="form-select" style="max-width:120px">
                                 <?php for ($h = 0; $h <= 23; $h++): ?>
                                 <option value="<?= $h ?>" <?= $h === $hoursStart ? 'selected' : '' ?>>
@@ -209,19 +213,17 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                             </select>
                         </div>
                     </div>
-                    <div class="form-text mt-1">
-                        Intervals run daily within the selected window. The end hour is exclusive — selecting 22:00 schedules posts until 21:59. Select 24:00 to post through end of day. Cross-midnight windows are not supported — start hour must be earlier than end hour.
-                    </div>
 
                 </div>
 
                 <!-- Time-specific slot fields -->
                 <div x-show="scheduleType === 'time_specific'" x-cloak>
 
-                    <label class="form-label">Post times</label>
-                    <div class="form-text mb-2">
-                        Times are snapped to the nearest 15-minute mark (:00, :15, :30, :45).
-                    </div>
+                    <label class="form-label">Post times
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Times are snapped to the nearest 15-minute mark (:00, :15, :30, :45)."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                    </label>
 
                     <div class="mb-2">
                         <template x-for="(slot, i) in slots" :key="i">
@@ -244,7 +246,11 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 
                 <!-- Timezone (shared by both modes) -->
                 <div class="mt-3">
-                    <label for="timezone" class="form-label">Timezone</label>
+                    <label for="timezone" class="form-label">Timezone
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="All schedule times are interpreted in this timezone."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                    </label>
                     <select id="timezone" name="timezone" class="form-select" style="max-width:320px">
                         <?php foreach ($timezones as $tzName): ?>
                         <option value="<?= htmlspecialchars($tzName, ENT_QUOTES, 'UTF-8') ?>"
@@ -253,9 +259,6 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                         </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="form-text">
-                        All schedule times are interpreted in this timezone.
-                    </div>
                 </div>
 
                 </div><!-- end x-show="schedulingOn" -->
@@ -271,35 +274,37 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
             <div class="card-body">
 
                 <div class="mb-3">
-                    <label for="default_tags" class="form-label">Default tags</label>
+                    <label for="default_tags" class="form-label">Default tags
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Words only, no # needed — tags are appended in order up to the platform limit."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                    </label>
                     <input type="text" id="default_tags" name="default_tags"
                            class="form-control"
                            placeholder="marketing, saas, startup"
                            value="<?= htmlspecialchars($tagDisplay, ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="form-text">
-                        Comma-separated. The # prefix is optional — it will be stripped automatically.
-                        Tags are appended to each post in order until the platform character limit is reached.
-                    </div>
                 </div>
 
                 <div class="row g-3">
                     <div class="col-auto">
-                        <label for="recycle_threshold" class="form-label">Recycle threshold</label>
+                        <label for="recycle_threshold" class="form-label">Recycle threshold
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="Refill queue when pending drops below this number."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        </label>
                         <input type="number" id="recycle_threshold" name="recycle_threshold"
                                class="form-control" style="max-width:120px" min="1"
                                value="<?= $threshold ?>">
-                        <div class="form-text">
-                            Refill queue when pending drops below this number.
-                        </div>
                     </div>
                     <div class="col-auto">
-                        <label for="recycle_lookahead_days" class="form-label">Lookahead days</label>
+                        <label for="recycle_lookahead_days" class="form-label">Lookahead days
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="How far ahead to schedule posts."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        </label>
                         <input type="number" id="recycle_lookahead_days" name="recycle_lookahead_days"
                                class="form-control" style="max-width:120px" min="1"
                                value="<?= $lookahead ?>">
-                        <div class="form-text">
-                            How far ahead to schedule posts.
-                        </div>
                     </div>
                 </div>
 
@@ -337,13 +342,13 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                     <div class="mb-0">
                         <label for="base_image" class="form-label">
                             <?= !empty($account['base_image_filename']) ? 'Replace base image' : 'Upload base image' ?>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="JPG or PNG. Used by ImageService as the template for generated images."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
                         </label>
                         <input type="file" id="base_image" name="base_image"
                                class="form-control" style="max-width:400px"
                                accept=".jpg,.jpeg,.png">
-                        <div class="form-text">
-                            JPG or PNG. Used by ImageService as the template for generated images.
-                        </div>
                     </div>
 
                 </div>

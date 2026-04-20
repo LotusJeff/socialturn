@@ -10,9 +10,10 @@ function index(): void {
     $template->set('dbHost',    $cfg['db_host'] ?? '');
     $template->set('dbName',    $cfg['db_name'] ?? '');
     $template->set('baseUrl',   $cfg['base_url'] ?? '');
-    $template->set('pmConfigured',   !empty(POSTMARKAPP_API_KEY));
-    $template->set('twConfigured',   !empty(TWITTER_APIKEY));
-    $template->set('metaConfigured', !empty(META_APP_ID));
+    $template->set('pmConfigured',     !empty(POSTMARKAPP_API_KEY));
+    $template->set('twConfigured',     !empty(TWITTER_APIKEY));
+    $template->set('metaConfigured',   !empty(META_APP_ID));
+    $template->set('notifyFailure',    defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
 }
 
 function database(): void {
@@ -192,10 +193,13 @@ function app(): void {
     $template->set('saveSuccess', false);
     $template->set('csrfToken', csrf_token());
 
-    $template->set('ownerEmail',  OWNER_EMAIL);
-    $template->set('threshold',   RECYCLE_THRESHOLD_DEFAULT);
-    $template->set('lookahead',   RECYCLE_LOOKAHEAD_DAYS);
-    $template->set('minPosts',    SCHEDULE_MIN_POSTS);
+    $template->set('ownerEmail',      OWNER_EMAIL);
+    $template->set('threshold',       RECYCLE_THRESHOLD_DEFAULT);
+    $template->set('lookahead',       RECYCLE_LOOKAHEAD_DAYS);
+    $template->set('minPosts',        SCHEDULE_MIN_POSTS);
+    $template->set('notifyFailure',   defined('NOTIFY_POST_FAILURE')    ? NOTIFY_POST_FAILURE    : '0');
+    $template->set('notifyFrequency', defined('NOTIFY_RECAP_FREQUENCY') ? NOTIFY_RECAP_FREQUENCY : 'weekly');
+    $template->set('notifyEmail',     defined('NOTIFY_RECIPIENT_EMAIL') ? NOTIFY_RECIPIENT_EMAIL : '');
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         return;
@@ -206,22 +210,32 @@ function app(): void {
         exit;
     }
 
-    $ownerEmail = trim((string) ($_POST['owner_email']               ?? ''));
-    $threshold  = max(1, (int) ($_POST['recycle_threshold_default'] ?? 10));
-    $lookahead  = max(1, (int) ($_POST['recycle_lookahead_days']    ?? 30));
-    $minPosts   = max(1, (int) ($_POST['schedule_min_posts']        ?? 5));
+    $ownerEmail      = trim((string) ($_POST['owner_email']               ?? ''));
+    $threshold       = max(1, (int) ($_POST['recycle_threshold_default'] ?? 10));
+    $lookahead       = max(1, (int) ($_POST['recycle_lookahead_days']    ?? 30));
+    $minPosts        = max(1, (int) ($_POST['schedule_min_posts']        ?? 5));
+    $notifyFailure   = isset($_POST['notify_post_failure']) ? '1' : '0';
+    $notifyFrequency = in_array($_POST['notify_recap_frequency'] ?? '', ['never', 'daily', 'weekly'], true)
+                           ? (string) $_POST['notify_recap_frequency'] : 'never';
+    $notifyEmail     = trim((string) ($_POST['notify_recipient_email'] ?? ''));
 
     $errors = [];
     if ($ownerEmail !== '' && !filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Owner email is not a valid email address.';
     }
+    if ($notifyEmail !== '' && !filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Notification recipient is not a valid email address.';
+    }
 
     if (!empty($errors)) {
-        $template->set('saveError', implode(' ', $errors));
-        $template->set('ownerEmail', $ownerEmail);
-        $template->set('threshold',  $threshold);
-        $template->set('lookahead',  $lookahead);
-        $template->set('minPosts',   $minPosts);
+        $template->set('saveError',       implode(' ', $errors));
+        $template->set('ownerEmail',      $ownerEmail);
+        $template->set('threshold',       $threshold);
+        $template->set('lookahead',       $lookahead);
+        $template->set('minPosts',        $minPosts);
+        $template->set('notifyFailure',   $notifyFailure);
+        $template->set('notifyFrequency', $notifyFrequency);
+        $template->set('notifyEmail',     $notifyEmail);
         return;
     }
 
@@ -230,13 +244,19 @@ function app(): void {
         'recycle_threshold_default' => (string) $threshold,
         'recycle_lookahead_days'    => (string) $lookahead,
         'schedule_min_posts'        => (string) $minPosts,
+        'notify_post_failure'       => $notifyFailure,
+        'notify_recap_frequency'    => $notifyFrequency,
+        'notify_recipient_email'    => $notifyEmail,
     ];
     save_admin_settings($dbh, $updates);
 
-    $template->set('ownerEmail', $ownerEmail);
-    $template->set('threshold',  $threshold);
-    $template->set('lookahead',  $lookahead);
-    $template->set('minPosts',   $minPosts);
+    $template->set('ownerEmail',      $ownerEmail);
+    $template->set('threshold',       $threshold);
+    $template->set('lookahead',       $lookahead);
+    $template->set('minPosts',        $minPosts);
+    $template->set('notifyFailure',   $notifyFailure);
+    $template->set('notifyFrequency', $notifyFrequency);
+    $template->set('notifyEmail',     $notifyEmail);
     $template->set('saveSuccess', true);
 }
 

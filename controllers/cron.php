@@ -9,6 +9,7 @@ use SocialTurn\Services\InstagramService;
 use SocialTurn\Services\TagAppenderService;
 use SocialTurn\Services\QueuePopulationService;
 use SocialTurn\Services\RecycleService;
+use SocialTurn\Services\NotificationService;
 
 // -----------------------------------------------------------------------
 // Controller actions
@@ -38,6 +39,7 @@ function post(): void
     $images    = new ImageService($storage);
     $queue     = new QueuePopulationService($dbh, $tagger, $images);
     $recycle   = new RecycleService($dbh, $queue);
+    $notifier  = new NotificationService();
     $twitter   = new TwitterService($storage);
     $facebook  = new FacebookService($dbh, $storage);
     $instagram = new InstagramService($dbh, $storage);
@@ -125,6 +127,20 @@ function post(): void
                             'scheduled_post_id' => (int) $row['id'],
                         ]);
                     $postsFailed++;
+
+                    try {
+                        if (defined('NOTIFY_POST_FAILURE') && NOTIFY_POST_FAILURE === '1') {
+                            $notifier->sendFailureAlert(
+                                (string) $account['name'],
+                                (string) $account['platform'],
+                                $result['error'] ?? 'Unknown error',
+                                (string) $row['final_body'],
+                                date('Y-m-d H:i:s')
+                            );
+                        }
+                    } catch (Throwable) {
+                        // Email failure must never interrupt cron posting.
+                    }
                 }
             }
 
@@ -144,6 +160,40 @@ function post(): void
             // if the exception originated inside a platform service call.
             // Do not serialize $account — it contains access_token.
             // Execution continues to the next account.
+        }
+    }
+
+    // Recap email — fires at most once per configured period.
+    // All datetime comparisons use UTC (date_default_timezone_set('UTC') in cron.php).
+    if (defined('NOTIFY_RECAP_FREQUENCY') && NOTIFY_RECAP_FREQUENCY !== 'never') {
+        $lastSent  = defined('NOTIFY_RECAP_LAST_SENT') ? (string) NOTIFY_RECAP_LAST_SENT : '';
+        $recapDue  = false;
+
+        if (NOTIFY_RECAP_FREQUENCY === 'daily') {
+            // Due when last_sent date (UTC) is before today's date (UTC).
+            $recapDue = ($lastSent === '' || date('Y-m-d', strtotime($lastSent)) < date('Y-m-d'));
+        } elseif (NOTIFY_RECAP_FREQUENCY === 'weekly') {
+            // Due when last_sent timestamp (UTC) is more than 7 days ago (UTC).
+            $recapDue = ($lastSent === '' || strtotime($lastSent) < strtotime('-7 days'));
+        }
+
+        if ($recapDue) {
+            try {
+                $periodStart = ($lastSent !== '') ? $lastSent : date('Y-m-d H:i:s', strtotime('-7 days'));
+                $nowStr      = date('Y-m-d H:i:s');
+                $stats       = cron_fetchRecapStats($dbh, $periodStart, $nowStr);
+                $periodLabel = date('M j', strtotime($periodStart)) . ' \u{2013} ' . date('M j, Y', strtotime($nowStr));
+                $notifier->sendRecapEmail(
+                    NOTIFY_RECAP_FREQUENCY,
+                    $periodLabel,
+                    $stats['succeeded'],
+                    $stats['failed'],
+                    $stats['failures']
+                );
+                cron_updateAdminSetting($dbh, 'notify_recap_last_sent', $nowStr);
+            } catch (Throwable) {
+                // Best-effort — never disrupt cron output.
+            }
         }
     }
 
@@ -175,6 +225,7 @@ function post(): void
  *     id: string,
  *     company_id: string,
  *     connected_platform_id: string,
+ *     name: string,
  *     platform: string,
  *     access_token: string,
  *     token_secret: string|null,
@@ -184,7 +235,7 @@ function post(): void
 function cron_fetchActiveAccounts(PDO $dbh): array
 {
     $stmt = $dbh->prepare(
-        'SELECT a.id, a.company_id, a.connected_platform_id,
+        'SELECT a.id, a.company_id, a.connected_platform_id, a.name,
                 cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -414,4 +465,70 @@ function cron_writePostHistory(PDO $dbh, array $data): void
         $data['status'],
         $data['error_message'],
     ]);
+}
+
+/**
+ * Returns posting stats from post_history for the recap email.
+ * Looks up account name via accounts.connected_platform_id to avoid
+ * duplicating rows when multiple accounts share a connected_platform.
+ *
+ * @return array{
+ *     succeeded: int,
+ *     failed: int,
+ *     failures: list<array{platform:string,account_name:string,body_snapshot:string,error_message:string}>
+ * }
+ */
+function cron_fetchRecapStats(PDO $dbh, string $periodStart, string $periodEnd): array
+{
+    $stmt = $dbh->prepare(
+        "SELECT ph.platform,
+                ph.body_snapshot,
+                ph.error_message,
+                ph.status,
+                COALESCE(
+                    (SELECT a.name FROM accounts a
+                      WHERE a.connected_platform_id = ph.connected_platform_id
+                      LIMIT 1),
+                    ph.platform_account_id
+                ) AS account_name
+           FROM post_history ph
+          WHERE ph.posted_at >= ?
+            AND ph.posted_at <= ?
+          ORDER BY ph.posted_at ASC"
+    );
+    $stmt->execute([$periodStart, $periodEnd]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $succeeded = 0;
+    $failed    = 0;
+    $failures  = [];
+
+    foreach ($rows as $row) {
+        if ($row['status'] === 'posted') {
+            $succeeded++;
+        } else {
+            $failed++;
+            $failures[] = [
+                'platform'      => (string) $row['platform'],
+                'account_name'  => (string) $row['account_name'],
+                'body_snapshot' => (string) $row['body_snapshot'],
+                'error_message' => (string) ($row['error_message'] ?? ''),
+            ];
+        }
+    }
+
+    return compact('succeeded', 'failed', 'failures');
+}
+
+/**
+ * Updates a single admin_settings key. Used by cron to persist
+ * notify_recap_last_sent without loading controllers/settings.php.
+ */
+function cron_updateAdminSetting(PDO $dbh, string $key, string $val): void
+{
+    $stmt = $dbh->prepare(
+        'INSERT INTO admin_settings (setting_key, setting_val) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_val = VALUES(setting_val)'
+    );
+    $stmt->execute([$key, $val]);
 }

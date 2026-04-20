@@ -122,11 +122,12 @@
                 <!-- Account checkboxes -->
                 <div class="mb-4">
                     <label class="form-label fw-semibold">
-                        Accounts <span class="text-danger">*</span>
+                        Accounts
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Each CSV row creates one post per selected account."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-danger">*</span>
                     </label>
-                    <div class="form-text mb-2">
-                        Each CSV row creates one post per selected account.
-                    </div>
                     <?php foreach ($accounts as $a): ?>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox"
@@ -152,22 +153,25 @@
                                value="1" checked>
                         <label class="form-check-label fw-semibold" for="is_recyclable_default">
                             Recycle imported posts by default
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="The is_recyclable column in your CSV overrides this setting per row."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
                         </label>
-                    </div>
-                    <div class="form-text ms-4">
-                        The <code>is_recyclable</code> column in your CSV overrides this setting per row.
                     </div>
                 </div>
 
                 <!-- File upload -->
                 <div class="mb-0">
                     <label for="csv_file" class="form-label fw-semibold">
-                        CSV file <span class="text-danger">*</span>
+                        CSV file
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="UTF-8 encoded CSV — maximum 5 MB, 5,000 rows."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-danger">*</span>
                     </label>
                     <input type="file" id="csv_file" name="csv_file"
                            class="form-control" style="max-width:400px"
                            accept=".csv,text/csv" required>
-                    <div class="form-text">UTF-8 encoded CSV &mdash; maximum 5 MB, 5,000 rows.</div>
                 </div>
 
             </div>
