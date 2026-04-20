@@ -97,7 +97,7 @@ class QueuePopulationService
             $rows = [];
             foreach ($newSlots as $i => $utcTime) {
                 $post     = $postPool[$i % $postCount];
-                $finalBody = build_final_body($post['body'], $post['attributed_to'] ?? null, $account['default_tags'], $account['platform']);
+                $finalBody = build_final_body($post['body'], $post['attributed_to'] ?? null, $post['post_tags'] ?? null, $account['default_tags'], $account['platform']);
 
                 // Determine final_image_filename at population time so cron dispatches
                 // a ready-to-post image without any processing overhead at send time.
@@ -248,7 +248,7 @@ class QueuePopulationService
 
         if (!empty($excludePostIds)) {
             $placeholders = implode(',', array_fill(0, count($excludePostIds), '?'));
-            $sql = "SELECT id, body, attributed_to, image_filename
+            $sql = "SELECT id, body, attributed_to, post_tags, image_filename
                       FROM posts
                      WHERE account_id = ?
                        AND is_recyclable = 1
@@ -256,7 +256,7 @@ class QueuePopulationService
                        AND id NOT IN ({$placeholders})";
             $params = array_merge([$accountId], $excludePostIds);
         } else {
-            $sql    = 'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
+            $sql    = 'SELECT id, body, attributed_to, post_tags, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
             $params = [$accountId];
         }
 
@@ -267,7 +267,7 @@ class QueuePopulationService
         // If exclusions left the pool empty, fall back to all recyclable posts
         if (empty($pool) && !empty($excludePostIds)) {
             $stmt = $this->dbh->prepare(
-                'SELECT id, body, attributed_to, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
+                'SELECT id, body, attributed_to, post_tags, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
             );
             $stmt->execute([$accountId]);
             $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);

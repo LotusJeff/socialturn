@@ -526,17 +526,35 @@ function normalize_body(string $body): string
 
 /**
  * Assembles the final post body for queue insertion.
- * Appends attribution (if present) then hashtags up to the platform limit.
+ * Assembly order: [body][ - attribution] #post_tags #account_tags
+ * post_tags and account_tags are merged (post_tags first), deduplicated,
+ * and passed as one array to TagAppenderService which handles all #
+ * prefixing and platform character-limit enforcement.
  * Single source of truth for final_body assembly across all code paths.
  */
-function build_final_body(string $body, ?string $attributedTo, ?string $defaultTagsJson, string $platform): string
+function build_final_body(string $body, ?string $attributedTo, ?string $postTags, ?string $defaultTagsJson, string $platform): string
 {
     $assembled = $body;
     if (!empty($attributedTo)) {
         $assembled .= ' - ' . $attributedTo;
     }
+
+    $postTagTokens = !empty($postTags)
+        ? preg_split('/\s+/', trim($postTags), -1, PREG_SPLIT_NO_EMPTY)
+        : [];
+
+    $accountTagTokens = [];
+    if (!empty($defaultTagsJson)) {
+        $decoded = json_decode($defaultTagsJson, true);
+        if (is_array($decoded)) {
+            $accountTagTokens = $decoded;
+        }
+    }
+
+    $mergedTags = array_values(array_unique(array_merge($postTagTokens, $accountTagTokens)));
+
     $appender = new SocialTurn\Services\TagAppenderService();
-    $result   = $appender->append($assembled, $defaultTagsJson, $platform);
+    $result   = $appender->append($assembled, $mergedTags, $platform);
     return $result['body'];
 }
 

@@ -411,6 +411,49 @@ function errors(): void
 }
 
 /**
+ * Delete Error — POST: permanently deletes a single post_history row.
+ *
+ * The DELETE JOIN ensures the row belongs to an account this user controls.
+ * Redirects back to queue/errors for the same account.
+ */
+function deleteError(): void
+{
+    global $dbh;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Location: ' . u('queue'));
+        exit;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . u('queue'));
+        exit;
+    }
+
+    $companyId = queue_companyId();
+    $historyId = (int) ($_POST['id']         ?? 0);
+    $accountId = (int) ($_POST['account_id'] ?? 0);
+
+    if ($historyId === 0 || $accountId === 0) {
+        header('Location: ' . u('queue'));
+        exit;
+    }
+
+    authorizeAccount($accountId);
+
+    $stmt = $dbh->prepare(
+        "DELETE ph FROM post_history ph
+           JOIN posts p ON p.id = ph.post_id
+           JOIN accounts a ON a.id = p.account_id
+          WHERE ph.id = ? AND a.id = ? AND a.company_id = ?"
+    );
+    $stmt->execute([$historyId, $accountId, $companyId]);
+
+    header('Location: ' . u('queue', 'errors', ['id' => $accountId]));
+    exit;
+}
+
+/**
  * Remove — POST: deletes a single pending scheduled_posts row.
  *
  * The DELETE JOIN ensures the row belongs to an account this user controls.

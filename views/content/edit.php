@@ -4,7 +4,7 @@
  *
  * Template variables:
  *   $post          array   Post row (id, account_id, body, attributed_to,
- *                          image_filename, is_recyclable, is_active,
+ *                          post_tags, image_filename, is_recyclable, is_active,
  *                          internal_note, created_at, account_name, platform)
  *   $accounts      array   Accessible accounts (id, name, platform) — for account reassignment
  *   $pendingCount  int     Number of pending scheduled_posts rows for this post
@@ -20,6 +20,14 @@ foreach ($accounts as $a) {
     $accountPlatforms[(int) $a['id']] = strtolower((string) $a['platform']);
 }
 $accountPlatformsJson = json_encode($accountPlatforms, JSON_HEX_TAG | JSON_HEX_QUOT);
+
+// Build a JS object mapping account_id => default_tags array for the tags display
+$accountDefaultTags = [];
+foreach ($accounts as $a) {
+    $decoded = json_decode((string) ($a['default_tags'] ?? ''), true);
+    $accountDefaultTags[(int) $a['id']] = is_array($decoded) ? $decoded : [];
+}
+$accountDefaultTagsJson = json_encode($accountDefaultTags, JSON_HEX_TAG | JSON_HEX_QUOT);
 
 $platformLimits = json_encode([
     'twitter'   => 280,
@@ -52,21 +60,25 @@ $currentAccountId  = (int) $post['account_id'];
 
     <form method="POST" action="<?= u('content', 'update') ?>"
           enctype="multipart/form-data"
-          x-data="{
-              accountPlatforms: <?= $accountPlatformsJson ?>,
-              platformLimits:   <?= $platformLimits ?>,
+          x-data='{
+              accountPlatforms:   <?= $accountPlatformsJson ?>,
+              accountDefaultTags: <?= $accountDefaultTagsJson ?>,
+              platformLimits:     <?= $platformLimits ?>,
               selectedAccountId: <?= $currentAccountId ?>,
               bodyLength: <?= $currentBodyLength ?>,
               get platform() {
-                  return this.accountPlatforms[this.selectedAccountId] || '';
+                  return this.accountPlatforms[this.selectedAccountId] || "";
               },
               get charLimit() {
                   return this.platformLimits[this.platform] || null;
               },
               get overLimit() {
                   return this.charLimit !== null && this.bodyLength > this.charLimit;
+              },
+              get currentAccountTags() {
+                  return this.accountDefaultTags[this.selectedAccountId] || [];
               }
-          }">
+          }'>
 
         <input type="hidden" name="id"         value="<?= (int) $post['id'] ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -99,7 +111,7 @@ $currentAccountId  = (int) $post['account_id'];
                         Post text <span class="text-danger">*</span>
                     </label>
                     <textarea id="body" name="body" class="form-control"
-                              rows="5" required
+                              rows="4" required
                               :class="overLimit ? 'is-invalid' : ''"
                               @input="bodyLength = $event.target.value.length"><?= htmlspecialchars((string) $post['body'], ENT_QUOTES, 'UTF-8') ?></textarea>
 
@@ -125,6 +137,31 @@ $currentAccountId  = (int) $post['account_id'];
                            value="<?= htmlspecialchars((string) ($post['attributed_to'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
                     <div class="form-text">
                         Shown as &ldquo;&mdash; Author&rdquo; after the post body and used for image overlay layout.
+                    </div>
+                </div>
+
+                <!-- Post tags -->
+                <div class="mb-3">
+                    <div class="d-flex gap-4 align-items-start">
+
+                        <!-- Left: label + input + helper text -->
+                        <div>
+                            <label for="post_tags" class="form-label">Post tags <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="text" id="post_tags" name="post_tags"
+                                   class="form-control" style="max-width:480px"
+                                   placeholder="e.g. Policy Education"
+                                   value="<?= htmlspecialchars((string) ($post['post_tags'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="form-text">
+                                Enter words without # &mdash; the # is added automatically when the post is sent.
+                            </div>
+                        </div>
+
+                        <!-- Right: account tags header + values -->
+                        <div x-show="selectedAccountId > 0 && currentAccountTags.length > 0" x-cloak>
+                            <div class="form-label text-muted fw-normal">Account tags</div>
+                            <div class="form-text" x-text="currentAccountTags.join(' ')"></div>
+                        </div>
+
                     </div>
                 </div>
 

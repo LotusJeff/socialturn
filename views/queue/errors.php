@@ -107,9 +107,17 @@
 
                 </div>
 
-                <div class="flex-shrink-0">
+                <div class="flex-shrink-0 d-flex gap-2">
                     <a href="<?= u('content', 'edit', ['id' => (int) $row['post_id']]) ?>"
                        class="btn btn-sm btn-outline-secondary">Edit post</a>
+
+                    <form method="POST" action="<?= u('queue', 'deleteError') ?>"
+                          onsubmit="return confirm('Delete this error record permanently?')">
+                        <input type="hidden" name="id"         value="<?= (int) $row['id'] ?>">
+                        <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
                 </div>
 
             </div>

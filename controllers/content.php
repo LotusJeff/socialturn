@@ -61,7 +61,7 @@ function content_accessibleAccounts(): array
 
     if (content_isAdmin()) {
         $stmt = $dbh->prepare(
-            'SELECT a.id, a.name, cp.platform
+            'SELECT a.id, a.name, a.default_tags, cp.platform
                FROM accounts a
                JOIN connected_platforms cp ON cp.id = a.connected_platform_id
               WHERE a.company_id = ? AND a.is_active = 1
@@ -71,7 +71,7 @@ function content_accessibleAccounts(): array
     } else {
         $userId = content_userId();
         $stmt = $dbh->prepare(
-            'SELECT a.id, a.name, cp.platform
+            'SELECT a.id, a.name, a.default_tags, cp.platform
                FROM accounts a
                JOIN connected_platforms cp ON cp.id = a.connected_platform_id
                JOIN users_accounts ua ON ua.account_id = a.id
@@ -270,6 +270,7 @@ function store(): void
     $companyId    = content_companyId();
     $userId       = content_userId();
     $attributedTo = trim((string) ($_POST['attributed_to'] ?? '')) ?: null;
+    $postTags     = trim((string) preg_replace('/\s+/', ' ', str_replace('#', '', (string) ($_POST['post_tags'] ?? '')))) ?: null;
     $internalNote = trim((string) ($_POST['internal_note'] ?? '')) ?: null;
     $isRecyclable = isset($_POST['is_recyclable']) ? 1 : 0;
 
@@ -305,17 +306,17 @@ function store(): void
     try {
         $dbh->prepare(
             'INSERT INTO posts
-                 (account_id, body, body_normalized, attributed_to, image_filename,
+                 (account_id, body, body_normalized, attributed_to, post_tags, image_filename,
                   is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
         )->execute([
-            $accountId, $body, normalize_body($body), $attributedTo, $imageFilename,
+            $accountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
             $isRecyclable, $internalNote, $userId,
         ]);
         $postId = (int) $dbh->lastInsertId();
 
         if ($shareNow) {
-            $finalBody = build_final_body($body, $attributedTo, $account['default_tags'], (string) $account['platform']);
+            $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
@@ -361,7 +362,7 @@ function edit(): void
     }
 
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.account_id, p.body, p.attributed_to, p.image_filename,
+        'SELECT p.id, p.account_id, p.body, p.attributed_to, p.post_tags, p.image_filename,
                 p.is_recyclable, p.is_active, p.internal_note, p.created_at,
                 a.name AS account_name, cp.platform
            FROM posts p
@@ -461,6 +462,7 @@ function update(): void
 
     $body         = trim((string) ($_POST['body'] ?? ''));
     $attributedTo = trim((string) ($_POST['attributed_to'] ?? '')) ?: null;
+    $postTags     = trim((string) preg_replace('/\s+/', ' ', str_replace('#', '', (string) ($_POST['post_tags'] ?? '')))) ?: null;
     $internalNote = trim((string) ($_POST['internal_note'] ?? '')) ?: null;
     $isRecyclable = isset($_POST['is_recyclable']) ? 1 : 0;
 
@@ -510,17 +512,17 @@ function update(): void
         $dbh->prepare(
             'UPDATE posts
                 SET account_id = ?, body = ?, body_normalized = ?,
-                    attributed_to = ?, image_filename = ?,
+                    attributed_to = ?, post_tags = ?, image_filename = ?,
                     is_recyclable = ?, internal_note = ?
               WHERE id = ? AND is_active = 1'
         )->execute([
-            $newAccountId, $body, normalize_body($body), $attributedTo, $imageFilename,
+            $newAccountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
             $isRecyclable, $internalNote,
             $postId,
         ]);
 
         if ($shareNow) {
-            $finalBody = build_final_body($body, $attributedTo, $account['default_tags'], (string) $account['platform']);
+            $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
@@ -704,7 +706,7 @@ function sendNow(): void
 
     // Load post — verify it belongs to this company and is active
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.body, p.attributed_to, p.image_filename, p.account_id
+        'SELECT p.id, p.body, p.attributed_to, p.post_tags, p.image_filename, p.account_id
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
           WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
@@ -735,6 +737,7 @@ function sendNow(): void
     $finalBody = build_final_body(
         (string) $post['body'],
         (string) ($post['attributed_to'] ?? ''),
+        (string) ($post['post_tags'] ?? ''),
         (string) ($account['default_tags'] ?? ''),
         (string) $account['platform']
     );

@@ -149,7 +149,7 @@ and form actions use u() — never raw BASE_URL string concatenation.
 ### Install Wizard
 install.php in the web root. Runs on first visit when boot.php is
 absent. Writes socialturn.ini and boot.php, runs schema.sql and
-migration 026, creates first admin user and company. Must be
+migration sql files, creates first admin user and company. Must be
 deleted after install. index.php shows a warning banner to admin
 users until install.php is removed.
 
@@ -349,8 +349,6 @@ Each service class implements:
 Setup must be achievable in under 30 minutes by a developer comfortable
 with PHP hosting. These standards are non-negotiable for every release:
 
-- Every config value in config.sample.php must have a comment explaining
-  what it is, where to get it, and what format it expects
 - INSTALL.md must include step-by-step instructions for obtaining API
   credentials from each platform — never assume knowledge of their portals
 - The images/ and vendor/ directories must be created automatically or

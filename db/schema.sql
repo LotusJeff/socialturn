@@ -313,6 +313,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
     `body`           TEXT          NOT NULL                           COMMENT 'The post text',
     `body_normalized` VARCHAR(280) NOT NULL DEFAULT ''                COMMENT 'Normalized body fingerprint for duplicate detection — never displayed',
     `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author - appended as "- Author" after post body; affects image overlay layout in ImageService. Never included in image text - post body and attribution are overlaid on image, tags are text-only.',
+    `post_tags`      VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Post-specific hashtags appended after attribution and before account default tags',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
