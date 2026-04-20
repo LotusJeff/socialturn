@@ -577,93 +577,103 @@ Merge to master. Tag 1.0.0. Public release.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
-- Queue reschedule on schedule change — when a schedule is edited, pending
-  scheduled_posts are not automatically rescheduled to the new timing. Tabled for
-  future implementation. Decision: no auto-clear; user will be prompted with a choice
-  when implemented.
 
 ---
 
-## Future Roadmap (v0.9.5) — Connect Flow and Multi-Account Redesign
+## Future Roadmap (v0.9.5) — Platform Connections and Posting Schedules Redesign
 
-**Required before v1.0.0 tag. Do not begin implementation until base system
-bugs are resolved and manually tested (Phase 9 complete).**
+**Required before v1.0.0 tag. Do not begin implementation until:**
+- Multiple images per post feature is complete
+- Facebook/Instagram posting is manually tested and confirmed working
+- All Phase 9 bugs are resolved and tested
 
-### Background
+### Naming and Conceptual Reframe
 
-The current architecture stores platform app credentials (TWITTER_APIKEY,
-TWITTER_APISECRET, META_APP_ID, META_APP_SECRET) in config.php as shared
-constants. This limits each platform to one developer app per installation,
-making it impossible to connect two Twitter accounts that use separate
-developer apps. This redesign moves credentials to the database and rebuilds
-the connect flow as a guided wizard.
+The current naming conflates two distinct concepts. This redesign separates them
+clearly and renames them throughout the UI and codebase:
+
+**Platform Connection** (replaces "connected platform")
+- Developer app credentials + OAuth token for one platform account
+- Set up once per social media account (e.g. one Twitter account, one Facebook page)
+- Stored in the `connected_platforms` table
+- Managed under Admin → Accounts
+
+**Posting Schedule** (replaces "account")
+- A named schedule attached to a Platform Connection
+- Has its own content pool, posting interval, active hours, tags, and queue settings
+- Multiple Posting Schedules can run under a single Platform Connection
+- Enables e.g. "Brand X Morning Posts" and "Brand X Evening Posts" both posting
+  through the same Twitter connection
+
+The Admin "Accounts" section becomes the place where Platform Connections are
+managed. Posting Schedules are created and configured under each connection.
+
+### New UX Flow
+
+**Adding a Platform Connection:**
+1. Admin → Accounts → Add Platform Connection
+2. Select platform; screen displays step-by-step instructions for obtaining
+   developer app credentials for that platform:
+   - Twitter/X: developer.twitter.com — create project/app, set Read+Write
+     permissions, add callback URL, copy Consumer Key and Consumer Secret
+   - Facebook: developers.facebook.com — create app, add Facebook Login and
+     Instagram Graph API products, copy App ID and App Secret
+   - Instagram: connected through the Facebook app — no separate credentials
+3. Enter app credentials; credentials are validated before proceeding to OAuth
+4. OAuth flow — redirect to platform, token returned and stored
+5. System auto-creates a first Posting Schedule under the new connection with
+   bare-minimum defaults (interval: hourly, active hours: 08:00–20:00 UTC)
+6. User is dropped into the Posting Schedule edit screen to configure it fully
+
+**Adding a second Posting Schedule under an existing connection:**
+- From the Platform Connection detail screen, user clicks "Add Posting Schedule"
+- New schedule is created with bare defaults under the same OAuth token
+- No re-authentication required — the existing token is reused
+
+### One Platform Connection → Many Posting Schedules
+
+- A Platform Connection is the OAuth token holder; it is shared across all
+  Posting Schedules under it
+- Each Posting Schedule has its own: content library, posting interval,
+  active hours window, timezone, default tags, recycle threshold, lookahead days
+- The queue population engine runs per Posting Schedule — each schedule fills
+  its own queue independently
+- cron dispatches via the Platform Connection's token, routing to the correct
+  Posting Schedule's queue rows
 
 ### Schema Changes Required
 
-- Add `app_key` and `app_secret` columns to `connected_platforms`
-- These store the developer app credentials per connection
-- config.php platform credential constants become optional fallback defaults
-  or are removed entirely
-- Migration required
-
-### Connect Flow Redesign
-
-Replace the current single-click connect buttons with a guided multi-step
-wizard per platform.
-
-**Step 1 — Platform selection and documentation**
-- User selects which platform to connect
-- Screen displays step-by-step instructions for obtaining developer app
-  credentials for that platform
-- Twitter/X: create project and app at developer.twitter.com, set Read and
-  Write permissions, add callback URL, copy Consumer Key and Consumer Secret
-- Facebook: create app at developers.facebook.com, add Facebook Login and
-  Instagram Graph API products, copy App ID and App Secret
-- Instagram: connected through Facebook app — no separate credentials needed
-
-**Step 2 — Credential entry**
-- Form fields for app credentials
-- Pre-populated from config.php values if present as defaults
-- User can enter account-specific credentials
-- Credentials validated before proceeding to OAuth
-
-**Step 3 — OAuth authorization**
-- Redirect to platform OAuth with the entered credentials
-- On callback, store both app credentials and OAuth tokens in
-  connected_platforms
-
-### Account and Sub-Account Model Redesign
-
-- A connected platform becomes the parent record
-- Under each connected platform, user can create multiple posting schedules
-  (sub-accounts) each with their own content pool, schedule, and settings
-- Replaces current model where accounts reference a connected_platform_id
-- Enables Brand X Twitter to have both a Marketing and Promotional schedule
-  under the same Twitter connection
+- Add `app_key` and `app_secret` columns to `connected_platforms` — store
+  developer app credentials per connection (currently shared constants in config.php)
+- config.php platform credential constants (`TWITTER_APIKEY`, `TWITTER_APISECRET`,
+  `META_APP_ID`, `META_APP_SECRET`) become optional fallback defaults and are
+  eventually removed
+- Migration required for both new columns and any table renames
 
 ### Service Class Changes
 
-- TwitterService, FacebookService, InstagramService currently read app
-  credentials from PHP constants
-- Redesign to accept app_key and app_secret as constructor parameters or via
-  the context array passed from cron
-- cron_dispatchToPlatform() reads app credentials from connected_platforms
-  row and passes to service class
+- TwitterService, FacebookService, InstagramService currently read app credentials
+  from PHP constants
+- Redesign to accept `app_key` and `app_secret` as constructor parameters or via
+  the context array passed from `cron_dispatchToPlatform()`
+- `cron_dispatchToPlatform()` reads app credentials from the `connected_platforms`
+  row and passes them to the service class — no more constant references
 
 ### Impact
 
 - Touches: connect flow, schema, service classes, cron dispatch, account
   management UI, config.php
 - config.php platform credential constants removed or made optional
-- Fully backward compatible migration path for existing installs
+- Fully backward compatible migration path for existing installs required
 
 ### Implementation Order
 
-1. Schema migration — add app_key, app_secret to connected_platforms
-2. Service class updates — accept credentials as parameters
-3. Cron dispatch update — pass credentials from DB
-4. Connect wizard UI — multi-step flow per platform
-5. Account/sub-account model — parent/child restructure
+1. Schema migration — add `app_key`, `app_secret` to `connected_platforms`
+2. Service class updates — accept credentials as parameters instead of constants
+3. Cron dispatch update — pass credentials from DB row
+4. Connect wizard UI — multi-step flow per platform with credential entry
+5. Posting Schedule model — decouple from Platform Connection, support multiple
+   schedules per connection
 6. config.php cleanup — remove or deprecate platform credential constants
 
 ---
