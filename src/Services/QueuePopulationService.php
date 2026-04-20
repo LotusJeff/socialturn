@@ -327,8 +327,18 @@ class QueuePopulationService
         $now    = new DateTimeImmutable('now', $tz);
         $cutoff = $now->modify("+{$lookaheadDays} days");
 
-        // Advance cursor to the next interval boundary after now
-        $cursor = $this->snapToQuarterHour($now)->modify("+{$intervalMinutes} minutes");
+        // Anchor to active_hours_start:00:00 today in the account
+        // timezone, then walk forward by $intervalMinutes until the
+        // cursor is in the future. This preserves the configured
+        // interval rhythm from the start hour without jumping to
+        // tomorrow and without scheduling anything in the past.
+        $cursor = new DateTimeImmutable(
+            $now->format('Y-m-d') . ' ' . sprintf('%02d:00:00', $activeStart),
+            $tz
+        );
+        while ($cursor <= $now) {
+            $cursor = $cursor->modify("+{$intervalMinutes} minutes");
+        }
 
         $slots = [];
         $seen  = [];

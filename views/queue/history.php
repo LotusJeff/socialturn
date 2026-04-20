@@ -92,7 +92,7 @@
 
                 <!-- Posted date -->
                 <span class="text-muted small text-nowrap flex-shrink-0">
-                    <?= htmlspecialchars(datify((string) $row['posted_at']), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(datify((string) $row['posted_at'], (string) $account['timezone']), ENT_QUOTES, 'UTF-8') ?>
                 </span>
 
                 <!-- Status badge -->

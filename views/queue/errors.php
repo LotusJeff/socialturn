@@ -88,7 +88,7 @@
                 <div class="flex-grow-1 min-width-0">
 
                     <div class="text-muted small mb-1">
-                        Failed <?= htmlspecialchars(datify((string) $row['posted_at']), ENT_QUOTES, 'UTF-8') ?>
+                        Failed <?= htmlspecialchars(datify((string) $row['posted_at'], (string) $account['timezone']), ENT_QUOTES, 'UTF-8') ?>
                     </div>
 
                     <div class="small mb-2" style="white-space:pre-line">

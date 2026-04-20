@@ -91,7 +91,7 @@
 
                 <!-- Scheduled date -->
                 <span class="text-muted small text-nowrap flex-shrink-0">
-                    <?= htmlspecialchars(datify((string) $row['scheduled_time']), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(datify((string) $row['scheduled_time'], (string) $account['timezone']), ENT_QUOTES, 'UTF-8') ?>
                 </span>
 
                 <!-- Body + Has image badge — flexible middle -->

@@ -18,7 +18,7 @@
       <td style="padding:6px 0;vertical-align:top"><?= htmlspecialchars($platform, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
     <tr>
-      <td style="padding:6px 16px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:top">Time (UTC)</td>
+      <td style="padding:6px 16px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:top">Time</td>
       <td style="padding:6px 0;vertical-align:top"><?= htmlspecialchars($postedAt, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
     <tr>

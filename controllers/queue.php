@@ -82,9 +82,11 @@ function queue_loadAccount(int $accountId): array
 
     $stmt = $dbh->prepare(
         'SELECT a.id, a.name, a.is_posting, a.connected_platform_id,
-                cp.platform, cp.platform_name, cp.platform_username
+                cp.platform, cp.platform_name, cp.platform_username,
+                COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+           LEFT JOIN account_schedules s ON s.account_id = a.id
           WHERE a.id = ? AND a.company_id = ? AND a.is_active = 1'
     );
     $stmt->execute([$accountId, $companyId]);

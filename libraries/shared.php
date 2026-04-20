@@ -250,8 +250,21 @@ function load_admin_settings(PDO $dbh): void {
 	}
 }
 
-function datify($date) {
-	return date('g:iA M dS', strtotime($date));
+function datify($date, string $timezone = 'UTC'): string
+{
+	if ($timezone === 'UTC' || $timezone === '') {
+		return date('g:iA M dS', strtotime($date));
+	}
+
+	try {
+		$tz = new DateTimeZone($timezone);
+	} catch (\Exception $e) {
+		return date('g:iA M dS', strtotime($date));
+	}
+
+	$dt = new DateTime($date, new DateTimeZone('UTC'));
+	$dt->setTimezone($tz);
+	return $dt->format('g:iA M dS') . ' ' . $dt->format('T');
 }
 
 function hashPassword(string $password): string {

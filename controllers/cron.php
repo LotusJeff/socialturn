@@ -135,7 +135,8 @@ function post(): void
                                 (string) $account['platform'],
                                 $result['error'] ?? 'Unknown error',
                                 (string) $row['final_body'],
-                                date('Y-m-d H:i:s')
+                                date('Y-m-d H:i:s'),
+                                (string) ($account['timezone'] ?? 'UTC')
                             );
                         }
                     } catch (Throwable $e) {
@@ -236,9 +237,11 @@ function cron_fetchActiveAccounts(PDO $dbh): array
 {
     $stmt = $dbh->prepare(
         'SELECT a.id, a.company_id, a.connected_platform_id, a.name,
-                cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id
+                cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id,
+                COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+           LEFT JOIN account_schedules s ON s.account_id = a.id
           WHERE a.is_active = 1
             AND a.is_posting = 1
             AND cp.is_active = 1'

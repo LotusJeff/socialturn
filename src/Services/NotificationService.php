@@ -35,7 +35,8 @@ class NotificationService
         string $platform,
         string $errorMessage,
         string $bodySnapshot,
-        string $postedAt
+        string $postedAt,
+        string $timezone = 'UTC'
     ): void {
         if (!$this->isConfigured()) {
             return;
@@ -46,18 +47,27 @@ class NotificationService
                          ? mb_substr($bodySnapshot, 0, 280) . '…'
                          : $bodySnapshot;
 
+        try {
+            $tz = new \DateTimeZone($timezone !== '' ? $timezone : 'UTC');
+        } catch (\Exception $e) {
+            $tz = new \DateTimeZone('UTC');
+        }
+        $dt          = new \DateTime($postedAt, new \DateTimeZone('UTC'));
+        $dt->setTimezone($tz);
+        $postedAtLocal = $dt->format('g:iA M j, Y') . ' ' . $dt->format('T');
+
         $vars = [
             'accountName'  => $accountName,
             'platform'     => $platformLabel,
             'errorMessage' => $errorMessage,
             'bodySnapshot' => $bodyPreview,
-            'postedAt'     => $postedAt,
+            'postedAt'     => $postedAtLocal,
             'baseUrl'      => defined('BASE_URL') ? (string) BASE_URL : '',
         ];
 
         $html  = $this->render('post_failure', $vars);
         $plain = "Post failed on {$platformLabel} for account: {$accountName}\n"
-               . "Time: {$postedAt} UTC\n"
+               . "Time: {$postedAtLocal}\n"
                . "Error: {$errorMessage}\n"
                . "Post: {$bodyPreview}";
 
