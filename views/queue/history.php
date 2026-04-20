@@ -79,42 +79,37 @@
 
     <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
-    <div class="table-responsive">
-        <table class="table table-sm align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th style="width:160px">Posted</th>
-                    <th>Post</th>
-                    <th style="width:90px">Status</th>
-                    <th style="width:90px"></th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($rows as $row): ?>
-            <?php
-                $preview  = mb_strlen((string) $row['body_snapshot']) > 120
-                    ? mb_substr((string) $row['body_snapshot'], 0, 120) . '…'
-                    : (string) $row['body_snapshot'];
-                $isPosted = (string) $row['status'] === 'posted';
-            ?>
-            <tr>
-                <td class="text-muted small text-nowrap">
+    <div class="list-group">
+        <?php foreach ($rows as $row): ?>
+        <?php
+            $preview  = mb_strlen((string) $row['body_snapshot']) > 120
+                ? mb_substr((string) $row['body_snapshot'], 0, 120) . '…'
+                : (string) $row['body_snapshot'];
+            $isPosted = (string) $row['status'] === 'posted';
+        ?>
+        <div class="list-group-item px-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+
+                <!-- Posted date -->
+                <span class="text-muted small text-nowrap flex-shrink-0">
                     <?= htmlspecialchars(datify((string) $row['posted_at']), ENT_QUOTES, 'UTF-8') ?>
-                </td>
-                <td class="small">
-                    <div style="white-space:pre-line"><?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?></div>
+                </span>
+
+                <!-- Status badge -->
+                <span class="badge <?= $isPosted ? 'bg-success' : 'bg-danger' ?> flex-shrink-0">
+                    <?= $isPosted ? 'Posted' : 'Failed' ?>
+                </span>
+
+                <!-- Body + Has image badge — flexible middle -->
+                <div class="flex-grow-1 small text-truncate" style="min-width:0">
+                    <?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?>
                     <?php if (!empty($row['image_filename'])): ?>
-                    <div class="mt-1"><span class="badge bg-light text-dark border">Has image</span></div>
+                    <span class="badge bg-light text-dark border ms-1">Has image</span>
                     <?php endif; ?>
-                </td>
-                <td>
-                    <?php if ($isPosted): ?>
-                    <span class="badge bg-success">Posted</span>
-                    <?php else: ?>
-                    <span class="badge bg-danger">Failed</span>
-                    <?php endif; ?>
-                </td>
-                <td class="text-end">
+                </div>
+
+                <!-- Right: platform post ID or Details link -->
+                <div class="flex-shrink-0">
                     <?php if ($isPosted && !empty($row['platform_post_id'])): ?>
                     <span class="text-muted small"
                           title="Platform post ID: <?= htmlspecialchars((string) $row['platform_post_id'], ENT_QUOTES, 'UTF-8') ?>">
@@ -124,11 +119,11 @@
                     <a href="<?= u('queue', 'errors', ['id' => (int) $account['id']]) ?>"
                        class="btn btn-sm btn-outline-danger">Details</a>
                     <?php endif; ?>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                </div>
+
+            </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 
     <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>

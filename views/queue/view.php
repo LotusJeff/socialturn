@@ -79,76 +79,61 @@
 
     <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
 
-    <div class="table-responsive">
-        <table class="table table-sm align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th style="width:160px">Scheduled</th>
-                    <th>Post</th>
-                    <th style="width:170px"></th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($rows as $row): ?>
-            <?php
-                $preview = mb_strlen((string) $row['final_body']) > 120
-                    ? mb_substr((string) $row['final_body'], 0, 120) . '…'
-                    : (string) $row['final_body'];
-            ?>
-            <tr>
-                <td class="text-muted small text-nowrap">
+    <div class="list-group">
+        <?php foreach ($rows as $row): ?>
+        <?php
+            $preview = mb_strlen((string) $row['final_body']) > 120
+                ? mb_substr((string) $row['final_body'], 0, 120) . '…'
+                : (string) $row['final_body'];
+        ?>
+        <div class="list-group-item px-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+
+                <!-- Scheduled date -->
+                <span class="text-muted small text-nowrap flex-shrink-0">
                     <?= htmlspecialchars(datify((string) $row['scheduled_time']), ENT_QUOTES, 'UTF-8') ?>
-                </td>
-                <td class="small">
-                    <div style="white-space:pre-line"><?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?></div>
-                    <?php if (!empty($row['attributed_to'])): ?>
-                    <div class="text-muted fst-italic mt-1">
-                        &mdash; <?= htmlspecialchars((string) $row['attributed_to'], ENT_QUOTES, 'UTF-8') ?>
-                    </div>
-                    <?php endif; ?>
+                </span>
+
+                <!-- Body + Has image badge — flexible middle -->
+                <div class="flex-grow-1 small text-truncate" style="min-width:0">
+                    <?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?>
                     <?php if (!empty($row['final_image_filename'])): ?>
-                    <div class="mt-1">
-                        <span class="badge bg-light text-dark border">Has image</span>
-                    </div>
+                    <span class="badge bg-light text-dark border ms-1">Has image</span>
                     <?php endif; ?>
-                </td>
-                <td class="text-end">
-                    <div class="d-flex gap-2 justify-content-end flex-wrap">
+                </div>
 
-                        <!-- Post Now — reschedules this pending row to NOW() -->
-                        <form method="POST" action="<?= u('queue', 'sharenow') ?>"
-                              onsubmit="return confirm('Move this post to the front of the queue? It will publish within 5 minutes.')">
-                            <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
-                            <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
-                            <input type="hidden" name="search"      value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
-                            <input type="hidden" name="page"        value="<?= $page ?>">
-                            <input type="hidden" name="per_page"    value="<?= $perPage ?>">
-                            <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-                            <button type="submit" class="btn btn-sm btn-outline-success">Post Now</button>
-                        </form>
+                <!-- Right-side actions -->
+                <div class="d-flex gap-2 flex-shrink-0 align-items-center">
 
-                        <!-- Edit source post in content library -->
-                        <a href="<?= u('content', 'edit', ['id' => (int) $row['post_id']]) ?>"
-                           class="btn btn-sm btn-outline-secondary">Edit</a>
+                    <form method="POST" action="<?= u('queue', 'sharenow') ?>"
+                          onsubmit="return confirm('Move this post to the front of the queue? It will publish within 5 minutes.')">
+                        <input type="hidden" name="id"         value="<?= (int) $row['id'] ?>">
+                        <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
+                        <input type="hidden" name="search"     value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="page"       value="<?= $page ?>">
+                        <input type="hidden" name="per_page"   value="<?= $perPage ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-success">Post Now</button>
+                    </form>
 
-                        <!-- Remove this queue entry -->
-                        <form method="POST" action="<?= u('queue', 'remove') ?>"
-                              onsubmit="return confirm('Remove this post from the queue?')">
-                            <input type="hidden" name="id"          value="<?= (int) $row['id'] ?>">
-                            <input type="hidden" name="account_id"  value="<?= (int) $account['id'] ?>">
-                            <input type="hidden" name="search"      value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
-                            <input type="hidden" name="page"        value="<?= $page ?>">
-                            <input type="hidden" name="per_page"    value="<?= $perPage ?>">
-                            <input type="hidden" name="csrf_token"  value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
-                        </form>
+                    <a href="<?= u('content', 'edit', ['id' => (int) $row['post_id']]) ?>"
+                       class="btn btn-sm btn-outline-secondary">Edit</a>
 
-                    </div>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                    <form method="POST" action="<?= u('queue', 'remove') ?>"
+                          onsubmit="return confirm('Remove this post from the queue?')">
+                        <input type="hidden" name="id"         value="<?= (int) $row['id'] ?>">
+                        <input type="hidden" name="account_id" value="<?= (int) $account['id'] ?>">
+                        <input type="hidden" name="search"     value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="page"       value="<?= $page ?>">
+                        <input type="hidden" name="per_page"   value="<?= $perPage ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 
     <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
