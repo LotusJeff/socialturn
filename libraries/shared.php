@@ -217,6 +217,10 @@ function load_admin_settings(PDO $dbh): void {
 		'postmarkapp_api_key'           => 'POSTMARKAPP_API_KEY',
 		'postmarkapp_mail_from_address' => 'POSTMARKAPP_MAIL_FROM_ADDRESS',
 		'postmarkapp_mail_from_name'    => 'POSTMARKAPP_MAIL_FROM_NAME',
+		'notify_post_failure'           => 'NOTIFY_POST_FAILURE',
+		'notify_recap_frequency'        => 'NOTIFY_RECAP_FREQUENCY',
+		'notify_recipient_email'        => 'NOTIFY_RECIPIENT_EMAIL',
+		'notify_recap_last_sent'        => 'NOTIFY_RECAP_LAST_SENT',
 	];
 
 	try {

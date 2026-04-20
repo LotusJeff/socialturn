@@ -138,8 +138,8 @@ function post(): void
                                 date('Y-m-d H:i:s')
                             );
                         }
-                    } catch (Throwable) {
-                        // Email failure must never interrupt cron posting.
+                    } catch (Throwable $e) {
+                        error_log('[SocialTurn] Notification error: ' . $e->getMessage());
                     }
                 }
             }
