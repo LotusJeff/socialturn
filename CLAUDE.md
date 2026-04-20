@@ -175,10 +175,14 @@ deny rules. Crontab: */5 * * * * /usr/bin/php /path/to/cron.php
 
 ### Post Body Assembly
 build_final_body(string $body, string $attributedTo,
-?string $defaultTagsJson, string $platform): string
+?string $postTags, ?string $defaultTagsJson, string $platform): string
 Defined in libraries/shared.php. Single source of truth for
 assembling final_body. Format: [body] - [attribution] #hashtags.
-Called by QueuePopulationService::populate(), content/store(),
+$postTags are per-post hashtags (posts.post_tags); $defaultTagsJson
+are account-level default tags (accounts.default_tags). Both are
+merged and deduplicated inside build_final_body() before being passed
+to TagAppenderService, which appends them in order up to the platform
+character limit. Called by QueuePopulationService::populate(), content/store(),
 and content/update(). Never called from image template logic —
 images receive raw body only.
 
@@ -280,6 +284,16 @@ path needed. UI must display: "Post will publish within 5 minutes."
 ### scheduled_posts status values
 pending → posted | failed | skipped
 
+### scheduled_posts source values
+- source ENUM('queue','share_now','scheduled') NOT NULL DEFAULT 'queue'
+- queue: auto-populated by the queue population engine
+- share_now: immediate send created via Share Now or Send Now
+- scheduled: user-chosen future datetime via Future Schedule
+- flush() and schedule-change cascade deletes filter to source='queue' only;
+  share_now and scheduled rows are never auto-deleted by these operations
+- Post-edit cascade (content body change) deletes all pending sources —
+  stale final_body affects all row types equally
+
 ### Database Migrations
 Every schema change ships with a numbered migration file in db/migrations/.
 Format: 001_description.sql, 002_description.sql
@@ -287,6 +301,11 @@ Never make a breaking schema change without a migration file.
 CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 025: scheduling_enabled added to account_settings
 - Migration 026: admin_settings table created with default rows
+- Migration 027: post_tags VARCHAR(255) NULL added to posts
+- Migration 028: four notify_* keys added to admin_settings (notify_post_failure,
+  notify_recap_frequency, notify_recipient_email, notify_recap_last_sent)
+- Migration 029: source ENUM('queue','share_now','scheduled') added to scheduled_posts;
+  flush() and schedule-change cascade delete filter to source='queue' only
 
 ---
 
@@ -574,6 +593,36 @@ Merge to master. Tag 1.0.0. Public release.
 - Queue index counts showing wrong account — join pattern corrected across 11 queries
   in 6 actions in controllers/queue.php; now routes through posts.account_id instead
   of connected_platform_id
+- Posting intent system added to content/create and content/edit: Save to Library /
+  Share Now / Future Schedule radio selector replaces bottom buttons; Future Schedule
+  supports date/time input up to 30 days out with timezone-aware UTC conversion at
+  write time and account-timezone display in queue views
+- Per-post hashtag field (post_tags) added to posts table (migration 027); merged with
+  account default_tags in build_final_body() via TagAppenderService; both tag sources
+  are deduplicated before appending
+- Email notifications via Postmark: failure alert sent on every failed post; daily/weekly
+  recap email with per-account queue stats (recycled, pending, published, failed);
+  NotificationService in src/Services/; four notify_* keys in admin_settings
+  (migration 028); load_admin_settings() $keyMap must include all new keys or constants
+  are never defined in any context
+- datify() gains optional string $timezone = 'UTC' parameter; non-UTC path converts UTC
+  datetime to account timezone via DateTime::setTimezone() and appends DST-aware
+  abbreviation (e.g. EDT); queue view, history, and errors pass account timezone;
+  failure alert email displays account-local time; queue_loadAccount() and
+  cron_fetchActiveAccounts() JOIN account_schedules to supply timezone
+- Queue interval scheduling anchored to active_hours_start:00:00 today in account
+  timezone instead of NOW()-relative snap; walks forward by $intervalMinutes until
+  first future slot, preserving configured interval rhythm from the start hour
+- scheduled_posts source column (migration 029) distinguishes queue/share_now/scheduled
+  rows; flush() and schedule-change cascade deletes filter to source='queue' only,
+  preserving user-intentional Share Now and Future Schedule rows
+- Tooltip pattern formalised and applied globally: static form helper text converted
+  from visible form-text divs to Bootstrap 5 tooltip icons across all form views;
+  global tooltip init in views/footer.php
+- queue/view and queue/history migrated from table layout to list-group single-row
+  layout matching content/index pattern
+- queue/errors: per-row Delete button removes a single post_history row via
+  deleteError() action; previously no per-row delete existed
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
