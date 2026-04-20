@@ -331,6 +331,30 @@ Driver-specific behaviour of `retrieve()`:
 - S3 driver returns a public HTTPS URL — suitable for Meta Graph API directly.
 - TwitterService must always use getReadStream() for media uploads, never retrieve().
 
+### Tooltip Pattern
+Form field helper text that is descriptive and static (not dynamic
+or functional) is presented as a tooltip icon rather than visible
+form-text below the field. This keeps forms compact for repeat
+users while preserving discoverability.
+
+Standard markup — place immediately after the label text, before
+any (optional) span:
+
+<span data-bs-toggle="tooltip"
+      data-bs-title="Your help text here."
+      class="text-muted ms-1" style="cursor:default">&#63;</span>
+
+Rules:
+- Use for: static descriptive helper text explaining a field's
+  purpose, format, or behavior
+- Never use for: dynamic content (character counters, live data
+  displays), error/validation feedback, or any content that must
+  be visible without interaction
+- Bootstrap 5 tooltip init is global in views/footer.php — no
+  per-page initialization needed
+- Tooltip text should be the same string previously shown in the
+  form-text div — do not abbreviate or rewrite it
+
 ### New Service Class Pattern
 Each platform gets its own service class:
 - src/Services/TwitterService.php

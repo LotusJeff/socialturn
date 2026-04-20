@@ -466,9 +466,12 @@ function update(): void
         exit;
     }
 
-    $companyId = content_companyId();
-    $postId    = (int) ($_POST['id'] ?? 0);
-    $shareNow  = isset($_POST['share_now']);
+    $companyId    = content_companyId();
+    $postId       = (int) ($_POST['id'] ?? 0);
+    $intent       = in_array((string) ($_POST['intent'] ?? ''), ['save', 'share_now', 'schedule'], true)
+                        ? (string) $_POST['intent'] : 'save';
+    $scheduleDay  = trim((string) ($_POST['schedule_day']  ?? ''));
+    $scheduleTime = trim((string) ($_POST['schedule_time'] ?? ''));
 
     if ($postId === 0) {
         header('Location: ' . u('content'));
@@ -531,11 +534,13 @@ function update(): void
         }
     }
 
-    // Load account info needed for Share Now final_body construction
+    // Load account info needed for queue insertion
     $stmt = $dbh->prepare(
-        'SELECT cp.platform, cp.id AS cp_id, a.default_tags
+        'SELECT cp.platform, cp.id AS cp_id, a.default_tags,
+                COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+           LEFT JOIN account_schedules s ON s.account_id = a.id
           WHERE a.id = ? AND a.company_id = ? AND a.is_active = 1'
     );
     $stmt->execute([$newAccountId, $companyId]);
@@ -543,6 +548,34 @@ function update(): void
 
     if (empty($account['platform'])) {
         error404();
+    }
+
+    // Validate Future Schedule inputs before opening the transaction
+    $scheduledTime    = null;
+    $scheduledDisplay = null;
+    if ($intent === 'schedule') {
+        if ($scheduleDay === '' || $scheduleTime === '') {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Date and time are required for scheduled posts.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+        try {
+            $tz      = new DateTimeZone($account['timezone']);
+            $utcZone = new DateTimeZone('UTC');
+            $now     = new DateTimeImmutable('now', $tz);
+            $localDt = new DateTimeImmutable("{$scheduleDay} {$scheduleTime}", $tz);
+            if ($localDt <= $now) {
+                $_SESSION['notification'] = ['type' => 'error', 'message' => 'Scheduled time must be in the future.'];
+                header('Location: ' . u('content', 'edit', ['id' => $postId]));
+                exit;
+            }
+            $scheduledTime    = $localDt->setTimezone($utcZone)->format('Y-m-d H:i:s');
+            $scheduledDisplay = $localDt->format('D M j \a\t g:ia') . ' (' . $account['timezone'] . ')';
+        } catch (\Exception $e) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Invalid date or time. Please try again.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
     }
 
     $dbh->beginTransaction();
@@ -564,13 +597,17 @@ function update(): void
             $postId,
         ]);
 
-        if ($shareNow) {
+        if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
-                 VALUES (?, ?, NOW(), 'pending', ?, ?)"
-            )->execute([$account['cp_id'], $postId, $finalBody, $imageFilename]);
+                 VALUES (?, ?, ?, 'pending', ?, ?)"
+            )->execute([
+                $account['cp_id'], $postId,
+                $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
+                $finalBody, $imageFilename,
+            ]);
         }
 
         $dbh->commit();
@@ -581,16 +618,22 @@ function update(): void
         exit;
     }
 
-    if ($shareNow) {
+    if ($intent === 'share_now') {
         $_SESSION['notification'] = [
             'type'    => 'success',
             'message' => 'Post saved and will publish within 5 minutes.',
         ];
+        header('Location: ' . u('queue', 'view', ['id' => $newAccountId]));
+    } elseif ($intent === 'schedule') {
+        $_SESSION['notification'] = [
+            'type'    => 'success',
+            'message' => 'Post saved and scheduled for ' . $scheduledDisplay . '.',
+        ];
+        header('Location: ' . u('queue', 'view', ['id' => $newAccountId]));
     } else {
         $_SESSION['notification'] = ['type' => 'success', 'message' => 'Post updated.'];
+        header('Location: ' . u('content', 'index', ['account_id' => $newAccountId]));
     }
-
-    header('Location: ' . u('content', 'index', ['account_id' => $newAccountId]));
     exit;
 }
 
