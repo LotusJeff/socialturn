@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace SocialTurn\Services;
 
+require_once ROOT . DS . 'libraries' . DS . 'postmark.class.php';
+
 /**
  * Sends transactional notification emails via Postmark.
  *

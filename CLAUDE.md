@@ -161,6 +161,11 @@ load_admin_settings() in libraries/shared.php which defines each
 value as a PHP constant. Editable via controllers/settings.php
 (admin only).
 
+**Any new admin_settings key must also be added to the $keyMap
+array in load_admin_settings() in libraries/shared.php.** Without
+this, the constant is never defined in any context — web or cron —
+regardless of whether the migration has run.
+
 ### Cron Entry Point
 cron.php in the web root. CLI only — exits with 403 if called via
 HTTP. Bootstraps the app without session or template, calls post()
