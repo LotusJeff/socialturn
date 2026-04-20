@@ -1,18 +1,68 @@
-# SocialTurn
+# SocialTurn - *We Are in Final Testing for a 1.0.0 release*
 
-Self-hosted social media scheduling and auto-publishing engine.
+# 📣 Social Media Scheduling — Simple, Unlimited, Powerful
 
-## What It Does
+A social media scheduling and publishing platform built for **solo creators, freelancers, and small businesses** who need a dependable way to plan, schedule, and automate content — without limits on channels, users, or posts.
 
-SocialTurn runs an evergreen queue — load content once and it keeps posting
-indefinitely. Posts recycle automatically after sending, so the queue never
-runs dry without intervention. You control the posting schedule per platform,
-and the system handles everything else via a cron job that runs every five
-minutes.
+![Unlimited channels](https://img.shields.io/badge/Channels-Unlimited-brightgreen) ![Unlimited users](https://img.shields.io/badge/Users-Unlimited-blue) ![Unlimited posts](https://img.shields.io/badge/Scheduled%20Posts-Unlimited-orange)
 
-Supports Twitter/X, Facebook Pages, and Instagram Business accounts. Connect
-unlimited accounts per platform. No central server, no subscription, no shared
-infrastructure — your installation, your credentials, your data.
+---
+
+## ✨ Features
+
+### Unlimited Channels, Users & Scheduled Posts
+No artificial caps. Connect as many social accounts as you need, invite your whole team, and queue up as much content as you want. Ideal for agencies, growing teams, and creators managing multiple brands.
+
+### Automated Evergreen Content Reuse
+Recycle your best-performing posts automatically. Set evergreen content to republish on a schedule so your top content keeps driving traffic without any manual effort.
+
+### Twitter & Facebook Integration
+Publish directly to Twitter (X) and Facebook from a single dashboard. Manage all your social channels in one place without switching between apps.
+
+### Custom Posting Schedules
+Define exactly when your content goes live with fully customizable posting schedules. Set specific days, times, and frequencies that align with your audience's activity.
+
+### Multiple Schedules in One Account
+Run separate posting schedules for different teams or workflows — marketing, sales, operations, and more — all within a single account. No need for separate logins or plans.
+
+### Tags at Post & Account Level
+Organize and filter content with tags applied at both the individual post and account level. Quickly find, sort, and report on content by campaign, team, or topic.
+
+### Pause & Shuffle Queues
+Need to stop publishing temporarily? Pause any queue with one click. Shuffle queue order to vary your content mix without deleting or rescheduling individual posts.
+
+### Flexible Publishing — Post Now, Schedule, or Autoschedule
+Publish immediately, pick an exact date and time, or let the autoscheduler slot posts into your next available window. Full control over how and when your content goes live.
+
+### Bulk Uploads
+Upload and schedule dozens of posts at once via bulk import. Perfect for campaigns, content calendars, and teams that plan content in batches.
+
+### Email Notifications
+Stay informed without logging in. Receive email alerts for publishing confirmations, failures, and account activity so nothing slips through the cracks.
+
+---
+
+## 📊 How It Compares to Buffer
+
+| Feature | This Platform | Buffer |
+|---|---|---|
+| Channels | Unlimited | Limited by plan |
+| Users | Unlimited | Limited by plan |
+| Scheduled posts | Unlimited | Limited by plan |
+| Evergreen content recycling | ✅ Yes | ❌ No |
+| Multiple schedules per account | ✅ Yes | ❌ No |
+| Bulk uploads | ✅ Yes | ❌ No |
+| Tags (post & account level) | ✅ Yes | Limited |
+| Pause & shuffle queues | ✅ Yes | Partial |
+
+---
+
+## Who It's For
+
+- Solo creators managing multiple social platforms
+- Small businesses wanting professional scheduling without per-seat pricing
+- Marketing teams needing organized, multi-schedule workflows
+- Agencies handling content for multiple clients or brands
 
 ---
 
