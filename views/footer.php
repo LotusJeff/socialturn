@@ -16,5 +16,14 @@
     <!-- Alpine.js 3.14.1 — must load after DOM, before first x-data is parsed -->
     <script defer src="<?php echo BASE_URL; ?>assets/js/alpine.min.js"></script>
 
+    <!-- Bootstrap tooltip initialisation — activates all data-bs-toggle="tooltip" elements -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+                new bootstrap.Tooltip(el);
+            });
+        });
+    </script>
+
 </body>
 </html>

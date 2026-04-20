@@ -104,7 +104,11 @@ $platformLimits = json_encode([
                 <!-- Post body -->
                 <div class="mb-3">
                     <label for="body" class="form-label fw-semibold">
-                        Post text <span class="text-danger">*</span>
+                        Post text
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Tags will be appended automatically up to the platform limit."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-danger">*</span>
                     </label>
                     <textarea id="body" name="body" class="form-control"
                               rows="4" required
@@ -112,8 +116,7 @@ $platformLimits = json_encode([
                               @input="bodyLength = $event.target.value.length"></textarea>
 
                     <!-- Character counter -->
-                    <div class="form-text d-flex justify-content-between align-items-center mt-1">
-                        <span>Tags will be appended automatically up to the platform limit.</span>
+                    <div class="form-text mt-1 text-end">
                         <span x-show="charLimit !== null" x-cloak
                               :class="overLimit ? 'text-danger fw-semibold' : 'text-muted'">
                             <span x-text="bodyLength"></span> / <span x-text="charLimit"></span>
@@ -127,13 +130,14 @@ $platformLimits = json_encode([
 
                 <!-- Attribution -->
                 <div class="mb-3">
-                    <label for="attributed_to" class="form-label">Attribution <span class="text-muted fw-normal">(optional)</span></label>
+                    <label for="attributed_to" class="form-label">Attribution
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="Shown as — Author after the post body and used for image overlay layout."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-muted fw-normal">(optional)</span></label>
                     <input type="text" id="attributed_to" name="attributed_to"
                            class="form-control" style="max-width:360px"
                            placeholder="e.g. Winston Churchill">
-                    <div class="form-text">
-                        Shown as &ldquo;&mdash; Author&rdquo; after the post body and used for image overlay layout.
-                    </div>
                 </div>
 
                 <!-- Post tags -->
@@ -142,13 +146,14 @@ $platformLimits = json_encode([
 
                         <!-- Left: label + input + helper text -->
                         <div>
-                            <label for="post_tags" class="form-label">Post tags <span class="text-muted fw-normal">(optional)</span></label>
+                            <label for="post_tags" class="form-label">Post tags
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Enter words without # — the # is added automatically when the post is sent."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                                <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="text" id="post_tags" name="post_tags"
                                    class="form-control" style="max-width:480px"
                                    placeholder="e.g. Policy Education">
-                            <div class="form-text">
-                                Enter words without # &mdash; the # is added automatically when the post is sent.
-                            </div>
                         </div>
 
                         <!-- Right: account tags header + values -->
@@ -162,11 +167,14 @@ $platformLimits = json_encode([
 
                 <!-- Image -->
                 <div class="mb-3">
-                    <label for="image" class="form-label">Image <span class="text-muted fw-normal">(optional)</span></label>
+                    <label for="image" class="form-label">Image
+                        <span data-bs-toggle="tooltip"
+                              data-bs-title="JPG or PNG. Leave blank for a text-only post."
+                              class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        <span class="text-muted fw-normal">(optional)</span></label>
                     <input type="file" id="image" name="image"
                            class="form-control" style="max-width:400px"
                            accept=".jpg,.jpeg,.png">
-                    <div class="form-text">JPG or PNG. Leave blank for a text-only post.</div>
                 </div>
 
                 <!-- Posting intent -->
@@ -206,14 +214,15 @@ $platformLimits = json_encode([
                                    x-model="scheduleDay">
                         </div>
                         <div>
-                            <label for="schedule_time" class="form-label">Time</label>
+                            <label for="schedule_time" class="form-label">Time
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Time is interpreted in this account's posting timezone."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
                             <input type="time" id="schedule_time" name="schedule_time"
                                    class="form-control" style="max-width:140px"
                                    x-model="scheduleTime">
                         </div>
-                    </div>
-                    <div class="form-text mt-1">
-                        Time is interpreted in this account&rsquo;s posting timezone.
                     </div>
                 </div>
 
@@ -222,10 +231,11 @@ $platformLimits = json_encode([
                     <div class="form-check">
                         <input type="checkbox" id="is_recyclable" name="is_recyclable"
                                class="form-check-input" value="1" checked>
-                        <label for="is_recyclable" class="form-check-label">Recycle after posting</label>
-                    </div>
-                    <div class="form-text ms-4 mb-0">
-                        Uncheck to send this post once and then deactivate it automatically.
+                        <label for="is_recyclable" class="form-check-label">Recycle after posting
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="Uncheck to send this post once and then deactivate it automatically."
+                                  class="text-muted ms-1" style="cursor:default">&#63;</span>
+                        </label>
                     </div>
                 </div>
 
