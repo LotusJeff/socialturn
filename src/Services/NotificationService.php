@@ -74,14 +74,19 @@ class NotificationService
      * Sends a periodic activity recap email.
      * Silently returns if Postmark is unconfigured or recipient is empty.
      *
-     * @param array<int,array{platform:string,account_name:string,body_snapshot:string,error_message:string}> $failures
+     * @param array<int,array{
+     *     account_id:int,account_name:string,platform:string,
+     *     recycled_count:int,pending_count:int,
+     *     period_posted:int,period_failed:int,
+     *     failures:list<array{body_snapshot:string,error_message:string}>
+     * }> $accounts
      */
     public function sendRecapEmail(
         string $frequency,
         string $periodLabel,
-        int    $succeeded,
-        int    $failed,
-        array  $failures
+        int    $totalPosted,
+        int    $totalFailed,
+        array  $accounts
     ): void {
         if (!$this->isConfigured()) {
             return;
@@ -91,27 +96,30 @@ class NotificationService
         $vars  = [
             'label'       => $label,
             'periodLabel' => $periodLabel,
-            'succeeded'   => $succeeded,
-            'failed'      => $failed,
-            'failures'    => $failures,
+            'totalPosted' => $totalPosted,
+            'totalFailed' => $totalFailed,
+            'accounts'    => $accounts,
             'baseUrl'     => defined('BASE_URL') ? (string) BASE_URL : '',
         ];
 
         $html  = $this->render('recap', $vars);
         $plain = "SocialTurn {$label} Recap\n"
                . "{$periodLabel}\n\n"
-               . "{$succeeded} posts published · {$failed} failed\n";
-        if (!empty($failures)) {
-            $plain .= "\nFailures:\n";
-            foreach ($failures as $f) {
-                $plain .= '- ' . ($f['account_name'] ?? '') . ' (' . ucfirst((string) ($f['platform'] ?? '')) . '): '
-                        . ($f['error_message'] ?? '') . "\n";
+               . "{$totalPosted} posts published · {$totalFailed} failed\n";
+        foreach ($accounts as $a) {
+            $plain .= "\n" . ($a['account_name'] ?? '') . ' (' . ucfirst((string) ($a['platform'] ?? '')) . ")\n";
+            $plain .= '  Recycled: '   . ($a['recycled_count'] ?? 0)
+                    . '  Pending: '    . ($a['pending_count']  ?? 0)
+                    . '  Published: '  . ($a['period_posted']  ?? 0)
+                    . '  Failed: '     . ($a['period_failed']  ?? 0) . "\n";
+            foreach ($a['failures'] ?? [] as $f) {
+                $plain .= '  x ' . ($f['error_message'] ?? '') . "\n";
             }
         }
 
         \Mail_Postmark::compose()
             ->to($this->recipient)
-            ->subject("[SocialTurn] {$label} recap \u{2014} {$succeeded} sent, {$failed} failed")
+            ->subject("[SocialTurn] {$label} recap \u{2014} {$totalPosted} sent, {$totalFailed} failed")
             ->messageHtml($html)
             ->messagePlain($plain)
             ->tag('recap')

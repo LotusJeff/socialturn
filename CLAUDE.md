@@ -371,6 +371,11 @@ Each service class implements:
 - refreshToken(int $platformId) — refresh stored token if needed
 - verifyToken(string $token) — validate a stored token is still active
 
+If a service class in src/Services/ depends on a legacy library
+in libraries/, it must require_once the library file explicitly —
+libraries/ is not PSR-4 autoloaded and classes there will not be
+found at runtime without a direct require_once.
+
 ---
 
 ## Installation Experience Standards

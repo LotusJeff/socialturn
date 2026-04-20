@@ -182,13 +182,13 @@ function post(): void
                 $periodStart = ($lastSent !== '') ? $lastSent : date('Y-m-d H:i:s', strtotime('-7 days'));
                 $nowStr      = date('Y-m-d H:i:s');
                 $stats       = cron_fetchRecapStats($dbh, $periodStart, $nowStr);
-                $periodLabel = date('M j', strtotime($periodStart)) . ' \u{2013} ' . date('M j, Y', strtotime($nowStr));
+                $periodLabel = date('M j', strtotime($periodStart)) . ' – ' . date('M j, Y', strtotime($nowStr));
                 $notifier->sendRecapEmail(
                     NOTIFY_RECAP_FREQUENCY,
                     $periodLabel,
-                    $stats['succeeded'],
-                    $stats['failed'],
-                    $stats['failures']
+                    $stats['total_posted'],
+                    $stats['total_failed'],
+                    $stats['accounts']
                 );
                 cron_updateAdminSetting($dbh, 'notify_recap_last_sent', $nowStr);
             } catch (Throwable) {
@@ -468,56 +468,109 @@ function cron_writePostHistory(PDO $dbh, array $data): void
 }
 
 /**
- * Returns posting stats from post_history for the recap email.
- * Looks up account name via accounts.connected_platform_id to avoid
- * duplicating rows when multiple accounts share a connected_platform.
+ * Returns per-account posting stats for the recap email.
+ * Drives from accounts (same pattern as queue/index) so each account
+ * row carries current queue state plus period-scoped history counts.
+ * A second query per failing account fetches the failure detail rows.
  *
  * @return array{
- *     succeeded: int,
- *     failed: int,
- *     failures: list<array{platform:string,account_name:string,body_snapshot:string,error_message:string}>
+ *     accounts: list<array{
+ *         account_id: int,
+ *         account_name: string,
+ *         platform: string,
+ *         recycled_count: int,
+ *         pending_count: int,
+ *         period_posted: int,
+ *         period_failed: int,
+ *         failures: list<array{body_snapshot:string,error_message:string}>
+ *     }>,
+ *     total_posted: int,
+ *     total_failed: int
  * }
  */
 function cron_fetchRecapStats(PDO $dbh, string $periodStart, string $periodEnd): array
 {
     $stmt = $dbh->prepare(
-        "SELECT ph.platform,
-                ph.body_snapshot,
-                ph.error_message,
-                ph.status,
-                COALESCE(
-                    (SELECT a.name FROM accounts a
-                      WHERE a.connected_platform_id = ph.connected_platform_id
-                      LIMIT 1),
-                    ph.platform_account_id
-                ) AS account_name
-           FROM post_history ph
-          WHERE ph.posted_at >= ?
-            AND ph.posted_at <= ?
-          ORDER BY ph.posted_at ASC"
+        "SELECT a.id   AS account_id,
+                a.name AS account_name,
+                cp.platform,
+                (SELECT COUNT(*)
+                   FROM posts p
+                  WHERE p.account_id = a.id
+                    AND p.is_active = 1
+                    AND p.is_recyclable = 1)                AS recycled_count,
+                (SELECT COUNT(*)
+                   FROM scheduled_posts sp
+                   JOIN posts p ON p.id = sp.post_id
+                  WHERE p.account_id = a.id
+                    AND sp.status = 'pending')              AS pending_count,
+                (SELECT COUNT(*)
+                   FROM post_history ph
+                   JOIN posts p ON p.id = ph.post_id
+                  WHERE p.account_id = a.id
+                    AND ph.status = 'posted'
+                    AND ph.posted_at BETWEEN ? AND ?)       AS period_posted,
+                (SELECT COUNT(*)
+                   FROM post_history ph
+                   JOIN posts p ON p.id = ph.post_id
+                  WHERE p.account_id = a.id
+                    AND ph.status = 'failed'
+                    AND ph.posted_at BETWEEN ? AND ?)       AS period_failed
+           FROM accounts a
+           JOIN connected_platforms cp ON cp.id = a.connected_platform_id
+          WHERE a.is_active = 1
+          ORDER BY a.name ASC"
     );
-    $stmt->execute([$periodStart, $periodEnd]);
+    $stmt->execute([$periodStart, $periodEnd, $periodStart, $periodEnd]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $succeeded = 0;
-    $failed    = 0;
-    $failures  = [];
+    $accounts    = [];
+    $totalPosted = 0;
+    $totalFailed = 0;
 
     foreach ($rows as $row) {
-        if ($row['status'] === 'posted') {
-            $succeeded++;
-        } else {
-            $failed++;
-            $failures[] = [
-                'platform'      => (string) $row['platform'],
-                'account_name'  => (string) $row['account_name'],
-                'body_snapshot' => (string) $row['body_snapshot'],
-                'error_message' => (string) ($row['error_message'] ?? ''),
-            ];
+        $periodPosted = (int) $row['period_posted'];
+        $periodFailed = (int) $row['period_failed'];
+        $totalPosted += $periodPosted;
+        $totalFailed += $periodFailed;
+
+        $failures = [];
+        if ($periodFailed > 0) {
+            $fStmt = $dbh->prepare(
+                "SELECT ph.body_snapshot, ph.error_message
+                   FROM post_history ph
+                   JOIN posts p ON p.id = ph.post_id
+                  WHERE p.account_id = ?
+                    AND ph.status = 'failed'
+                    AND ph.posted_at BETWEEN ? AND ?
+                  ORDER BY ph.posted_at ASC"
+            );
+            $fStmt->execute([(int) $row['account_id'], $periodStart, $periodEnd]);
+            foreach ($fStmt->fetchAll(PDO::FETCH_ASSOC) as $f) {
+                $failures[] = [
+                    'body_snapshot' => (string) $f['body_snapshot'],
+                    'error_message' => (string) ($f['error_message'] ?? ''),
+                ];
+            }
         }
+
+        $accounts[] = [
+            'account_id'    => (int) $row['account_id'],
+            'account_name'  => (string) $row['account_name'],
+            'platform'      => (string) $row['platform'],
+            'recycled_count' => (int) $row['recycled_count'],
+            'pending_count'  => (int) $row['pending_count'],
+            'period_posted'  => $periodPosted,
+            'period_failed'  => $periodFailed,
+            'failures'       => $failures,
+        ];
     }
 
-    return compact('succeeded', 'failed', 'failures');
+    return [
+        'accounts'     => $accounts,
+        'total_posted' => $totalPosted,
+        'total_failed' => $totalFailed,
+    ];
 }
 
 /**
