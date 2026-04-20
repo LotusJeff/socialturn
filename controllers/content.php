@@ -352,11 +352,12 @@ function store(): void
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
-                     (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
-                 VALUES (?, ?, ?, 'pending', ?, ?)"
+                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+                 VALUES (?, ?, ?, 'pending', ?, ?, ?)"
             )->execute([
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
+                $intent === 'share_now' ? 'share_now' : 'scheduled',
                 $finalBody, $imageFilename,
             ]);
         }
@@ -601,11 +602,12 @@ function update(): void
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
-                     (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
-                 VALUES (?, ?, ?, 'pending', ?, ?)"
+                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+                 VALUES (?, ?, ?, 'pending', ?, ?, ?)"
             )->execute([
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
+                $intent === 'share_now' ? 'share_now' : 'scheduled',
                 $finalBody, $imageFilename,
             ]);
         }
@@ -830,8 +832,8 @@ function sendNow(): void
 
     $dbh->prepare(
         "INSERT INTO scheduled_posts
-             (connected_platform_id, post_id, scheduled_time, status, final_body, final_image_filename)
-         VALUES (?, ?, NOW(), 'pending', ?, ?)"
+             (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+         VALUES (?, ?, NOW(), 'pending', 'share_now', ?, ?)"
     )->execute([
         $account['cp_id'],
         $postId,

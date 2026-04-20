@@ -496,10 +496,10 @@ class QueuePopulationService
 
         $placeholders = implode(
             ', ',
-            array_fill(0, count($rows), "(?, ?, ?, ?, ?, 'pending')")
+            array_fill(0, count($rows), "(?, ?, ?, ?, ?, 'pending', 'queue')")
         );
 
-        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, final_image_filename, status) VALUES {$placeholders}";
+        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, final_image_filename, status, source) VALUES {$placeholders}";
         $flat = [];
         foreach ($rows as [$connectedPlatformId, $postId, $scheduledTime, $finalBody, $finalImageFilename]) {
             $flat[] = $connectedPlatformId;

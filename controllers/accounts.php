@@ -533,11 +533,11 @@ function update(): void
               WHERE account_id = ?'
         )->execute([$recycleThreshold, $lookaheadDays, $schedulingEnabled, $accountId]);
 
-        // Post-edit cascade: clear pending queue so it repopulates with the new schedule
+        // Post-edit cascade: clear queue-generated pending rows so the engine repopulates with the new schedule
         $dbh->prepare(
             "DELETE sp FROM scheduled_posts sp
              INNER JOIN posts p ON sp.post_id = p.id
-             WHERE p.account_id = ? AND sp.status = 'pending'"
+             WHERE p.account_id = ? AND sp.status = 'pending' AND sp.source = 'queue'"
         )->execute([$accountId]);
 
         $dbh->commit();

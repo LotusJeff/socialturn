@@ -552,7 +552,7 @@ function queue_flush(): void
         "DELETE sp FROM scheduled_posts sp
            JOIN posts p ON p.id = sp.post_id
            JOIN accounts a ON a.id = p.account_id
-          WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending'"
+          WHERE a.id = ? AND a.company_id = ? AND sp.status = 'pending' AND sp.source = 'queue'"
     );
     $stmt->execute([$accountId, $companyId]);
     $deleted = $stmt->rowCount();

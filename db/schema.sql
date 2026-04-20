@@ -347,6 +347,7 @@ CREATE TABLE IF NOT EXISTS `scheduled_posts` (
     `post_id`               INT UNSIGNED  NOT NULL                           COMMENT 'Which content to post',
     `scheduled_time`        DATETIME      NOT NULL                           COMMENT 'When this post should be sent',
     `status`                ENUM('pending','posted','failed','skipped') NOT NULL DEFAULT 'pending' COMMENT 'Cron only processes pending rows',
+    `source`                ENUM('queue','share_now','scheduled') NOT NULL DEFAULT 'queue' COMMENT 'Origin: queue=auto-populated, share_now=immediate send, scheduled=user-chosen future time',
     `final_body`            TEXT          NOT NULL                           COMMENT 'Post body with hashtags appended by TagAppenderService at queue population time; sent verbatim by cron',
     `final_image_filename`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Processed or generated image filename ready for posting; NULL = text-only post',
     `locked_at`             DATETIME      NULL     DEFAULT NULL              COMMENT 'Set atomically by cron when claiming a row; prevents double-posting on overlapping runs',
