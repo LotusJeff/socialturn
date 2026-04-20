@@ -23,7 +23,7 @@ Publish directly to Twitter (X) and Facebook from a single dashboard. Manage all
 Define exactly when your content goes live with fully customizable posting schedules. Set specific days, times, and frequencies that align with your audience's activity.
 
 ### Multiple Schedules in One Account
-Run separate posting schedules for different teams or workflows — marketing, sales, operations, and more — all within a single account. No need for separate logins or plans.
+Run separate posting schedules for different teams or workflows — marketing, sales, operations, and more — all within a single account. No need for separate plans.
 
 ### Tags at Post & Account Level
 Organize and filter content with tags applied at both the individual post and account level. Quickly find, sort, and report on content by campaign, team, or topic.
