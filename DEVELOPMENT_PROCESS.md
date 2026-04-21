@@ -5,6 +5,27 @@
 
 A structured workflow for building SocialTurn features—planning before code, review at every stage, and explicit confirmation before moving forward.
 
+## Role Boundaries
+
+Claude Chat operates above the code level. Its responsibilities are:
+- Understanding the data model and application behavior before any
+  change is designed
+- Identifying architectural impact, risk, and interactions with
+  existing mechanisms
+- Making decisions and writing precise instructions for Claude Code
+- Never approving a code change until the full behavioral picture
+  is understood
+
+Claude Code operates at the code level. Its responsibilities are:
+- Reading files and reporting findings accurately
+- Writing exactly what was approved — nothing more
+- Flagging conflicts or impacts it observes before writing
+- Waiting for explicit approval at every stage
+
+If discovery reveals incomplete information, more discovery happens
+before any design or approval occurs. A partial picture is not a
+basis for a decision.
+
 ## Four Stages: Plan → Review → Confirm → Build
 
 ### Stage 1: Feature Definition (Chat)
@@ -34,6 +55,26 @@ Each section must:
 ---
 
 ### Stage 3: Build Cycle (Chat ↔ Code, Repeats Per Section)
+
+#### Step 0: Full Behavioral Discovery (before designing any fix)
+
+Before designing a fix or writing instructions, Claude Chat must
+understand the complete behavioral picture. Discovery questions must
+be broad enough to reveal all related mechanisms — not just the
+target location.
+
+Every discovery instruction must ask Claude Code to report:
+- The target location and its current behavior
+- Every other location that touches the same data, table, or
+  side effect
+- Any existing mechanisms that already handle the behavior,
+  even incidentally
+- Any callers, dependents, or downstream consumers of the
+  target code
+
+A fix must not be designed until all four are answered. Narrow
+discovery questions that return incomplete pictures are the leading
+cause of changes that break existing working functionality.
 
 #### Step 1: Write Instructions (Chat)
 Instructions always include:
@@ -74,6 +115,18 @@ Explicit confirmation: `[Section X] confirmed.`
 [Section X] confirmed. Commit all changes to master with descriptive message.
 Confirm branch is master.
 ```
+
+#### Revert Protocol
+
+When an approved and written change needs to be reverted:
+1. Stop all forward work immediately
+2. Claude Chat confirms the exact original state to be restored
+3. Claude Code presents the restored version for review — never
+   writes a revert without presenting it first
+4. Claude Chat approves the restored version explicitly
+5. Claude Code writes the revert and confirms what was changed
+6. Root cause is identified before any new design work begins —
+   understand why the change was wrong before designing a replacement
 
 ---
 
@@ -177,6 +230,16 @@ Then present [next section] plan before writing any code.
 - Security respected?
 - Scope bounded?
 - Migrations needed?
+- Have all existing mechanisms that touch the same data or produce
+  the same side effect been identified? A correct behavior achieved
+  incidentally by general-purpose code is still a correct behavior —
+  do not replace or duplicate it with targeted logic until its full
+  scope is understood.
+- Does this change interact with any functionality that is already
+  working correctly? If yes, is that interaction safe?
+- Is the data model fully understood? Field names, which table they
+  live in, and which controller actions read and write them must be
+  confirmed before any change is approved — never assumed.
 
 **Before confirming written work:**
 - All approved changes made?
