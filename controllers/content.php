@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use SocialTurn\Services\CsvParser;
+use SocialTurn\Services\ImageService;
 use SocialTurn\Services\StorageService;
 use SocialTurn\Services\TagAppenderService;
 
@@ -280,6 +281,7 @@ function store(): void
     // Verify account belongs to this company; also fetch schedule timezone for Future Schedule
     $stmt = $dbh->prepare(
         'SELECT a.id, cp.platform, cp.id AS cp_id, a.default_tags,
+                a.dynamic_images_enabled, a.base_image_filename,
                 COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -321,6 +323,9 @@ function store(): void
         }
     }
 
+    $storage      = new StorageService();
+    $imageService = new ImageService($storage);
+
     // Image upload
     $imageFilename = null;
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
@@ -328,8 +333,7 @@ function store(): void
         $mime = getMimeType((string) $_FILES['image']['tmp_name']);
         if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
-            $storage = new StorageService();
-            if ($storage->store((string) $_FILES['image']['tmp_name'], $newFilename)) {
+            if ($storage->store((string) $_FILES['image']['tmp_name'], 'originals/' . $newFilename)) {
                 $imageFilename = $newFilename;
             }
         }
@@ -350,6 +354,13 @@ function store(): void
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
+            if (!empty($imageFilename)) {
+                $finalImageFilename = $imageService->prepareForPlatform($imageFilename, (string) $account['platform']);
+            } elseif ((int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
+                $finalImageFilename = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
+            } else {
+                $finalImageFilename = null;
+            }
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
@@ -358,7 +369,7 @@ function store(): void
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
                 $intent === 'share_now' ? 'share_now' : 'scheduled',
-                $finalBody, $imageFilename,
+                $finalBody, $finalImageFilename,
             ]);
         }
 
@@ -519,6 +530,9 @@ function update(): void
         exit;
     }
 
+    $storage      = new StorageService();
+    $imageService = new ImageService($storage);
+
     // Image upload — preserve existing if no new file uploaded
     $imageFilename = (string) ($existing['image_filename'] ?? '');
     $imageFilename = $imageFilename !== '' ? $imageFilename : null;
@@ -528,8 +542,7 @@ function update(): void
         $mime = getMimeType((string) $_FILES['image']['tmp_name']);
         if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
-            $storage = new StorageService();
-            if ($storage->store((string) $_FILES['image']['tmp_name'], $newFilename)) {
+            if ($storage->store((string) $_FILES['image']['tmp_name'], 'originals/' . $newFilename)) {
                 $imageFilename = $newFilename;
             }
         }
@@ -538,6 +551,7 @@ function update(): void
     // Load account info needed for queue insertion
     $stmt = $dbh->prepare(
         'SELECT cp.platform, cp.id AS cp_id, a.default_tags,
+                a.dynamic_images_enabled, a.base_image_filename,
                 COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -600,6 +614,13 @@ function update(): void
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
+            if (!empty($imageFilename)) {
+                $finalImageFilename = $imageService->prepareForPlatform($imageFilename, (string) $account['platform']);
+            } elseif ((int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
+                $finalImageFilename = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
+            } else {
+                $finalImageFilename = null;
+            }
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
                      (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
@@ -608,7 +629,7 @@ function update(): void
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
                 $intent === 'share_now' ? 'share_now' : 'scheduled',
-                $finalBody, $imageFilename,
+                $finalBody, $finalImageFilename,
             ]);
         }
 

@@ -379,9 +379,9 @@ function update(): void
         $ext  = strtolower((string) pathinfo((string) $_FILES['base_image']['name'], PATHINFO_EXTENSION));
         $mime = getMimeType((string) $_FILES['base_image']['tmp_name']);
         if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
-            $newFilename = 'originals/' . bin2hex(random_bytes(8)) . '.' . $ext;
+            $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             $storage = new StorageService();
-            if ($storage->store((string) $_FILES['base_image']['tmp_name'], $newFilename)) {
+            if ($storage->store((string) $_FILES['base_image']['tmp_name'], 'originals/' . $newFilename)) {
                 $baseImageFilename = $newFilename;
             }
         }
