@@ -105,27 +105,30 @@ class QueuePopulationService
 
                 // Determine final_image_filename at population time so cron dispatches
                 // a ready-to-post image without any processing overhead at send time.
-                if (!empty($post['image_filename'])) {
-                    // Post has an image — resize/crop for this platform
+                if (($post['image_source'] ?? null) === 'uploaded') {
                     $finalImageFilename = $this->imageService->prepareForPlatform(
                         $post['image_filename'],
                         $account['platform']
                     );
+                } elseif (($post['image_source'] ?? null) === 'generated') {
+                    $finalImageFilename = $post['image_filename'];
                 } elseif (
-                    (int) $account['dynamic_images_enabled'] === 1
+                    ($post['image_source'] ?? null) === null
+                    && (int) $account['dynamic_images_enabled'] === 1
                     && !empty($account['base_image_filename'])
                 ) {
-                    // No post image but account has a template — generate branded image.
-                    // Pass posts.body directly (not the tag-appended body) — tags are
-                    // text-only and must never appear on images.
                     $finalImageFilename = $this->imageService->generateFromTemplate(
                         $account['base_image_filename'],
                         $post['body'],
                         $account['platform'],
                         $post['attributed_to'] ?? null
                     );
+                    if ($finalImageFilename !== null) {
+                        $this->dbh->prepare(
+                            "UPDATE posts SET image_filename = ?, image_source = 'generated' WHERE id = ?"
+                        )->execute([$finalImageFilename, (int) $post['id']]);
+                    }
                 } else {
-                    // Text-only post
                     $finalImageFilename = null;
                 }
 
@@ -253,7 +256,7 @@ class QueuePopulationService
 
         if (!empty($excludePostIds)) {
             $placeholders = implode(',', array_fill(0, count($excludePostIds), '?'));
-            $sql = "SELECT id, body, attributed_to, post_tags, image_filename
+            $sql = "SELECT id, body, attributed_to, post_tags, image_filename, image_source
                       FROM posts
                      WHERE account_id = ?
                        AND is_recyclable = 1
@@ -261,7 +264,7 @@ class QueuePopulationService
                        AND id NOT IN ({$placeholders})";
             $params = array_merge([$accountId], $excludePostIds);
         } else {
-            $sql    = 'SELECT id, body, attributed_to, post_tags, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
+            $sql    = 'SELECT id, body, attributed_to, post_tags, image_filename, image_source FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
             $params = [$accountId];
         }
 
@@ -272,7 +275,7 @@ class QueuePopulationService
         // If exclusions left the pool empty, fall back to all recyclable posts
         if (empty($pool) && !empty($excludePostIds)) {
             $stmt = $this->dbh->prepare(
-                'SELECT id, body, attributed_to, post_tags, image_filename FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
+                'SELECT id, body, attributed_to, post_tags, image_filename, image_source FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
             );
             $stmt->execute([$accountId]);
             $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);

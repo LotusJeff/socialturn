@@ -344,10 +344,11 @@ function store(): void
         $dbh->prepare(
             'INSERT INTO posts
                  (account_id, body, body_normalized, attributed_to, post_tags, image_filename,
-                  is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                  image_source, is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
         )->execute([
             $accountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
+            $imageFilename !== null ? 'uploaded' : null,
             $isRecyclable, $internalNote, $userId,
         ]);
         $postId = (int) $dbh->lastInsertId();
@@ -492,7 +493,7 @@ function update(): void
 
     // Load the existing post to verify ownership and get original account_id
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.account_id, p.image_filename
+        'SELECT p.id, p.account_id, p.image_filename, p.image_source
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
           WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
@@ -536,6 +537,7 @@ function update(): void
     // Image upload — preserve existing if no new file uploaded
     $imageFilename = (string) ($existing['image_filename'] ?? '');
     $imageFilename = $imageFilename !== '' ? $imageFilename : null;
+    $imageSource   = $existing['image_source'] ?? null;
 
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $ext  = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -544,6 +546,7 @@ function update(): void
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             if ($storage->store((string) $_FILES['image']['tmp_name'], 'originals/' . $newFilename)) {
                 $imageFilename = $newFilename;
+                $imageSource   = 'uploaded';
             }
         }
     }
@@ -604,11 +607,11 @@ function update(): void
             'UPDATE posts
                 SET account_id = ?, body = ?, body_normalized = ?,
                     attributed_to = ?, post_tags = ?, image_filename = ?,
-                    is_recyclable = ?, internal_note = ?
+                    image_source = ?, is_recyclable = ?, internal_note = ?
               WHERE id = ? AND is_active = 1'
         )->execute([
             $newAccountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
-            $isRecyclable, $internalNote,
+            $imageSource, $isRecyclable, $internalNote,
             $postId,
         ]);
 

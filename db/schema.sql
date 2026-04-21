@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
     `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author - appended as "- Author" after post body; affects image overlay layout in ImageService. Never included in image text - post body and attribution are overlaid on image, tags are text-only.',
     `post_tags`      VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Post-specific hashtags appended after attribution and before account default tags',
     `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
+    `image_source`   ENUM('uploaded','generated','url_fetched') NULL DEFAULT NULL COMMENT 'Origin of the post image: uploaded=content form upload, generated=ImageService template, url_fetched=reserved; NULL=text-only',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
     `internal_note`  TEXT          NULL     DEFAULT NULL              COMMENT 'Operator note - never sent, never shown publicly, visible in UI only',
