@@ -62,6 +62,10 @@ class QueuePopulationService
             }
 
             $settings    = $this->fetchSettings($accountId);
+            if ((int) $settings['scheduling_enabled'] !== 1) {
+                $result['error'] = "Scheduling disabled for account {$accountId}.";
+                return $result;
+            }
             $lookahead   = (int) $settings['recycle_lookahead_days'];
             $tz          = new DateTimeZone($schedule['timezone']);
 
@@ -195,7 +199,7 @@ class QueuePopulationService
     private function fetchSettings(int $accountId): array
     {
         $stmt = $this->dbh->prepare(
-            'SELECT recycle_threshold, recycle_lookahead_days
+            'SELECT recycle_threshold, recycle_lookahead_days, scheduling_enabled
                FROM account_settings
               WHERE account_id = ?'
         );
@@ -207,8 +211,9 @@ class QueuePopulationService
         }
 
         return [
-            'recycle_threshold'      => defined('RECYCLE_THRESHOLD_DEFAULT') ? RECYCLE_THRESHOLD_DEFAULT : 10,
-            'recycle_lookahead_days' => defined('RECYCLE_LOOKAHEAD_DAYS')    ? RECYCLE_LOOKAHEAD_DAYS    : 30,
+            'recycle_threshold'      => defined('RECYCLE_THRESHOLD_DEFAULT')  ? RECYCLE_THRESHOLD_DEFAULT  : 10,
+            'recycle_lookahead_days' => defined('RECYCLE_LOOKAHEAD_DAYS')      ? RECYCLE_LOOKAHEAD_DAYS      : 30,
+            'scheduling_enabled'     => defined('SCHEDULING_ENABLED_DEFAULT') ? SCHEDULING_ENABLED_DEFAULT : 0,
         ];
     }
 

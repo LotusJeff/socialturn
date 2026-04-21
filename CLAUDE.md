@@ -578,21 +578,6 @@ Merge to master. Tag 1.0.0. Public release.
 - Spurious "link expired or already used" notification after successful password set — two-part fix: (1) flash notification block moved outside `$noextra` guard in `views/header.php` so notifications are shown and cleared on all pages; (2) `forgot()` in `controllers/users.php` now deletes existing unused tokens before inserting a new one, preventing stale token accumulation
 - Pending invited users not shown on team page — second query added for invites WHERE
   used_at IS NULL; resend and revoke invite actions added to controllers/team.php
-- "Link expired or already used" error after successful password set — flash notification
-  block moved outside if (empty($noextra)) guard in views/header.php so notifications
-  are shown and cleared on all pages including login, setpassword, and forgot
-- forgot() stale token accumulation — DELETE existing unused tokens for company+email
-  before INSERT, matching invited() pattern
-- Attribution missing from Twitter posts — build_final_body() extracted to
-  libraries/shared.php as single source of truth; called by QueuePopulationService,
-  content/store(), and content/update(); format: [body] - [attribution] #hashtags
-- CSV import page blank — views/content/import.php renamed to
-  views/content/importForm.php to match action name
-- Duplicates page blank — views/content/duplicates.php renamed to
-  views/content/content_duplicates.php to match action name
-- Queue index counts showing wrong account — join pattern corrected across 11 queries
-  in 6 actions in controllers/queue.php; now routes through posts.account_id instead
-  of connected_platform_id
 - Posting intent system added to content/create and content/edit: Save to Library /
   Share Now / Future Schedule radio selector replaces bottom buttons; Future Schedule
   supports date/time input up to 30 days out with timezone-aware UTC conversion at
