@@ -220,6 +220,10 @@ scheduled_posts with future time slots up to recycle_lookahead_days out.
 - Randomizes order on every population run
 - Never duplicates a post already in pending status in the queue
 - Runs in cron only — never triggered synchronously from a web request
+- Generated images are written back to posts.image_filename and
+  posts.image_source = 'generated' after first generation. Subsequent
+  population cycles use the stored image directly — no regeneration
+  occurs unless the image is invalidated by an account settings change.
 
 Population is gated by scheduling_enabled in account_settings. RecycleService
 checks this flag before calling populate(). populate() also checks it
@@ -317,6 +321,14 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
   notify_recap_frequency, notify_recipient_email, notify_recap_last_sent)
 - Migration 029: source ENUM('queue','share_now','scheduled') added to scheduled_posts;
   flush() and schedule-change cascade delete filter to source='queue' only
+- Migration 030: image_source ENUM('uploaded','generated','url_fetched') NULL added to posts table
+
+### posts image columns
+- image_filename VARCHAR(255) NULL — bare filename (uploaded) or storage-relative path (generated)
+- image_source ENUM('uploaded','generated','url_fetched') NULL — tracks image origin.
+  uploaded = manually uploaded bare filename in image_filename;
+  generated = ImageService-created storage-relative path written back by queue population;
+  url_fetched = reserved for future remote image fetch feature
 
 ---
 
