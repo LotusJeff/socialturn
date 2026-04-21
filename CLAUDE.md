@@ -221,6 +221,12 @@ scheduled_posts with future time slots up to recycle_lookahead_days out.
 - Never duplicates a post already in pending status in the queue
 - Runs in cron only — never triggered synchronously from a web request
 
+Population is gated by scheduling_enabled in account_settings. RecycleService
+checks this flag before calling populate(). populate() also checks it
+internally as a guard for any call path that bypasses RecycleService.
+When scheduling_enabled = 0, population is skipped and the existing queue
+is left untouched.
+
 ### Recycle Threshold (account_settings table)
 Each account has its own recycle_threshold (integer). When scheduled_posts
 in pending status drops below this number, the queue population engine runs
@@ -240,6 +246,11 @@ Runs every 5 minutes. For each connected platform:
 
 The cron job does not authenticate. It uses stored tokens only.
 All cron operations must be idempotent — safe to run twice without side effects.
+
+Account dispatch is gated by cron_fetchActiveAccounts() which only returns
+accounts WHERE is_active = 1 AND is_posting = 1 AND cp.is_active = 1.
+Accounts with is_posting = 0 are excluded entirely — no posts dispatch
+regardless of queue state.
 
 ### Post Edit Cascade Rule
 When a post body or attributed_to is edited, ALL pending rows in scheduled_posts
