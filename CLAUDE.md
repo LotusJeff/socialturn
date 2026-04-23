@@ -224,6 +224,12 @@ scheduled_posts with future time slots up to recycle_lookahead_days out.
   posts.image_source = 'generated' after first generation. Subsequent
   population cycles use the stored image directly — no regeneration
   occurs unless the image is invalidated by an account settings change.
+- When dynamic image settings change on an account (base image or
+  enabled toggle), all posts with image_source = 'generated' are
+  invalidated — physical files deleted via StorageService,
+  image_filename and image_source set to NULL. Regeneration occurs
+  naturally on the next population cycle using the new settings.
+  Manually uploaded images are never touched by this process.
 
 Population is gated by scheduling_enabled in account_settings. RecycleService
 checks this flag before calling populate(). populate() also checks it

@@ -373,6 +373,8 @@ function update(): void
     // Base image — optional upload; existing filename preserved via hidden input
     // -----------------------------------------------------------------------
 
+    $storage = new StorageService();
+
     $baseImageFilename = mb_substr(trim((string) ($_POST['base_image_filename_existing'] ?? '')), 0, 255) ?: null;
 
     if (isset($_FILES['base_image']) && $_FILES['base_image']['error'] === UPLOAD_ERR_OK) {
@@ -380,7 +382,6 @@ function update(): void
         $mime = getMimeType((string) $_FILES['base_image']['tmp_name']);
         if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
-            $storage = new StorageService();
             if ($storage->store((string) $_FILES['base_image']['tmp_name'], 'originals/' . $newFilename)) {
                 $baseImageFilename = $newFilename;
             }
@@ -459,6 +460,38 @@ function update(): void
                 exit;
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Generated image invalidation — runs before save
+    // -----------------------------------------------------------------------
+
+    $stmt = $dbh->prepare(
+        'SELECT dynamic_images_enabled, base_image_filename FROM accounts WHERE id = ? AND company_id = ?'
+    );
+    $stmt->execute([$accountId, $companyId]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $imageSettingsChanged = $current
+        && ((int) $current['dynamic_images_enabled'] !== $dynamicImages
+            || (string) ($current['base_image_filename'] ?? '') !== (string) ($baseImageFilename ?? ''));
+
+    if ($imageSettingsChanged) {
+        $stmt = $dbh->prepare(
+            "SELECT id, image_filename FROM posts WHERE account_id = ? AND image_source = 'generated'"
+        );
+        $stmt->execute([$accountId]);
+        $generatedPosts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($generatedPosts as $gp) {
+            if (!empty($gp['image_filename'])) {
+                $storage->delete((string) $gp['image_filename']);
+            }
+        }
+
+        $dbh->prepare(
+            "UPDATE posts SET image_filename = NULL, image_source = NULL WHERE account_id = ? AND image_source = 'generated'"
+        )->execute([$accountId]);
     }
 
     // -----------------------------------------------------------------------
