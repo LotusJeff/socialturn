@@ -818,7 +818,7 @@ function sendNow(): void
 
     // Load post — verify it belongs to this company and is active
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.body, p.attributed_to, p.post_tags, p.image_filename, p.account_id
+        'SELECT p.id, p.body, p.attributed_to, p.post_tags, p.image_filename, p.image_source, p.account_id
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
           WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
@@ -834,7 +834,8 @@ function sendNow(): void
 
     // Load connected platform for final_body assembly
     $stmt = $dbh->prepare(
-        'SELECT cp.id AS cp_id, cp.platform, a.default_tags
+        'SELECT cp.id AS cp_id, cp.platform, a.default_tags,
+                a.dynamic_images_enabled, a.base_image_filename
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
           WHERE a.id = ? AND a.company_id = ? AND a.is_active = 1'
@@ -846,6 +847,9 @@ function sendNow(): void
         error404();
     }
 
+    $storage      = new StorageService();
+    $imageService = new ImageService($storage);
+
     $finalBody = build_final_body(
         (string) $post['body'],
         (string) ($post['attributed_to'] ?? ''),
@@ -853,6 +857,17 @@ function sendNow(): void
         (string) ($account['default_tags'] ?? ''),
         (string) $account['platform']
     );
+
+    if (($post['image_source'] ?? null) === 'uploaded') {
+        $finalImageFilename = $imageService->prepareForPlatform(
+            (string) $post['image_filename'],
+            (string) $account['platform']
+        );
+    } elseif (($post['image_source'] ?? null) === 'generated') {
+        $finalImageFilename = $post['image_filename'];
+    } else {
+        $finalImageFilename = null;
+    }
 
     $dbh->prepare(
         "INSERT INTO scheduled_posts
@@ -862,7 +877,7 @@ function sendNow(): void
         $account['cp_id'],
         $postId,
         $finalBody,
-        $post['image_filename'],
+        $finalImageFilename,
     ]);
 
     $_SESSION['notification'] = [
@@ -1099,8 +1114,8 @@ function importProcess(): void
         $stmt = $dbh->prepare(
             'INSERT INTO posts
                  (account_id, body, body_normalized, attributed_to, image_filename,
-                  is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                  image_source, is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
         );
 
         foreach ($rowsToInsert as $row) {
@@ -1132,6 +1147,7 @@ function importProcess(): void
                     $normalized,
                     $row['attributed_to'],
                     $row['image_filename'],
+                    $row['image_filename'] !== null ? 'uploaded' : null,
                     $row['is_recyclable'],
                     $row['internal_note'],
                     $userId,

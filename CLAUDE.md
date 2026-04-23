@@ -637,6 +637,12 @@ Merge to master. Tag 1.0.0. Public release.
   layout matching content/index pattern
 - queue/errors: per-row Delete button removes a single post_history row via
   deleteError() action; previously no per-row delete existed
+- CSV import missing image_source — importProcess() now sets
+  image_source = 'uploaded' when image_filename is non-null,
+  matching store() and update() behavior
+- shareNow() bypassed ImageService — now routes by image_source:
+  uploaded calls prepareForPlatform(), generated uses stored path
+  directly, null sends text-only
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
