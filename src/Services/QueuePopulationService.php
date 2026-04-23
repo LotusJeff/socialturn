@@ -94,6 +94,16 @@ class QueuePopulationService
                 return $result;
             }
 
+            $postIds    = array_column($postPool, 'id');
+            $postImages = $this->fetchPostImages(array_map('intval', $postIds));
+
+            foreach ($postPool as &$post) {
+                $img = $postImages[(int) $post['id']] ?? null;
+                $post['image_filename'] = $img['image_filename'] ?? null;
+                $post['image_source']   = $img['image_source']   ?? null;
+            }
+            unset($post);
+
             $connectedPlatformId = (int) $account['connected_platform_id'];
             $postCount           = count($postPool);
 
@@ -125,8 +135,10 @@ class QueuePopulationService
                     );
                     if ($finalImageFilename !== null) {
                         $this->dbh->prepare(
-                            "UPDATE posts SET image_filename = ?, image_source = 'generated' WHERE id = ?"
-                        )->execute([$finalImageFilename, (int) $post['id']]);
+                            "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+                             VALUES (?, 0, ?, 'generated')
+                             ON DUPLICATE KEY UPDATE image_filename = VALUES(image_filename)"
+                        )->execute([(int) $post['id'], $finalImageFilename]);
                     }
                 } else {
                     $finalImageFilename = null;
@@ -256,7 +268,7 @@ class QueuePopulationService
 
         if (!empty($excludePostIds)) {
             $placeholders = implode(',', array_fill(0, count($excludePostIds), '?'));
-            $sql = "SELECT id, body, attributed_to, post_tags, image_filename, image_source
+            $sql = "SELECT id, body, attributed_to, post_tags
                       FROM posts
                      WHERE account_id = ?
                        AND is_recyclable = 1
@@ -264,7 +276,7 @@ class QueuePopulationService
                        AND id NOT IN ({$placeholders})";
             $params = array_merge([$accountId], $excludePostIds);
         } else {
-            $sql    = 'SELECT id, body, attributed_to, post_tags, image_filename, image_source FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
+            $sql    = 'SELECT id, body, attributed_to, post_tags FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1';
             $params = [$accountId];
         }
 
@@ -275,7 +287,7 @@ class QueuePopulationService
         // If exclusions left the pool empty, fall back to all recyclable posts
         if (empty($pool) && !empty($excludePostIds)) {
             $stmt = $this->dbh->prepare(
-                'SELECT id, body, attributed_to, post_tags, image_filename, image_source FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
+                'SELECT id, body, attributed_to, post_tags FROM posts WHERE account_id = ? AND is_recyclable = 1 AND is_active = 1'
             );
             $stmt->execute([$accountId]);
             $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -283,6 +295,38 @@ class QueuePopulationService
 
         shuffle($pool);
         return $pool;
+    }
+
+    /**
+     * Fetches the sort_order = 0 image for each post in one query.
+     * Returns an array keyed by post_id.
+     *
+     * @param  list<int> $postIds
+     * @return array<int, array{image_filename: string, image_source: string}>
+     */
+    private function fetchPostImages(array $postIds): array
+    {
+        if (empty($postIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+        $stmt = $this->dbh->prepare(
+            "SELECT post_id, image_filename, image_source
+               FROM post_images
+              WHERE post_id IN ({$placeholders}) AND sort_order = 0"
+        );
+        $stmt->execute($postIds);
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $map[(int) $row['post_id']] = [
+                'image_filename' => $row['image_filename'],
+                'image_source'   => $row['image_source'],
+            ];
+        }
+
+        return $map;
     }
 
     // -----------------------------------------------------------------------

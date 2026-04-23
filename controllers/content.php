@@ -166,7 +166,7 @@ function index(): void
     [$page, $perPage, $offset, $totalPages] = pagination_calc($totalItems);
 
     $stmt = $dbh->prepare(
-        "SELECT p.id, p.body, p.attributed_to, p.image_filename,
+        "SELECT p.id, p.body, p.attributed_to,
                 p.is_recyclable, p.internal_note, p.created_at,
                 a.id AS account_id, a.name AS account_name, cp.platform
            FROM posts p
@@ -343,15 +343,21 @@ function store(): void
     try {
         $dbh->prepare(
             'INSERT INTO posts
-                 (account_id, body, body_normalized, attributed_to, post_tags, image_filename,
-                  image_source, is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                 (account_id, body, body_normalized, attributed_to, post_tags,
+                  is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
         )->execute([
-            $accountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
-            $imageFilename !== null ? 'uploaded' : null,
+            $accountId, $body, normalize_body($body), $attributedTo, $postTags,
             $isRecyclable, $internalNote, $userId,
         ]);
         $postId = (int) $dbh->lastInsertId();
+
+        if ($imageFilename !== null) {
+            $dbh->prepare(
+                "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+                 VALUES (?, 0, ?, 'uploaded')"
+            )->execute([$postId, $imageFilename]);
+        }
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
@@ -418,7 +424,7 @@ function edit(): void
     }
 
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.account_id, p.body, p.attributed_to, p.post_tags, p.image_filename,
+        'SELECT p.id, p.account_id, p.body, p.attributed_to, p.post_tags,
                 p.is_recyclable, p.is_active, p.internal_note, p.created_at,
                 a.name AS account_name, cp.platform
            FROM posts p
@@ -435,6 +441,13 @@ function edit(): void
 
     authorizeAccount((int) $post['account_id']);
 
+    $stmt = $dbh->prepare(
+        'SELECT id, sort_order, image_filename, image_source
+           FROM post_images WHERE post_id = ? ORDER BY sort_order ASC'
+    );
+    $stmt->execute([$postId]);
+    $postImages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
     $accounts = content_accessibleAccounts();
 
     // Pending queue depth for this post — shown as cascade warning
@@ -445,6 +458,7 @@ function edit(): void
     $pendingCount = (int) $stmt->fetchColumn();
 
     $template->set('post',         $post);
+    $template->set('postImages',   $postImages);
     $template->set('accounts',     $accounts);
     $template->set('pendingCount', $pendingCount);
     $template->set('csrfToken',    csrf_token());
@@ -493,7 +507,7 @@ function update(): void
 
     // Load the existing post to verify ownership and get original account_id
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.account_id, p.image_filename, p.image_source
+        'SELECT p.id, p.account_id
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
           WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
@@ -507,6 +521,12 @@ function update(): void
 
     $originalAccountId = (int) $existing['account_id'];
     authorizeAccount($originalAccountId);
+
+    $stmt = $dbh->prepare(
+        'SELECT image_filename, image_source FROM post_images WHERE post_id = ? AND sort_order = 0'
+    );
+    $stmt->execute([$postId]);
+    $existingImage = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     $newAccountId = (int) ($_POST['account_id'] ?? $originalAccountId);
     if ($newAccountId !== $originalAccountId) {
@@ -535,9 +555,9 @@ function update(): void
     $imageService = new ImageService($storage);
 
     // Image upload — preserve existing if no new file uploaded
-    $imageFilename = (string) ($existing['image_filename'] ?? '');
-    $imageFilename = $imageFilename !== '' ? $imageFilename : null;
-    $imageSource   = $existing['image_source'] ?? null;
+    $imageFilename    = ($existingImage['image_filename'] ?? null) ?: null;
+    $imageSource      = $existingImage['image_source'] ?? null;
+    $newImageUploaded = false;
 
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $ext  = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -545,11 +565,29 @@ function update(): void
         if (in_array($ext, ['jpg', 'jpeg', 'png'], true) && in_array($mime, ['image/jpeg', 'image/png'], true)) {
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             if ($storage->store((string) $_FILES['image']['tmp_name'], 'originals/' . $newFilename)) {
-                $imageFilename = $newFilename;
-                $imageSource   = 'uploaded';
+                $imageFilename    = $newFilename;
+                $imageSource      = 'uploaded';
+                $newImageUploaded = true;
             }
         }
     }
+
+    // Collect image deletions and desired sort order from the image manager
+    $deleteImageIds = array_map('intval', (array) ($_POST['delete_images'] ?? []));
+    $filesToDelete  = [];
+    if (!empty($deleteImageIds)) {
+        $in   = implode(',', array_fill(0, count($deleteImageIds), '?'));
+        $stmt = $dbh->prepare(
+            "SELECT image_filename, image_source FROM post_images WHERE post_id = ? AND id IN ($in)"
+        );
+        $stmt->execute([$postId, ...$deleteImageIds]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $filesToDelete[] = $row['image_source'] === 'uploaded'
+                ? 'originals/' . $row['image_filename']
+                : $row['image_filename'];
+        }
+    }
+    $imageOrder = array_map('intval', (array) ($_POST['image_order'] ?? []));
 
     // Load account info needed for queue insertion
     $stmt = $dbh->prepare(
@@ -606,14 +644,47 @@ function update(): void
         $dbh->prepare(
             'UPDATE posts
                 SET account_id = ?, body = ?, body_normalized = ?,
-                    attributed_to = ?, post_tags = ?, image_filename = ?,
-                    image_source = ?, is_recyclable = ?, internal_note = ?
+                    attributed_to = ?, post_tags = ?, is_recyclable = ?, internal_note = ?
               WHERE id = ? AND is_active = 1'
         )->execute([
-            $newAccountId, $body, normalize_body($body), $attributedTo, $postTags, $imageFilename,
-            $imageSource, $isRecyclable, $internalNote,
+            $newAccountId, $body, normalize_body($body), $attributedTo, $postTags,
+            $isRecyclable, $internalNote,
             $postId,
         ]);
+
+        // Delete images selected for removal
+        if (!empty($deleteImageIds)) {
+            $in = implode(',', array_fill(0, count($deleteImageIds), '?'));
+            $dbh->prepare(
+                "DELETE FROM post_images WHERE post_id = ? AND id IN ($in)"
+            )->execute([$postId, ...$deleteImageIds]);
+        }
+
+        // Apply requested sort order to remaining images
+        foreach ($imageOrder as $i => $imgId) {
+            if (in_array($imgId, $deleteImageIds, true)) {
+                continue;
+            }
+            $dbh->prepare(
+                'UPDATE post_images SET sort_order = ? WHERE id = ? AND post_id = ?'
+            )->execute([$i, $imgId, $postId]);
+        }
+
+        // Insert new uploaded image if within 4-image limit
+        if ($newImageUploaded) {
+            $cnt = $dbh->prepare('SELECT COUNT(*) FROM post_images WHERE post_id = ?');
+            $cnt->execute([$postId]);
+            if ((int) $cnt->fetchColumn() < 4) {
+                $max = $dbh->prepare(
+                    'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM post_images WHERE post_id = ?'
+                );
+                $max->execute([$postId]);
+                $dbh->prepare(
+                    "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+                     VALUES (?, ?, ?, 'uploaded')"
+                )->execute([$postId, (int) $max->fetchColumn(), $imageFilename]);
+            }
+        }
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
@@ -642,6 +713,10 @@ function update(): void
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save changes. Please try again.'];
         header('Location: ' . u('content', 'edit', ['id' => $postId]));
         exit;
+    }
+
+    foreach ($filesToDelete as $path) {
+        $storage->delete($path);
     }
 
     if ($intent === 'share_now') {
@@ -818,7 +893,7 @@ function sendNow(): void
 
     // Load post — verify it belongs to this company and is active
     $stmt = $dbh->prepare(
-        'SELECT p.id, p.body, p.attributed_to, p.post_tags, p.image_filename, p.image_source, p.account_id
+        'SELECT p.id, p.body, p.attributed_to, p.post_tags, p.account_id
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
           WHERE p.id = ? AND a.company_id = ? AND p.is_active = 1'
@@ -831,6 +906,14 @@ function sendNow(): void
     }
 
     authorizeAccount((int) $post['account_id']);
+
+    $stmt = $dbh->prepare(
+        'SELECT image_filename, image_source FROM post_images WHERE post_id = ? AND sort_order = 0'
+    );
+    $stmt->execute([$postId]);
+    $postImage = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $post['image_filename'] = $postImage['image_filename'] ?? null;
+    $post['image_source']   = $postImage['image_source']   ?? null;
 
     // Load connected platform for final_body assembly
     $stmt = $dbh->prepare(
@@ -1113,9 +1196,14 @@ function importProcess(): void
     try {
         $stmt = $dbh->prepare(
             'INSERT INTO posts
-                 (account_id, body, body_normalized, attributed_to, image_filename,
-                  image_source, is_recyclable, is_active, internal_note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                 (account_id, body, body_normalized, attributed_to,
+                  is_recyclable, is_active, internal_note, created_by)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?)'
+        );
+
+        $imgStmt = $dbh->prepare(
+            "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+             VALUES (?, 0, ?, 'uploaded')"
         );
 
         foreach ($rowsToInsert as $row) {
@@ -1146,12 +1234,13 @@ function importProcess(): void
                     $row['body'],
                     $normalized,
                     $row['attributed_to'],
-                    $row['image_filename'],
-                    $row['image_filename'] !== null ? 'uploaded' : null,
                     $row['is_recyclable'],
                     $row['internal_note'],
                     $userId,
                 ]);
+                if ($row['image_filename'] !== null) {
+                    $imgStmt->execute([(int) $dbh->lastInsertId(), $row['image_filename']]);
+                }
                 $inserted++;
             }
         }

@@ -165,6 +165,8 @@ CREATE TABLE IF NOT EXISTS `accounts` (
     `is_active`             TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '0=archived (hidden from all views), 1=exists',
     `dynamic_images_enabled` TINYINT(1)  NOT NULL DEFAULT 0                 COMMENT '1 = generate image from base_image_filename when post has no image; 0 = text-only posts allowed',
     `base_image_filename`   VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Base image in originals/ used by ImageService::generateFromTemplate(); NULL = no template configured',
+    `overlay_font_color`    VARCHAR(7)    NULL     DEFAULT NULL              COMMENT 'Hex color for image overlay text, e.g. #ffffff; NULL = ImageService default',
+    `overlay_font_size`     TINYINT UNSIGNED NULL  DEFAULT NULL              COMMENT 'Font size in points for image overlay text; NULL = ImageService default',
     `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_accounts_company_id` (`company_id`),
@@ -314,8 +316,6 @@ CREATE TABLE IF NOT EXISTS `posts` (
     `body_normalized` VARCHAR(280) NOT NULL DEFAULT ''                COMMENT 'Normalized body fingerprint for duplicate detection — never displayed',
     `attributed_to`  VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Attribution/author - appended as "- Author" after post body; affects image overlay layout in ImageService. Never included in image text - post body and attribution are overlaid on image, tags are text-only.',
     `post_tags`      VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Post-specific hashtags appended after attribution and before account default tags',
-    `image_filename` VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Filename within images/; NULL=text-only post',
-    `image_source`   ENUM('uploaded','generated','url_fetched') NULL DEFAULT NULL COMMENT 'Origin of the post image: uploaded=content form upload, generated=ImageService template, url_fetched=reserved; NULL=text-only',
     `is_recyclable`  TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=re-enters queue after posting; 0=sent once then deactivated',
     `is_active`      TINYINT(1)    NOT NULL DEFAULT 1                 COMMENT '1=eligible for queue population; 0=excluded from all queues',
     `internal_note`  TEXT          NULL     DEFAULT NULL              COMMENT 'Operator note - never sent, never shown publicly, visible in UI only',
@@ -332,6 +332,24 @@ CREATE TABLE IF NOT EXISTS `posts` (
     CONSTRAINT `fk_posts_created_by`
         FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
         ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- post_images
+-- One row per image per post. sort_order controls sequence.
+-- Replaces posts.image_filename and posts.image_source.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `post_images` (
+    `id`             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    `post_id`        INT UNSIGNED  NOT NULL                           COMMENT 'Owning post',
+    `sort_order`     TINYINT UNSIGNED NOT NULL DEFAULT 0              COMMENT 'Display/posting sequence; 0 = first',
+    `image_filename` VARCHAR(255)  NOT NULL                           COMMENT 'Storage-relative path or bare filename depending on image_source',
+    `image_source`   ENUM('uploaded','generated','url_fetched') NOT NULL COMMENT 'Origin: uploaded=content form, generated=ImageService template, url_fetched=reserved',
+    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_post_images_post_sort` (`post_id`, `sort_order`),
+    CONSTRAINT `fk_post_images_post`
+        FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------

@@ -337,6 +337,12 @@ function update(): void
     $isPosting           = isset($_POST['is_posting'])           ? 1 : 0;
     $dynamicImages       = isset($_POST['dynamic_images_enabled']) ? 1 : 0;
 
+    $rawFontColor     = trim((string) ($_POST['overlay_font_color'] ?? ''));
+    $overlayFontColor = preg_match('/^#[0-9a-fA-F]{6}$/', $rawFontColor) ? $rawFontColor : '#000000';
+
+    $rawFontSize     = (int) ($_POST['overlay_font_size'] ?? 0);
+    $overlayFontSize = ($rawFontSize >= 30 && $rawFontSize <= 70) ? $rawFontSize : 48;
+
     if ($name === '' || $connectedPlatformId === 0) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account name and platform are required.'];
         header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
@@ -503,11 +509,13 @@ function update(): void
         $dbh->prepare(
             'UPDATE accounts
                 SET name = ?, connected_platform_id = ?, default_tags = ?,
-                    is_posting = ?, dynamic_images_enabled = ?, base_image_filename = ?
+                    is_posting = ?, dynamic_images_enabled = ?, base_image_filename = ?,
+                    overlay_font_color = ?, overlay_font_size = ?
               WHERE id = ? AND company_id = ?'
         )->execute([
             $name, $connectedPlatformId, $defaultTags,
             $isPosting, $dynamicImages, $baseImageFilename,
+            $overlayFontColor, $overlayFontSize,
             $accountId, $companyId,
         ]);
 

@@ -288,6 +288,7 @@ path needed. UI must display: "Post will publish within 5 minutes."
 | account_schedules | Posting interval definition per connected platform |
 | account_settings | Per-account config: recycle_threshold, lookahead_days |
 | posts | Content library — master record for all postable content |
+| post_images | One row per image per post; sort_order controls sequence; replaces posts.image_filename and posts.image_source |
 | scheduled_posts | Queue — a scheduled instance of a post at a specific datetime |
 | post_history | Immutable log of every successfully sent post |
 | admin_settings | Key/value store for all non-boot application configuration |
@@ -315,6 +316,10 @@ pending → posted | failed | skipped
 - Post-edit cascade (content body change) deletes all pending sources —
   stale final_body affects all row types equally
 
+### accounts overlay columns
+- overlay_font_color VARCHAR(7) NULL — hex color for dynamic image overlay text; NULL = ImageService default; defaults to #000000 on save if invalid
+- overlay_font_size TINYINT UNSIGNED NULL — font size 30–70; NULL = ImageService default; defaults to 48 on save if out of range
+
 ### Database Migrations
 Every schema change ships with a numbered migration file in db/migrations/.
 Format: 001_description.sql, 002_description.sql
@@ -328,13 +333,14 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 029: source ENUM('queue','share_now','scheduled') added to scheduled_posts;
   flush() and schedule-change cascade delete filter to source='queue' only
 - Migration 030: image_source ENUM('uploaded','generated','url_fetched') NULL added to posts table
+- Migration 031: post_images table created; image_filename and image_source dropped from posts;
+  overlay_font_color and overlay_font_size added to accounts
 
-### posts image columns
-- image_filename VARCHAR(255) NULL — bare filename (uploaded) or storage-relative path (generated)
-- image_source ENUM('uploaded','generated','url_fetched') NULL — tracks image origin.
-  uploaded = manually uploaded bare filename in image_filename;
-  generated = ImageService-created storage-relative path written back by queue population;
-  url_fetched = reserved for future remote image fetch feature
+### post_images columns
+- post_id — FK to posts.id, no cascade
+- sort_order TINYINT — display/posting sequence; unique with post_id; max 4 rows per post enforced at application layer
+- image_filename — bare filename (uploaded) or storage-relative path (generated)
+- image_source ENUM('uploaded','generated','url_fetched')
 
 ---
 
@@ -646,6 +652,7 @@ Merge to master. Tag 1.0.0. Public release.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
+- Dynamic image overlay font system — ImageService::generateFromTemplate() currently uses GD built-in bitmap fonts (levels 1–5, hardcoded). overlay_font_color and overlay_font_size columns exist on accounts table (migration 031) but are not yet wired into ImageService. A decision is needed on font system: GD bitmap (limited, no dependencies) vs TrueType via imagettftext() (real point sizes, requires bundled .ttf file). Design and implement once font and sizing decisions are made.
 
 ---
 

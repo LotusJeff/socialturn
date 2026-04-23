@@ -4,8 +4,9 @@
  *
  * Template variables:
  *   $post          array   Post row (id, account_id, body, attributed_to,
- *                          post_tags, image_filename, is_recyclable, is_active,
+ *                          post_tags, is_recyclable, is_active,
  *                          internal_note, created_at, account_name, platform)
+ *   $postImages    array   Rows from post_images ordered by sort_order (id, sort_order, image_filename, image_source)
  *   $accounts      array   Accessible accounts (id, name, platform) — for account reassignment
  *   $pendingCount  int     Number of pending scheduled_posts rows for this post
  *   $csrfToken     string
@@ -187,25 +188,78 @@ $currentAccountId  = (int) $post['account_id'];
                 </div>
 
                 <!-- Image -->
+                <?php
+                $postImagesJson = json_encode(
+                    array_map(function (array $img): array {
+                        $url = ($img['image_source'] === 'uploaded')
+                            ? BASE_URL . 'images/originals/' . $img['image_filename']
+                            : BASE_URL . 'images/' . $img['image_filename'];
+                        return [
+                            'id'             => (int) $img['id'],
+                            'image_filename' => $img['image_filename'],
+                            'image_source'   => $img['image_source'],
+                            'thumbnail_url'  => $url,
+                        ];
+                    }, $postImages ?? []),
+                    JSON_HEX_TAG | JSON_HEX_QUOT
+                );
+                ?>
                 <div class="mb-3">
                     <label for="image" class="form-label">Image
                         <span data-bs-toggle="tooltip"
-                              data-bs-title="JPG or PNG. Leave blank for a text-only post."
+                              data-bs-title="JPG or PNG. Up to 4 images per post. Leave blank for a text-only post."
                               class="text-muted ms-1" style="cursor:default">&#63;</span>
                         <span class="text-muted fw-normal">(optional)</span></label>
 
-                    <?php if (!empty($post['image_filename'])): ?>
-                    <div class="mb-2 text-muted small">
-                        Current image: <code><?= htmlspecialchars((string) $post['image_filename'], ENT_QUOTES, 'UTF-8') ?></code>
-                    </div>
-                    <?php endif; ?>
+                    <div x-data='{
+                        images: <?= $postImagesJson ?>,
+                        moveUp(i) {
+                            if (i === 0) return;
+                            const moved = this.images.splice(i, 1)[0];
+                            this.images.splice(i - 1, 0, moved);
+                        },
+                        moveDown(i) {
+                            if (i >= this.images.length - 1) return;
+                            const moved = this.images.splice(i, 1)[0];
+                            this.images.splice(i + 1, 0, moved);
+                        }
+                    }'>
+                        <template x-for='(img, i) in images' :key='img.id'>
+                            <div class='d-flex align-items-center gap-2 mb-2 p-2 border rounded bg-light'>
+                                <input type='hidden' :name='"image_order[" + i + "]"' :value='img.id'>
+                                <img :src='img.thumbnail_url' width='56' height='56'
+                                     class='rounded border flex-shrink-0' style='object-fit:cover'>
+                                <div class='flex-grow-1 small text-muted text-truncate'
+                                     x-text='img.image_filename'></div>
+                                <div class='d-flex flex-column gap-1'>
+                                    <button type='button'
+                                            class='btn btn-sm btn-outline-secondary py-0 lh-1'
+                                            @click='moveUp(i)' :disabled='i === 0'>&uarr;</button>
+                                    <button type='button'
+                                            class='btn btn-sm btn-outline-secondary py-0 lh-1'
+                                            @click='moveDown(i)' :disabled='i === images.length - 1'>&darr;</button>
+                                </div>
+                                <div class='form-check mb-0 flex-shrink-0'>
+                                    <input type='checkbox' class='form-check-input'
+                                           name='delete_images[]' :value='img.id'
+                                           :id='"del_img_" + img.id'>
+                                    <label :for='"del_img_" + img.id'
+                                           class='form-check-label text-danger small'>Delete</label>
+                                </div>
+                            </div>
+                        </template>
 
-                    <input type="file" id="image" name="image"
-                           class="form-control" style="max-width:400px"
-                           accept=".jpg,.jpeg,.png">
-                    <?php if (!empty($post['image_filename'])): ?>
-                    <div class="form-text">Upload a new image to replace the current one.</div>
-                    <?php endif; ?>
+                        <?php if (count($postImages ?? []) < 4): ?>
+                        <div class="mt-2">
+                            <input type="file" id="image" name="image"
+                                   class="form-control" style="max-width:400px"
+                                   accept=".jpg,.jpeg,.png">
+                            <?php if (!empty($postImages)): ?>
+                            <div class="form-text">Uploading a new image appends it after the existing ones.</div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <!-- Posting intent -->
