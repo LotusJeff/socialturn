@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.9.2] — 2026-04-24
+
+### Multi-Image Post Support
+
+- **post_images table** (migration 031) — replaces `posts.image_filename` and
+  `posts.image_source`. Each post supports up to 4 images, ordered by `sort_order`.
+  Unique constraint on `(post_id, sort_order)`; FK to `posts.id`.
+- **Sort order management and per-image delete** in the content edit view.
+- **URL image fetch** — paste a remote image URL on create or edit; fetched via curl
+  with SSL verification, validated as JPG or PNG by MIME type, stored via StorageService
+  with `image_source = 'uploaded'` — treated identically to a directly uploaded image
+  after storage. `'url_fetched'` is reserved in the ENUM but never written.
+- **Overlay font controls** — font color (hex picker) and font size (30–70 pt)
+  configurable per account for dynamic image generation. Stored as `overlay_font_color`
+  and `overlay_font_size` on the `accounts` table (migration 031).
+
+### Multi-Image Cron Dispatch
+
+- **scheduled_posts.final_image_filenames** (migration 032) — replaces
+  `final_image_filename VARCHAR`; JSON array of processed image filenames ready for
+  dispatch. NULL = text-only post.
+- **post_history.image_filenames** (migration 032) — replaces `image_filename VARCHAR`;
+  JSON array of filenames at time of posting.
+- **TwitterService** — uploads all images as separate media objects, passes all media
+  IDs to the v2 tweet endpoint in one request.
+- **FacebookService** — two-phase dispatch: each image uploaded unpublished to
+  `/{page_id}/photos`, then a single `/feed` post references all photo IDs via
+  `attached_media[]`.
+- **InstagramService** — single image uses the existing container → publish flow;
+  2–4 images use the carousel flow (per-image carousel item containers → CAROUSEL
+  container with child IDs → media_publish).
+- **QueuePopulationService** — reads all `post_images` rows per post ordered by
+  `sort_order`, calls `prepareForPlatform()` per image, stores result as JSON in
+  `final_image_filenames`.
+
+### Migrations
+
+- Run `db/migrations/031_post_images.sql` and `db/migrations/032_multi_image_filenames.sql`
+  when upgrading from 0.9.1. Fresh installs use `db/schema.sql`.
+
+### PHPUnit Fixes
+
+- `scheduling_enabled = 1` added to `seedBaseFixture()` — `DEFAULT 0` caused all
+  `QueuePopulationService` integration tests to silently fail.
+- PDO integer type cast removed from `ContentStoreTest` TC5 — PHP 8.1+ returns native
+  integers from `fetchColumn()`, not strings.
+- Phantom `tags_truncated` assertion removed from `QueuePopulationServiceTest` TC14 and
+  `RecycleServiceTest` TC5 — key never existed in `populate()`'s return value.
+
+---
+
 ## [0.9.1] — 2026-04-18
 
 ### Install Wizard & Settings UI

@@ -220,16 +220,14 @@ scheduled_posts with future time slots up to recycle_lookahead_days out.
 - Randomizes order on every population run
 - Never duplicates a post already in pending status in the queue
 - Runs in cron only — never triggered synchronously from a web request
-- Generated images are written back to posts.image_filename and
-  posts.image_source = 'generated' after first generation. Subsequent
-  population cycles use the stored image directly — no regeneration
-  occurs unless the image is invalidated by an account settings change.
-- When dynamic image settings change on an account (base image or
-  enabled toggle), all posts with image_source = 'generated' are
-  invalidated — physical files deleted via StorageService,
-  image_filename and image_source set to NULL. Regeneration occurs
-  naturally on the next population cycle using the new settings.
-  Manually uploaded images are never touched by this process.
+- Generated images are written back to post_images (image_source='generated') after
+  first generation. Subsequent population cycles use the stored row directly — no
+  regeneration occurs unless the image is invalidated by an account settings change.
+- When dynamic image settings change on an account (base image or enabled toggle),
+  all post_images rows with image_source='generated' are invalidated — physical files
+  deleted via StorageService, rows deleted from post_images. Regeneration occurs
+  naturally on the next population cycle using the new settings. Uploaded images are
+  never touched by this process.
 
 Population is gated by scheduling_enabled in account_settings. RecycleService
 checks this flag before calling populate(). populate() also checks it
@@ -288,7 +286,7 @@ path needed. UI must display: "Post will publish within 5 minutes."
 | account_schedules | Posting interval definition per connected platform |
 | account_settings | Per-account config: recycle_threshold, lookahead_days |
 | posts | Content library — master record for all postable content |
-| post_images | One row per image per post; sort_order controls sequence; replaces posts.image_filename and posts.image_source |
+| post_images | One row per image per post; up to 4 images per post ordered by sort_order |
 | scheduled_posts | Queue — a scheduled instance of a post at a specific datetime |
 | post_history | Immutable log of every successfully sent post |
 | admin_settings | Key/value store for all non-boot application configuration |
@@ -316,9 +314,17 @@ pending → posted | failed | skipped
 - Post-edit cascade (content body change) deletes all pending sources —
   stale final_body affects all row types equally
 
+### scheduled_posts image column
+- final_image_filenames TEXT NULL — JSON array of processed image filenames ready for
+  dispatch; NULL = text-only post
+
 ### accounts overlay columns
 - overlay_font_color VARCHAR(7) NULL — hex color for dynamic image overlay text; NULL = ImageService default; defaults to #000000 on save if invalid
 - overlay_font_size TINYINT UNSIGNED NULL — font size 30–70; NULL = ImageService default; defaults to 48 on save if out of range
+
+### post_history image column
+- image_filenames TEXT NULL — JSON array of image filenames at time of posting;
+  NULL = text-only post
 
 ### Database Migrations
 Every schema change ships with a numbered migration file in db/migrations/.
@@ -332,15 +338,20 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
   notify_recap_frequency, notify_recipient_email, notify_recap_last_sent)
 - Migration 029: source ENUM('queue','share_now','scheduled') added to scheduled_posts;
   flush() and schedule-change cascade delete filter to source='queue' only
-- Migration 030: image_source ENUM('uploaded','generated','url_fetched') NULL added to posts table
+- Migration 030: image_source ENUM('uploaded','generated','url_fetched') NULL added to posts (column subsequently dropped in migration 031)
 - Migration 031: post_images table created; image_filename and image_source dropped from posts;
   overlay_font_color and overlay_font_size added to accounts
+- Migration 032: final_image_filename dropped from scheduled_posts, replaced by
+  final_image_filenames TEXT NULL (JSON array); image_filename dropped from post_history,
+  replaced by image_filenames TEXT NULL (JSON array)
 
 ### post_images columns
-- post_id — FK to posts.id, no cascade
-- sort_order TINYINT — display/posting sequence; unique with post_id; max 4 rows per post enforced at application layer
+- id — auto-increment primary key
+- post_id — FK to posts.id (no cascade)
+- sort_order TINYINT — display/posting sequence; UNIQUE with post_id; max 4 rows per post enforced at application layer
 - image_filename — bare filename (uploaded) or storage-relative path (generated)
 - image_source ENUM('uploaded','generated','url_fetched')
+- created_at — auto-set timestamp
 
 ---
 
@@ -385,8 +396,8 @@ instantiation if S3 is selected but the SDK is absent.
 
 Driver-specific behaviour of `retrieve()`:
 - Local driver returns an absolute filesystem path — NOT a public URL.
-  FacebookService and InstagramService must use BASE_URL . 'images/' . $filename
-  to construct public URLs for Meta Graph API image posts.
+  Meta API image posts require a public URL — use resolveImageUrl($filename)
+  inherited from AbstractMetaService, which handles local vs S3 automatically.
 - S3 driver returns a public HTTPS URL — suitable for Meta Graph API directly.
 - TwitterService must always use getReadStream() for media uploads, never retrieve().
 
@@ -464,100 +475,45 @@ with PHP hosting. These standards are non-negotiable for every release:
 Do not skip ahead. Each phase depends on the previous being stable.
 
 ### Phase 1 — Foundation ✓ COMPLETE
-- Composer setup and PSR-4 autoloading
-- Fix password hashing (bcrypt)
-- Fix invite tokens (random_bytes)
-- Add config.php to .gitignore, create config.sample.php
-- PHP 8.2 compatibility pass — fix all deprecations
-- .htaccess security rules for config.php and images/
+Composer setup, PSR-4 autoloading, bcrypt passwords, secure invite tokens,
+config.php in .gitignore, PHP 8.2 compatibility, .htaccess security rules.
 
 ### Phase 2 — Database ✓ COMPLETE
-- Design and create new schema.sql
-- Write migration files for upgrade from original schema
-- Update db() initialization for new table structure
+schema.sql, migration files for legacy upgrade path, PDO initialization.
 
 ### Phase 3 — Queue Engine ✓ COMPLETE
-- Rebuild schedule definition system
-- Rebuild queue population engine with recycle threshold per account
-- Implement is_recyclable toggle on posts
-- Rebuild cron controller with token-based auth (no live authentication)
-- Implement post_history logging
-- Implement idempotency checks
+Schedule definitions, queue population engine, is_recyclable toggle, cron controller
+with token-based auth, post_history logging, idempotency checks.
 
 ### Phase 4 — Platform Integrations ✓ COMPLETE
-- src/Services/TwitterService.php — API v2, posting only
-- src/Services/FacebookService.php — Graph API v19+, Page tokens
-- src/Services/InstagramService.php — Graph API via Facebook app
-- Token storage and auto-refresh for Facebook/Instagram
-- AbstractMetaService base class for shared Meta infrastructure
-- cron_dispatchToPlatform() wired in controllers/cron.php
+TwitterService, FacebookService, InstagramService, AbstractMetaService, token storage
+and auto-refresh for Facebook/Instagram, cron_dispatchToPlatform().
 
 ### Phase 5 — Image Creation ✓ COMPLETE
-- Image generation pipeline before posting
-- Support for dynamic text overlay on images
-- Image resizing per platform requirements
+Image generation pipeline, dynamic text overlay on base template images,
+per-platform resizing.
 
 ### Phase 6 — UI Modernization ✓ COMPLETE
-- Account connection and management UI
-  - OAuth connect flow per platform (Twitter, Facebook, Instagram)
-  - Automatic token exchange (short-lived → long-lived) for Meta
-  - Page/account selection UI after Facebook OAuth
-  - Account listing with connection status (valid/expired/needs reconnect)
-  - Disconnect flow (revoke + delete token)
-  - Unlimited accounts per platform type
-- Bootstrap 5 upgrade
-- Queue management views
-- Recycle toggle per post
-- Schedule configuration per account
-- Content calendar view
-- Reconnect flow for expired tokens
+OAuth connect flow per platform, page/account selection, account listing with status,
+disconnect flow, Bootstrap 5, queue management views, recycle toggle, schedule
+configuration, content calendar.
 
 ### Phase 7 — Content Import ✓ COMPLETE
-- CSV bulk import (post body + optional image filename)
-  - importForm(), importSample(), importProcess(), importErrors() in controllers/content.php
-  - views/content/import.php — upload form with per-account selection, result summary panel
-  - views/content/import_sample.csv — downloadable sample with comment rows
-  - BOM detection, header-column mapping, 5,000-row cap, character limit enforcement
-  - Missing image filenames produce a warning; row is imported without image
-  - Error report downloadable as text file after import
-- Manual post entry UI — create() / store() / edit() / update() in controllers/content.php
+CSV bulk import (5,000-row cap, BOM detection, header mapping, error report),
+manual post entry UI.
 
 ### Phase 7b — Duplicate Detection ✓ COMPLETE
-- normalize_body() added to libraries/shared.php
-  - Algorithm: lowercase → strip URLs → strip punctuation → collapse whitespace → trim → truncate 280
-  - Called in store(), update(), and importProcess() on every write
-- Migration 023: body_normalized VARCHAR(280) NOT NULL DEFAULT '' on posts table
-  - Non-unique index on (account_id, body_normalized)
-  - No backfill — existing rows normalize lazily on first edit or re-import
-- Import duplicate detection in importProcess()
-  - Pre-transaction lookup: one query per selected account loads existing body_normalized values
-  - $seenThisImport tracks within-file duplicates per account
-  - Duplicate rows increment $skipped and add to $warnings[]; has_errors not set
-- content_duplicates() action — scoped to accessible accounts
-  - Correlated subquery finds body_normalized values with COUNT > 1 per account
-  - Results grouped in PHP: $groups[$accountId]['posts'][$normalized][]
-  - Route: content/content_duplicates (underscore passes through router unchanged; no PHP built-in collision)
-- views/content/duplicates.php — grouped cards per account, per-post Delete action
-- Find Duplicates button added to content library header action bar
+normalize_body() in libraries/shared.php; write-time and import-time duplicate
+detection; duplicate manager view.
 
 ### Phase 8a — Unit Testing ✓ COMPLETE
-PHPUnit installed as a dev-only Composer dependency. Test cases written
-locally covering all key components. Pure logic tests (normalize_body,
-TagAppenderService, CSV parsing, input validation) run locally on Windows.
-Full test suite executed on remote Linux server via SSH. Platform API calls
-mocked — no real posts during testing. Tests run against a seeded test
-database.
+PHPUnit integration tests against a real test database; platform API calls mocked.
 
 ### Phase 8b — Codebase Cleanup ✓ COMPLETE
-Remove all legacy files, functions, and components no longer in use.
-Dead code audit across all controllers, views, and libraries. Collapse
-all migrations into a single unified schema.sql for fresh installs.
-Verify config.sample.php matches everything used in the codebase.
+Dead code removed, schema.sql consolidated.
 
 ### Phase 8c — Release Packaging ✓ COMPLETE
-INSTALL.md complete with step-by-step setup and API credential instructions.
-README.md with screenshots. CHANGELOG.md current. config.sample.php
-verified. Tag 0.9.0 on dev branch.
+INSTALL.md, README.md, CHANGELOG.md complete. Tag 0.9.0 on dev branch.
 
 ### Phase 9 — Testing & Bug Fix — IN PROGRESS
 Deploy to remote Linux server following INSTALL.md as a clean install test.
@@ -569,6 +525,13 @@ Architectural changes completed during Phase 9:
 - Phase A: Query-string routing replaces PATH_INFO/rewrite routing
 - Phase B: config.php replaced by socialturn.ini + boot.php +
   install wizard + admin settings screen
+- Multi-image post library: post_images table (migration 031), up to 4 images per
+  post, sort order management, per-image delete in content edit view, URL image
+  fetch via curl
+- Multi-image cron dispatch (migration 032): all three platform services updated;
+  Twitter multi-upload; Facebook two-phase unpublished + /feed; Instagram carousel
+  flow for 2–4 images
+- Overlay font color and size configurable per account for dynamic image generation
 
 ### Phase 10 — 1.0 Release
 Merge to master. Tag 1.0.0. Public release.
@@ -597,58 +560,27 @@ Merge to master. Tag 1.0.0. Public release.
 ## Phase 9 Bug Fix Log
 
 ### Fixed
-- `log()` naming collision in `accounts.php` — renamed to `accounts_log()` (PHP built-in conflict)
-- Facebook OAuth initiated without credential check — pre-flight validation added matching Twitter pattern
-- Alpine.js x-data double-quote conflict in `views/accounts/edit.php` — outer attribute delimiter changed to single quotes
-- Account schedule save — slots deleted unconditionally on every save regardless of schedule_type — fixed to branch by schedule type
-- Account schedule save — `active_hours_start` and `active_hours_end` defined NOT NULL prevented nulling for time_specific mode — migration 024 added to allow NULL
-- Active hours boundary — extended to support 24 (end of day) so posts can run through 23:xx
-- Cross-midnight validation added — server-side check rejects `active_hours_start >= active_hours_end` with clear error message
-- `index.php` PATH_INFO fallback — added QUERY_STRING parsing for nginx subdirectory installs using if/rewrite pattern
-- Postmark API endpoint — `http://` changed to `https://` in `libraries/postmark.class.php`
-- `nginx.conf.sample` — updated with verified working subdirectory install config using if/rewrite pattern and exact match deny rules
-- `INSTALL.md` — updated with subdirectory install instructions, file permissions step, Postmark sender verification, DKIM/SPF DNS guidance
-- Twitter credential naming — `config.sample.php` and `INSTALL.md` updated to note Consumer Key/Consumer Secret labeling in Twitter developer portal
-- Migration 024 — `active_hours_start` and `active_hours_end` changed to NULL DEFAULT NULL in `account_schedules`
-- Spurious "link expired or already used" notification after successful password set — two-part fix: (1) flash notification block moved outside `$noextra` guard in `views/header.php` so notifications are shown and cleared on all pages; (2) `forgot()` in `controllers/users.php` now deletes existing unused tokens before inserting a new one, preventing stale token accumulation
-- Pending invited users not shown on team page — second query added for invites WHERE
-  used_at IS NULL; resend and revoke invite actions added to controllers/team.php
-- Posting intent system added to content/create and content/edit: Save to Library /
-  Share Now / Future Schedule radio selector replaces bottom buttons; Future Schedule
-  supports date/time input up to 30 days out with timezone-aware UTC conversion at
-  write time and account-timezone display in queue views
-- Per-post hashtag field (post_tags) added to posts table (migration 027); merged with
-  account default_tags in build_final_body() via TagAppenderService; both tag sources
-  are deduplicated before appending
-- Email notifications via Postmark: failure alert sent on every failed post; daily/weekly
-  recap email with per-account queue stats (recycled, pending, published, failed);
-  NotificationService in src/Services/; four notify_* keys in admin_settings
-  (migration 028); load_admin_settings() $keyMap must include all new keys or constants
-  are never defined in any context
-- datify() gains optional string $timezone = 'UTC' parameter; non-UTC path converts UTC
-  datetime to account timezone via DateTime::setTimezone() and appends DST-aware
-  abbreviation (e.g. EDT); queue view, history, and errors pass account timezone;
-  failure alert email displays account-local time; queue_loadAccount() and
-  cron_fetchActiveAccounts() JOIN account_schedules to supply timezone
-- Queue interval scheduling anchored to active_hours_start:00:00 today in account
-  timezone instead of NOW()-relative snap; walks forward by $intervalMinutes until
-  first future slot, preserving configured interval rhythm from the start hour
-- scheduled_posts source column (migration 029) distinguishes queue/share_now/scheduled
-  rows; flush() and schedule-change cascade deletes filter to source='queue' only,
-  preserving user-intentional Share Now and Future Schedule rows
-- Tooltip pattern formalised and applied globally: static form helper text converted
-  from visible form-text divs to Bootstrap 5 tooltip icons across all form views;
-  global tooltip init in views/footer.php
-- queue/view and queue/history migrated from table layout to list-group single-row
-  layout matching content/index pattern
-- queue/errors: per-row Delete button removes a single post_history row via
-  deleteError() action; previously no per-row delete existed
-- CSV import missing image_source — importProcess() now sets
-  image_source = 'uploaded' when image_filename is non-null,
-  matching store() and update() behavior
-- shareNow() bypassed ImageService — now routes by image_source:
-  uploaded calls prepareForPlatform(), generated uses stored path
-  directly, null sends text-only
+- Post body assembly centralized — build_final_body() in libraries/shared.php is the
+  single source of truth for final body construction (body + attribution + per-post tags
+  + account default tags, deduplicated and platform-limited). Called by
+  QueuePopulationService::populate(), content/store(), and content/update().
+- Queue pending counts scoped incorrectly when accounts share connected platforms —
+  join corrected to route through posts.account_id; counts now correctly reflect
+  per-account pending state.
+- Multi-image post library (migration 031): post_images table replaces
+  posts.image_filename and posts.image_source; up to 4 images per post with sort_order;
+  store(), update(), shareNow(), and QueuePopulationService updated to read/write
+  post_images; URL image fetch via curl writes a post_images row with image_source='uploaded'.
+- Multi-image cron dispatch (migration 032): scheduled_posts.final_image_filenames and
+  post_history.image_filenames replace single VARCHAR columns with JSON TEXT arrays;
+  QueuePopulationService processes all post_images rows per post; TwitterService passes
+  multiple media IDs; FacebookService uses two-phase unpublished upload + /feed
+  attached_media[]; InstagramService uses carousel container flow for 2–4 images.
+- Integration test fixture defects: scheduling_enabled=1 added to seedBaseFixture()
+  (DEFAULT 0 caused all QueuePopulationService tests to silently fail);
+  PDO native integer return fixed in ContentStoreTest TC5 (PHP 8.1+);
+  phantom tags_truncated assertion removed from QueuePopulationServiceTest TC14 and
+  RecycleServiceTest TC5.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
@@ -659,7 +591,7 @@ Merge to master. Tag 1.0.0. Public release.
 ## Future Roadmap (v0.9.5) — Platform Connections and Posting Schedules Redesign
 
 **Required before v1.0.0 tag. Do not begin implementation until:**
-- Multiple images per post feature is complete
+- ✓ Multiple images per post — complete (migrations 031–032, multi-image cron dispatch)
 - Facebook/Instagram posting is manually tested and confirmed working
 - All Phase 9 bugs are resolved and tested
 
@@ -784,6 +716,14 @@ script) calls the SocialTurn REST API to create posts — no direct database
 access required. This keeps AI tooling decoupled from the core application
 and allows any model or provider to be used without changes to SocialTurn.
 Do not build AI generation into the application itself.
+
+### Reddit Posting
+Support posting to Reddit via the Reddit API with full queue engine integration —
+text posts and image posts, per-account scheduling, OAuth authentication.
+
+### Link Shortener
+Integrate TinyURL API to automatically shorten URLs in post bodies before sending.
+Configurable per account; API key stored in admin_settings.
 
 ---
 
