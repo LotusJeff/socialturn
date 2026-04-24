@@ -339,7 +339,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                            value="<?= htmlspecialchars((string) $account['base_image_filename'], ENT_QUOTES, 'UTF-8') ?>">
                     <?php endif; ?>
 
-                    <div class="mb-0">
+                    <div class="mb-3">
                         <label for="base_image" class="form-label">
                             <?= !empty($account['base_image_filename']) ? 'Replace base image' : 'Upload base image' ?>
                             <span data-bs-toggle="tooltip"
@@ -349,6 +349,30 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                         <input type="file" id="base_image" name="base_image"
                                class="form-control" style="max-width:400px"
                                accept=".jpg,.jpeg,.png">
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-auto">
+                            <label for="overlay_font_color" class="form-label">Overlay text color
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Hex color for the text overlay on generated images."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
+                            <input type="color" id="overlay_font_color" name="overlay_font_color"
+                                   class="form-control form-control-color"
+                                   value="<?= htmlspecialchars((string) ($account['overlay_font_color'] ?? '#000000'), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+                        <div class="col-auto">
+                            <label for="overlay_font_size" class="form-label">Overlay font size
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Font size in points for the text overlay. Accepted range: 30–70."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                            </label>
+                            <input type="number" id="overlay_font_size" name="overlay_font_size"
+                                   class="form-control" style="max-width:100px"
+                                   min="30" max="70"
+                                   value="<?= (int) ($account['overlay_font_size'] ?? 48) ?>">
+                        </div>
                     </div>
 
                 </div>
