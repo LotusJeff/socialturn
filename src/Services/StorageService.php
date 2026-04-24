@@ -86,7 +86,8 @@ class StorageService
 
         $destination = $this->localPath($filename);
 
-        if (!@copy($tmpPath, $destination)) {
+        if (!copy($tmpPath, $destination)) {
+            error_log("StorageService::store() failed — could not copy '{$tmpPath}' to '{$destination}'");
             return false;
         }
 

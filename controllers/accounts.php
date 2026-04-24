@@ -383,6 +383,8 @@ function update(): void
 
     $baseImageFilename = mb_substr(trim((string) ($_POST['base_image_filename_existing'] ?? '')), 0, 255) ?: null;
 
+    $uploadFailed = false;
+
     if (isset($_FILES['base_image']) && $_FILES['base_image']['error'] === UPLOAD_ERR_OK) {
         $ext  = strtolower((string) pathinfo((string) $_FILES['base_image']['name'], PATHINFO_EXTENSION));
         $mime = getMimeType((string) $_FILES['base_image']['tmp_name']);
@@ -390,8 +392,19 @@ function update(): void
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             if ($storage->store((string) $_FILES['base_image']['tmp_name'], 'originals/' . $newFilename)) {
                 $baseImageFilename = $newFilename;
+            } else {
+                $uploadFailed = true;
             }
         }
+    }
+
+    if ($uploadFailed) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Image upload failed. Check that the images/ directory is writable by the web server.',
+        ];
+        header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
+        exit;
     }
 
     if ($dynamicImages === 1 && empty($baseImageFilename)) {
@@ -484,19 +497,24 @@ function update(): void
 
     if ($imageSettingsChanged) {
         $stmt = $dbh->prepare(
-            "SELECT id, image_filename FROM posts WHERE account_id = ? AND image_source = 'generated'"
+            "SELECT pi.id, pi.image_filename
+               FROM post_images pi
+               JOIN posts p ON pi.post_id = p.id
+              WHERE p.account_id = ? AND pi.image_source = 'generated'"
         );
         $stmt->execute([$accountId]);
-        $generatedPosts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $generatedImages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($generatedPosts as $gp) {
-            if (!empty($gp['image_filename'])) {
-                $storage->delete((string) $gp['image_filename']);
+        foreach ($generatedImages as $gi) {
+            if (!empty($gi['image_filename'])) {
+                $storage->delete((string) $gi['image_filename']);
             }
         }
 
         $dbh->prepare(
-            "UPDATE posts SET image_filename = NULL, image_source = NULL WHERE account_id = ? AND image_source = 'generated'"
+            "DELETE pi FROM post_images pi
+               JOIN posts p ON pi.post_id = p.id
+              WHERE p.account_id = ? AND pi.image_source = 'generated'"
         )->execute([$accountId]);
     }
 

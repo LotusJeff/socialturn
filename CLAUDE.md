@@ -581,6 +581,14 @@ Merge to master. Tag 1.0.0. Public release.
   PDO native integer return fixed in ContentStoreTest TC5 (PHP 8.1+);
   phantom tags_truncated assertion removed from QueuePopulationServiceTest TC14 and
   RecycleServiceTest TC5.
+- accounts/update image upload failed silently — StorageService::store() used @copy() which suppressed
+  write permission failures; @ removed, error_log() added with source and destination paths;
+  $uploadFailed flag added in controller so storage failure exits with an actionable error message
+  distinct from the "base image required" validation.
+- accounts/update fatal error on save when dynamic images enabled — $imageSettingsChanged block
+  referenced image_filename and image_source on posts table; both columns were moved to post_images
+  in migration 031 and dropped from posts; SELECT and DELETE updated to query post_images JOIN posts
+  on post_id filtered by account_id and image_source = 'generated'.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
