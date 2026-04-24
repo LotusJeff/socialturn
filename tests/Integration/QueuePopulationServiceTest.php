@@ -311,7 +311,8 @@ class QueuePopulationServiceTest extends IntegrationTestCase
 
         $svc = new QueuePopulationService(static::$pdo, $this->tagger, $imageService);
 
-        $this->insertPost(1, 'Post with image', imageFilename: 'original.jpg');
+        $postId = $this->insertPost(1, 'Post with image');
+        $this->insertPostImage($postId, 'original.jpg');
 
         $svc->populate(1);
 

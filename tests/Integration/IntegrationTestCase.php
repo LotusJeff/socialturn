@@ -41,6 +41,7 @@ abstract class IntegrationTestCase extends TestCase
     private const DATA_TABLES = [
         'post_history',
         'scheduled_posts',
+        'post_images',
         'posts',
         'account_schedule_slots',
         'account_schedules',
@@ -194,25 +195,38 @@ abstract class IntegrationTestCase extends TestCase
         int     $isRecyclable    = 1,
         int     $isActive        = 1,
         ?string $bodyNormalized  = null,
-        ?string $imageFilename   = null,
         ?string $attributedTo    = null
     ): int {
         $stmt = static::$pdo->prepare(
             'INSERT INTO posts
                  (account_id, body, body_normalized, attributed_to,
-                  image_filename, is_recyclable, is_active, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)'
+                  is_recyclable, is_active, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, 1)'
         );
         $stmt->execute([
             $accountId,
             $body,
             $bodyNormalized ?? normalize_body($body),
             $attributedTo,
-            $imageFilename,
             $isRecyclable,
             $isActive,
         ]);
         return (int) static::$pdo->lastInsertId();
+    }
+
+    /**
+     * Inserts a post_images row for the given post and returns nothing.
+     */
+    protected function insertPostImage(
+        int    $postId,
+        string $imageFilename,
+        int    $sortOrder   = 0,
+        string $imageSource = 'uploaded'
+    ): void {
+        static::$pdo->prepare(
+            'INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+             VALUES (?, ?, ?, ?)'
+        )->execute([$postId, $sortOrder, $imageFilename, $imageSource]);
     }
 
     /**
