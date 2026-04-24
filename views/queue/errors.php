@@ -5,7 +5,7 @@
  * Template variables:
  *   $account          array   Account row (id, name, is_posting, platform, platform_name)
  *   $rows             array   Failed post_history rows (current page):
- *                               id, body_snapshot, image_filename,
+ *                               id, body_snapshot, image_filenames,
  *                               error_message, posted_at, post_id
  *   $totalCount       int     Filter-aware failed count (for tab badge and pagination)
  *   $search           string  Current ?q= search value, or ''

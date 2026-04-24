@@ -5,7 +5,7 @@
  * Template variables:
  *   $account          array   Account row (id, name, is_posting, platform, platform_name)
  *   $rows             array   Pending scheduled_posts rows (current page):
- *                               id, scheduled_time, final_body, final_image_filename,
+ *                               id, scheduled_time, final_body, final_image_filenames,
  *                               post_id, attributed_to
  *   $pendingTotal     int     Filter-aware pending count (for subtitle and pagination)
  *   $search           string  Current ?q= search value, or ''
@@ -97,7 +97,7 @@
                 <!-- Body + Has image badge — flexible middle -->
                 <div class="flex-grow-1 small text-truncate" style="min-width:0">
                     <?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?>
-                    <?php if (!empty($row['final_image_filename'])): ?>
+                    <?php if (!empty($row['final_image_filenames'])): ?>
                     <span class="badge bg-light text-dark border ms-1">Has image</span>
                     <?php endif; ?>
                 </div>

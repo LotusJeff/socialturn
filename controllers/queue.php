@@ -224,7 +224,7 @@ function view(): void
 
     // Data query — same conditions, paginated
     $stmt = $dbh->prepare(
-        "SELECT sp.id, sp.scheduled_time, sp.final_body, sp.final_image_filename,
+        "SELECT sp.id, sp.scheduled_time, sp.final_body, sp.final_image_filenames,
                 p.id AS post_id, p.attributed_to
            FROM scheduled_posts sp
            JOIN posts p ON p.id = sp.post_id
@@ -308,7 +308,7 @@ function history(): void
 
     // Data query — same conditions, paginated
     $stmt = $dbh->prepare(
-        "SELECT ph.id, ph.body_snapshot, ph.image_filename, ph.platform_post_id,
+        "SELECT ph.id, ph.body_snapshot, ph.image_filenames, ph.platform_post_id,
                 ph.status, ph.posted_at, ph.post_id
            FROM post_history ph
            JOIN posts p ON p.id = ph.post_id
@@ -383,7 +383,7 @@ function errors(): void
 
     // Data query — same conditions, paginated
     $stmt = $dbh->prepare(
-        "SELECT ph.id, ph.body_snapshot, ph.image_filename,
+        "SELECT ph.id, ph.body_snapshot, ph.image_filenames,
                 ph.error_message, ph.posted_at, ph.post_id
            FROM post_history ph
            JOIN posts p ON p.id = ph.post_id
@@ -576,7 +576,7 @@ function queue_flush(): void
  * The next cron cycle (within 5 minutes) will pick it up and post it.
  *
  * Does NOT create a new row. Does NOT touch the posts library or cascade the
- * queue. The existing final_body and final_image_filename are sent as-is.
+ * queue. The existing final_body and final_image_filenames are sent as-is.
  * Redirects back preserving search, page, and per_page.
  */
 function sharenow(): void

@@ -589,6 +589,13 @@ Merge to master. Tag 1.0.0. Public release.
   referenced image_filename and image_source on posts table; both columns were moved to post_images
   in migration 031 and dropped from posts; SELECT and DELETE updated to query post_images JOIN posts
   on post_id filtered by account_id and image_source = 'generated'.
+- queue/view fatal error — scheduled_posts.final_image_filename renamed to final_image_filenames
+  in migration 032; stale singular references updated in controllers/queue.php (SELECT) and
+  views/queue/view.php (doc comment and !empty() check).
+- queue/history and queue/errors fatal errors — post_history.image_filename renamed to
+  image_filenames in migration 032; stale singular references updated in controllers/queue.php
+  (SELECT in history() and errors()) and views/queue/history.php (doc comment and !empty() check)
+  and views/queue/errors.php (doc comment).
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5

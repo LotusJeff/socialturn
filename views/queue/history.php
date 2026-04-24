@@ -5,7 +5,7 @@
  * Template variables:
  *   $account          array   Account row (id, name, is_posting, platform, platform_name)
  *   $rows             array   post_history rows (current page):
- *                               id, body_snapshot, image_filename, platform_post_id,
+ *                               id, body_snapshot, image_filenames, platform_post_id,
  *                               status, posted_at, post_id
  *   $totalCount       int     Filter-aware count (for tab badge and pagination)
  *   $failedCount      int     Unfiltered failed count (for Errors tab badge)
@@ -103,7 +103,7 @@
                 <!-- Body + Has image badge — flexible middle -->
                 <div class="flex-grow-1 small text-truncate" style="min-width:0">
                     <?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?>
-                    <?php if (!empty($row['image_filename'])): ?>
+                    <?php if (!empty($row['image_filenames'])): ?>
                     <span class="badge bg-light text-dark border ms-1">Has image</span>
                     <?php endif; ?>
                 </div>
