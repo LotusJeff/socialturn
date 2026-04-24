@@ -596,6 +596,11 @@ Merge to master. Tag 1.0.0. Public release.
   image_filenames in migration 032; stale singular references updated in controllers/queue.php
   (SELECT in history() and errors()) and views/queue/history.php (doc comment and !empty() check)
   and views/queue/errors.php (doc comment).
+- Queue population never triggered for account 2 — RecycleService::countPendingPosts() scoped
+  the pending count to connected_platform_id only; accounts sharing a connected platform pooled
+  their counts, causing account 2's depth to always read as above threshold; fixed by joining
+  through posts.account_id so the count is scoped to the specific account; same class of bug
+  as the queue view display count fix applied in an earlier session
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5

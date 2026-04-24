@@ -57,7 +57,7 @@ class RecycleService
                 return null;
             }
 
-            $depth     = $this->countPendingPosts($connectedPlatformId);
+            $depth     = $this->countPendingPosts($connectedPlatformId, $accountId);
             $threshold = $this->fetchThreshold($accountId);
 
             if ($depth <= $threshold) {
@@ -99,15 +99,17 @@ class RecycleService
     /**
      * Counts pending rows in scheduled_posts for a given connected_platform_id.
      */
-    private function countPendingPosts(int $connectedPlatformId): int
+    private function countPendingPosts(int $connectedPlatformId, int $accountId): int
     {
         $stmt = $this->dbh->prepare(
             "SELECT COUNT(*)
-               FROM scheduled_posts
-              WHERE connected_platform_id = ?
-                AND status = 'pending'"
+               FROM scheduled_posts sp
+               JOIN posts p ON sp.post_id = p.id
+              WHERE sp.connected_platform_id = ?
+                AND p.account_id = ?
+                AND sp.status = 'pending'"
         );
-        $stmt->execute([$connectedPlatformId]);
+        $stmt->execute([$connectedPlatformId, $accountId]);
 
         return (int) $stmt->fetchColumn();
     }
