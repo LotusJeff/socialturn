@@ -425,22 +425,37 @@ function store(): void
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
-            if (!empty($imageFilename)) {
-                $finalImageFilename = $imageService->prepareForPlatform($imageFilename, (string) $account['platform']);
-            } elseif ((int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
-                $finalImageFilename = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
-            } else {
-                $finalImageFilename = null;
+            $imgStmt   = $dbh->prepare(
+                'SELECT image_filename, image_source FROM post_images WHERE post_id = ? ORDER BY sort_order ASC'
+            );
+            $imgStmt->execute([$postId]);
+            $processed = [];
+            foreach ($imgStmt->fetchAll(PDO::FETCH_ASSOC) as $img) {
+                if ($img['image_source'] === 'uploaded') {
+                    $p = $imageService->prepareForPlatform($img['image_filename'], (string) $account['platform']);
+                    if ($p !== null) {
+                        $processed[] = $p;
+                    }
+                } elseif ($img['image_source'] === 'generated') {
+                    $processed[] = $img['image_filename'];
+                }
             }
+            if (empty($processed) && (int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
+                $gen = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
+                if ($gen !== null) {
+                    $processed[] = $gen;
+                }
+            }
+            $finalImageFilenames = empty($processed) ? null : json_encode($processed);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
-                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filenames)
                  VALUES (?, ?, ?, 'pending', ?, ?, ?)"
             )->execute([
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
                 $intent === 'share_now' ? 'share_now' : 'scheduled',
-                $finalBody, $finalImageFilename,
+                $finalBody, $finalImageFilenames,
             ]);
         }
 
@@ -826,22 +841,37 @@ function update(): void
 
         if ($intent === 'share_now' || $intent === 'schedule') {
             $finalBody = build_final_body($body, $attributedTo, $postTags, $account['default_tags'], (string) $account['platform']);
-            if (!empty($imageFilename)) {
-                $finalImageFilename = $imageService->prepareForPlatform($imageFilename, (string) $account['platform']);
-            } elseif ((int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
-                $finalImageFilename = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
-            } else {
-                $finalImageFilename = null;
+            $imgStmt   = $dbh->prepare(
+                'SELECT image_filename, image_source FROM post_images WHERE post_id = ? ORDER BY sort_order ASC'
+            );
+            $imgStmt->execute([$postId]);
+            $processed = [];
+            foreach ($imgStmt->fetchAll(PDO::FETCH_ASSOC) as $img) {
+                if ($img['image_source'] === 'uploaded') {
+                    $p = $imageService->prepareForPlatform($img['image_filename'], (string) $account['platform']);
+                    if ($p !== null) {
+                        $processed[] = $p;
+                    }
+                } elseif ($img['image_source'] === 'generated') {
+                    $processed[] = $img['image_filename'];
+                }
             }
+            if (empty($processed) && (int) $account['dynamic_images_enabled'] === 1 && !empty($account['base_image_filename'])) {
+                $gen = $imageService->generateFromTemplate((string) $account['base_image_filename'], $body, (string) $account['platform'], $attributedTo);
+                if ($gen !== null) {
+                    $processed[] = $gen;
+                }
+            }
+            $finalImageFilenames = empty($processed) ? null : json_encode($processed);
             $dbh->prepare(
                 "INSERT INTO scheduled_posts
-                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+                     (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filenames)
                  VALUES (?, ?, ?, 'pending', ?, ?, ?)"
             )->execute([
                 $account['cp_id'], $postId,
                 $intent === 'schedule' ? $scheduledTime : (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
                 $intent === 'share_now' ? 'share_now' : 'scheduled',
-                $finalBody, $finalImageFilename,
+                $finalBody, $finalImageFilenames,
             ]);
         }
 
@@ -1046,12 +1076,10 @@ function sendNow(): void
     authorizeAccount((int) $post['account_id']);
 
     $stmt = $dbh->prepare(
-        'SELECT image_filename, image_source FROM post_images WHERE post_id = ? AND sort_order = 0'
+        'SELECT image_filename, image_source FROM post_images WHERE post_id = ? ORDER BY sort_order ASC'
     );
     $stmt->execute([$postId]);
-    $postImage = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    $post['image_filename'] = $postImage['image_filename'] ?? null;
-    $post['image_source']   = $postImage['image_source']   ?? null;
+    $postImages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Load connected platform for final_body assembly
     $stmt = $dbh->prepare(
@@ -1079,26 +1107,28 @@ function sendNow(): void
         (string) $account['platform']
     );
 
-    if (($post['image_source'] ?? null) === 'uploaded') {
-        $finalImageFilename = $imageService->prepareForPlatform(
-            (string) $post['image_filename'],
-            (string) $account['platform']
-        );
-    } elseif (($post['image_source'] ?? null) === 'generated') {
-        $finalImageFilename = $post['image_filename'];
-    } else {
-        $finalImageFilename = null;
+    $processed = [];
+    foreach ($postImages as $img) {
+        if ($img['image_source'] === 'uploaded') {
+            $p = $imageService->prepareForPlatform($img['image_filename'], (string) $account['platform']);
+            if ($p !== null) {
+                $processed[] = $p;
+            }
+        } elseif ($img['image_source'] === 'generated') {
+            $processed[] = $img['image_filename'];
+        }
     }
+    $finalImageFilenames = empty($processed) ? null : json_encode($processed);
 
     $dbh->prepare(
         "INSERT INTO scheduled_posts
-             (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filename)
+             (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filenames)
          VALUES (?, ?, NOW(), 'pending', 'share_now', ?, ?)"
     )->execute([
         $account['cp_id'],
         $postId,
         $finalBody,
-        $finalImageFilename,
+        $finalImageFilenames,
     ]);
 
     $_SESSION['notification'] = [

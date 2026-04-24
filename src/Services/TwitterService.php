@@ -48,13 +48,12 @@ class TwitterService
      *                 then attach the returned media_id_string to the v2 payload.
      *
      * $scheduledPost must contain:
-     *   final_body          string       Pre-rendered post text with tags appended
-     *   image_filename      string|null  Filename in managed storage, or null for text-only
+     *   final_body  string  Pre-rendered post text with tags appended
      *
      * $token       OAuth 1.0a access token (from connected_platforms.access_token)
      * $tokenSecret OAuth 1.0a token secret (from connected_platforms.token_secret)
      *              Required for Twitter — a null value returns an immediate error.
-     * $context     Ignored by TwitterService — present for uniform cron dispatch interface.
+     * $context     images: list<string>  Processed image filenames from storage; empty = text-only.
      *
      * @return array{success: bool, platform_post_id: string|null, error: string|null}
      */
@@ -74,16 +73,19 @@ class TwitterService
         try {
             $client  = $this->client($token, $tokenSecret);
             $payload = ['text' => $scheduledPost['final_body']];
+            $images  = $context['images'] ?? [];
 
-            if (!empty($scheduledPost['final_image_filename'])) {
-                $mediaId = $this->uploadMedia($client, $scheduledPost['final_image_filename']);
-
-                if ($mediaId === null) {
-                    $result['error'] = 'Media upload to Twitter failed — check storage and API credentials.';
-                    return $result;
+            if (!empty($images)) {
+                $mediaIds = [];
+                foreach ($images as $filename) {
+                    $mediaId = $this->uploadMedia($client, $filename);
+                    if ($mediaId === null) {
+                        $result['error'] = 'Media upload to Twitter failed — check storage and API credentials.';
+                        return $result;
+                    }
+                    $mediaIds[] = $mediaId;
                 }
-
-                $payload['media'] = ['media_ids' => [$mediaId]];
+                $payload['media'] = ['media_ids' => $mediaIds];
             }
 
             // Third argument true = send payload as JSON, required for v2

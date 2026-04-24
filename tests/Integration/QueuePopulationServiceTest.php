@@ -298,7 +298,7 @@ class QueuePopulationServiceTest extends IntegrationTestCase
     }
 
     // TC18 — post with image_filename → ImageService::prepareForPlatform() called,
-    //         returned filename stored in final_image_filename
+    //         returned filename stored as JSON array in final_image_filenames
     public function testImageFilenameSetFromPrepareForPlatform(): void
     {
         $returnedFilename = 'processed/twitter/test_processed.jpg';
@@ -317,12 +317,43 @@ class QueuePopulationServiceTest extends IntegrationTestCase
         $svc->populate(1);
 
         $row = static::$pdo->query(
-            "SELECT final_image_filename FROM scheduled_posts WHERE status='pending' LIMIT 1"
+            "SELECT final_image_filenames FROM scheduled_posts WHERE status='pending' LIMIT 1"
         )->fetch();
-        $this->assertSame($returnedFilename, $row['final_image_filename']);
+        $this->assertSame([$returnedFilename], json_decode($row['final_image_filenames'], true));
     }
 
-    // TC19 — recycle_lookahead_days bounds the number of slots generated
+    // TC19 — post with two images → both processed filenames encoded as JSON array
+    public function testMultipleImagesEncodedAsJsonInScheduledPost(): void
+    {
+        $imageService = $this->createMock(ImageService::class);
+        $imageService
+            ->expects($this->exactly(2))
+            ->method('prepareForPlatform')
+            ->willReturnOnConsecutiveCalls(
+                'processed/twitter/image_a.jpg',
+                'processed/twitter/image_b.jpg'
+            );
+
+        $svc = new QueuePopulationService(static::$pdo, $this->tagger, $imageService);
+
+        $postId = $this->insertPost(1, 'Post with two images');
+        $this->insertPostImage($postId, 'original_a.jpg', 0);
+        $this->insertPostImage($postId, 'original_b.jpg', 1);
+
+        $svc->populate(1);
+
+        $row = static::$pdo->query(
+            "SELECT final_image_filenames FROM scheduled_posts WHERE status='pending' LIMIT 1"
+        )->fetch();
+
+        $decoded = json_decode($row['final_image_filenames'], true);
+        $this->assertIsArray($decoded);
+        $this->assertCount(2, $decoded);
+        $this->assertContains('processed/twitter/image_a.jpg', $decoded);
+        $this->assertContains('processed/twitter/image_b.jpg', $decoded);
+    }
+
+    // TC20 — recycle_lookahead_days bounds the number of slots generated
     public function testLookaheadDaysBoundsSlotCount(): void
     {
         $this->insertPost(1, 'Post A');

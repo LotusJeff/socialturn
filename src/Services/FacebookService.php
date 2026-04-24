@@ -37,12 +37,12 @@ class FacebookService extends AbstractMetaService
      * Image post:     POST /{page_id}/photos  (publishes immediately)
      *
      * $scheduledPost must contain:
-     *   final_body          string       Pre-rendered post text with tags appended
-     *   image_filename      string|null  Filename in managed storage, or null for text-only
+     *   final_body  string  Pre-rendered post text with tags appended
      *
      * $token       Page Access Token (from connected_platforms.access_token)
      * $tokenSecret Ignored — Facebook does not use OAuth 1.0a secrets.
-     * $context     Must contain page_id (string) and connected_platform_id (int).
+     * $context     Must contain page_id (string), connected_platform_id (int),
+     *              and images (list<string>) — processed filenames from storage; empty = text-only.
      *
      * @return array{success: bool, platform_post_id: string|null, error: string|null}
      */
@@ -62,13 +62,15 @@ class FacebookService extends AbstractMetaService
             return $result;
         }
 
+        $images = $context['images'] ?? [];
+
         try {
-            if (!empty($scheduledPost['final_image_filename'])) {
-                $result = $this->postPhoto(
+            if (!empty($images)) {
+                $result = $this->postPhotos(
                     (string) $pageId,
                     $token,
                     $scheduledPost['final_body'],
-                    $scheduledPost['final_image_filename']
+                    $images
                 );
             } else {
                 $result = $this->postText(
@@ -131,25 +133,45 @@ class FacebookService extends AbstractMetaService
     }
 
     /**
-     * Publish an image post to a Facebook Page.
+     * Publish one or more images to a Facebook Page.
      *
-     * POST /{page_id}/photos
-     *   url={public_image_url}
-     *   caption={text}
-     *   access_token={token}
+     * Two-phase: upload each image as unpublished via POST /{page_id}/photos,
+     * then publish a feed post with all photo IDs via POST /{page_id}/feed.
+     *
+     * Each attached_media[n] value is a JSON-encoded object {"media_fbid": "..."}
+     * as required by the Graph API for multi-photo feed posts. This pattern works
+     * identically for single and multiple images — postText() handles the zero-image case.
      *
      * resolveImageUrl() (inherited) handles local vs S3 driver differences.
      *
+     * @param  list<string> $images  Processed image filenames from storage
      * @return array{success: bool, platform_post_id: string|null, error: string|null}
      */
-    private function postPhoto(string $pageId, string $token, string $body, string $filename): array
+    private function postPhotos(string $pageId, string $token, string $body, array $images): array
     {
-        $response = $this->graphPost(rawurlencode($pageId) . '/photos', [
-            'url'          => $this->resolveImageUrl($filename),
-            'caption'      => $body,
-            'access_token' => $token,
-        ]);
+        $photoIds = [];
+        foreach ($images as $filename) {
+            $response = $this->graphPost(rawurlencode($pageId) . '/photos', [
+                'url'          => $this->resolveImageUrl($filename),
+                'published'    => 'false',
+                'access_token' => $token,
+            ]);
+            if (isset($response['error']) || empty($response['id'])) {
+                $msg = $response['error']['message'] ?? 'Unknown Graph API error.';
+                return ['success' => false, 'platform_post_id' => null, 'error' => (string) $msg];
+            }
+            $photoIds[] = (string) $response['id'];
+        }
 
+        $params = [
+            'message'      => $body,
+            'access_token' => $token,
+        ];
+        foreach ($photoIds as $i => $photoId) {
+            $params["attached_media[{$i}]"] = json_encode(['media_fbid' => $photoId]);
+        }
+
+        $response = $this->graphPost(rawurlencode($pageId) . '/feed', $params);
         return $this->parsePostResponse($response);
     }
 }

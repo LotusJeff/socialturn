@@ -98,9 +98,7 @@ class QueuePopulationService
             $postImages = $this->fetchPostImages(array_map('intval', $postIds));
 
             foreach ($postPool as &$post) {
-                $img = $postImages[(int) $post['id']] ?? null;
-                $post['image_filename'] = $img['image_filename'] ?? null;
-                $post['image_source']   = $img['image_source']   ?? null;
+                $post['post_images'] = $postImages[(int) $post['id']] ?? [];
             }
             unset($post);
 
@@ -113,38 +111,46 @@ class QueuePopulationService
                 $post     = $postPool[$i % $postCount];
                 $finalBody = build_final_body($post['body'], $post['attributed_to'] ?? null, $post['post_tags'] ?? null, $account['default_tags'], $account['platform']);
 
-                // Determine final_image_filename at population time so cron dispatches
-                // a ready-to-post image without any processing overhead at send time.
-                if (($post['image_source'] ?? null) === 'uploaded') {
-                    $finalImageFilename = $this->imageService->prepareForPlatform(
-                        $post['image_filename'],
-                        $account['platform']
-                    );
-                } elseif (($post['image_source'] ?? null) === 'generated') {
-                    $finalImageFilename = $post['image_filename'];
+                // Determine final_image_filenames at population time so cron dispatches
+                // ready-to-post images without any processing overhead at send time.
+                $finalImageFilenames = [];
+
+                if (!empty($post['post_images'])) {
+                    foreach ($post['post_images'] as $img) {
+                        if ($img['image_source'] === 'uploaded') {
+                            $processed = $this->imageService->prepareForPlatform(
+                                $img['image_filename'],
+                                $account['platform']
+                            );
+                            if ($processed !== null) {
+                                $finalImageFilenames[] = $processed;
+                            }
+                        } elseif ($img['image_source'] === 'generated') {
+                            $finalImageFilenames[] = $img['image_filename'];
+                        }
+                    }
                 } elseif (
-                    ($post['image_source'] ?? null) === null
-                    && (int) $account['dynamic_images_enabled'] === 1
+                    (int) $account['dynamic_images_enabled'] === 1
                     && !empty($account['base_image_filename'])
                 ) {
-                    $finalImageFilename = $this->imageService->generateFromTemplate(
+                    $generated = $this->imageService->generateFromTemplate(
                         $account['base_image_filename'],
                         $post['body'],
                         $account['platform'],
                         $post['attributed_to'] ?? null
                     );
-                    if ($finalImageFilename !== null) {
+                    if ($generated !== null) {
                         $this->dbh->prepare(
                             "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
                              VALUES (?, 0, ?, 'generated')
                              ON DUPLICATE KEY UPDATE image_filename = VALUES(image_filename)"
-                        )->execute([(int) $post['id'], $finalImageFilename]);
+                        )->execute([(int) $post['id'], $generated]);
+                        $finalImageFilenames[] = $generated;
                     }
-                } else {
-                    $finalImageFilename = null;
                 }
 
-                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $finalBody, $finalImageFilename];
+                $encoded = empty($finalImageFilenames) ? null : json_encode($finalImageFilenames);
+                $rows[] = [$connectedPlatformId, (int) $post['id'], $utcTime, $finalBody, $encoded];
             }
 
             $this->insertScheduledPosts($rows);
@@ -298,11 +304,11 @@ class QueuePopulationService
     }
 
     /**
-     * Fetches the sort_order = 0 image for each post in one query.
-     * Returns an array keyed by post_id.
+     * Fetches all images for each post in one query, ordered by sort_order.
+     * Returns an array keyed by post_id; each value is an ordered list of images.
      *
      * @param  list<int> $postIds
-     * @return array<int, array{image_filename: string, image_source: string}>
+     * @return array<int, list<array{image_filename: string, image_source: string}>>
      */
     private function fetchPostImages(array $postIds): array
     {
@@ -314,13 +320,14 @@ class QueuePopulationService
         $stmt = $this->dbh->prepare(
             "SELECT post_id, image_filename, image_source
                FROM post_images
-              WHERE post_id IN ({$placeholders}) AND sort_order = 0"
+              WHERE post_id IN ({$placeholders})
+              ORDER BY post_id ASC, sort_order ASC"
         );
         $stmt->execute($postIds);
 
         $map = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $map[(int) $row['post_id']] = [
+            $map[(int) $row['post_id']][] = [
                 'image_filename' => $row['image_filename'],
                 'image_source'   => $row['image_source'],
             ];
@@ -538,7 +545,7 @@ class QueuePopulationService
      * Bulk-inserts scheduled post rows inside a transaction.
      *
      * @param list<array{0: int, 1: int, 2: string, 3: string, 4: string|null}> $rows
-     *        [connected_platform_id, post_id, scheduled_time, final_body, final_image_filename]
+     *        [connected_platform_id, post_id, scheduled_time, final_body, final_image_filenames]
      */
     private function insertScheduledPosts(array $rows): void
     {
@@ -551,14 +558,14 @@ class QueuePopulationService
             array_fill(0, count($rows), "(?, ?, ?, ?, ?, 'pending', 'queue')")
         );
 
-        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, final_image_filename, status, source) VALUES {$placeholders}";
+        $sql  = "INSERT INTO scheduled_posts (connected_platform_id, post_id, scheduled_time, final_body, final_image_filenames, status, source) VALUES {$placeholders}";
         $flat = [];
-        foreach ($rows as [$connectedPlatformId, $postId, $scheduledTime, $finalBody, $finalImageFilename]) {
+        foreach ($rows as [$connectedPlatformId, $postId, $scheduledTime, $finalBody, $finalImageFilenames]) {
             $flat[] = $connectedPlatformId;
             $flat[] = $postId;
             $flat[] = $scheduledTime;
             $flat[] = $finalBody;
-            $flat[] = $finalImageFilename;
+            $flat[] = $finalImageFilenames;
         }
 
         $this->dbh->beginTransaction();

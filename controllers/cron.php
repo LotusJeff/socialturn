@@ -89,7 +89,7 @@ function post(): void
                             'platform'              => $account['platform'],
                             'platform_account_id'   => $account['platform_account_id'],
                             'body_snapshot'         => $row['final_body'],
-                            'image_filename'        => $row['final_image_filename'],
+                            'image_filenames'       => $row['final_image_filenames'],
                             'platform_post_id'      => $result['platform_post_id'],
                             'status'                => 'posted',
                             'error_message'         => null,
@@ -113,7 +113,7 @@ function post(): void
                             'platform'              => $account['platform'],
                             'platform_account_id'   => $account['platform_account_id'],
                             'body_snapshot'         => $row['final_body'],
-                            'image_filename'        => $row['final_image_filename'],
+                            'image_filenames'       => $row['final_image_filenames'],
                             'platform_post_id'      => null,
                             'status'                => 'failed',
                             'error_message'         => $result['error'],
@@ -266,7 +266,7 @@ function cron_fetchActiveAccounts(PDO $dbh): array
 function cron_fetchDuePosts(PDO $dbh, int $connectedPlatformId): array
 {
     $stmt = $dbh->prepare(
-        "SELECT sp.id, sp.post_id, sp.final_body, sp.final_image_filename
+        "SELECT sp.id, sp.post_id, sp.final_body, sp.final_image_filenames
            FROM scheduled_posts sp
           WHERE sp.connected_platform_id = ?
             AND sp.status = 'pending'
@@ -324,20 +324,32 @@ function cron_dispatchToPlatform(
     $token       = $account['access_token'];
     $tokenSecret = $account['token_secret'] ?? null;
 
+    $images = [];
+    if (!empty($scheduledPost['final_image_filenames'])) {
+        $decoded = json_decode($scheduledPost['final_image_filenames'], true);
+        if (is_array($decoded)) {
+            $images = $decoded;
+        }
+    }
+
     switch ($account['platform']) {
         case 'twitter':
-            return $twitter->post($scheduledPost, $token, $tokenSecret, []);
+            return $twitter->post($scheduledPost, $token, $tokenSecret, [
+                'images' => $images,
+            ]);
 
         case 'facebook':
             return $facebook->post($scheduledPost, $token, $tokenSecret, [
                 'page_id'               => $account['platform_account_id'],
                 'connected_platform_id' => $account['connected_platform_id'],
+                'images'                => $images,
             ]);
 
         case 'instagram':
             return $instagram->post($scheduledPost, $token, $tokenSecret, [
                 'ig_user_id'            => $account['platform_account_id'],
                 'connected_platform_id' => $account['connected_platform_id'],
+                'images'                => $images,
             ]);
 
         default:
@@ -441,7 +453,7 @@ function cron_logActivity(
  *     platform: string,
  *     platform_account_id: string,
  *     body_snapshot: string,
- *     image_filename: string|null,
+ *     image_filenames: string|null,
  *     platform_post_id: string|null,
  *     status: string,
  *     error_message: string|null
@@ -452,7 +464,7 @@ function cron_writePostHistory(PDO $dbh, array $data): void
     $stmt = $dbh->prepare(
         'INSERT INTO post_history
                 (connected_platform_id, post_id, scheduled_post_id,
-                 platform, platform_account_id, body_snapshot, image_filename,
+                 platform, platform_account_id, body_snapshot, image_filenames,
                  platform_post_id, status, error_message)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
@@ -463,7 +475,7 @@ function cron_writePostHistory(PDO $dbh, array $data): void
         $data['platform'],
         $data['platform_account_id'],
         $data['body_snapshot'],
-        $data['image_filename'],
+        $data['image_filenames'],
         $data['platform_post_id'],
         $data['status'],
         $data['error_message'],

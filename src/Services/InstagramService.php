@@ -50,13 +50,13 @@ class InstagramService extends AbstractMetaService
      *   Step 2: publishMediaContainer() → published post id
      *
      * $scheduledPost must contain:
-     *   final_body          string   Pre-rendered post text with tags appended (caption)
-     *   image_filename      string   Filename in managed storage — REQUIRED.
-     *                                Instagram does not support text-only posts.
+     *   final_body  string  Pre-rendered post text with tags appended (caption)
      *
      * $token       Page Access Token (from connected_platforms.access_token)
      * $tokenSecret Ignored — Instagram via Graph API does not use OAuth 1.0a secrets.
-     * $context     Must contain ig_user_id (string) and connected_platform_id (int).
+     * $context     Must contain ig_user_id (string), connected_platform_id (int),
+     *              and images (list<string>) — processed filenames from storage.
+     *              Instagram requires at least one image; text-only posts are not supported.
      *
      * @return array{success: bool, platform_post_id: string|null, error: string|null}
      */
@@ -76,26 +76,37 @@ class InstagramService extends AbstractMetaService
             return $result;
         }
 
-        if (empty($scheduledPost['final_image_filename'])) {
-            $result['error'] = 'Instagram does not support text-only posts — final_image_filename is required.';
+        $images = $context['images'] ?? [];
+
+        if (empty($images)) {
+            $result['error'] = 'Instagram does not support text-only posts — at least one image is required.';
             return $result;
         }
 
         try {
-            $imageUrl  = $this->resolveImageUrl($scheduledPost['final_image_filename']);
-            $creationId = $this->createMediaContainer(
-                (string) $igUserId,
-                $token,
-                $imageUrl,
-                $scheduledPost['final_body']
-            );
+            if (count($images) === 1) {
+                $imageUrl   = $this->resolveImageUrl($images[0]);
+                $creationId = $this->createMediaContainer(
+                    (string) $igUserId,
+                    $token,
+                    $imageUrl,
+                    $scheduledPost['final_body']
+                );
 
-            if ($creationId === null) {
-                $result['error'] = 'Instagram media container creation failed — check image URL, token, and account permissions.';
-                return $result;
+                if ($creationId === null) {
+                    $result['error'] = 'Instagram media container creation failed — check image URL, token, and account permissions.';
+                    return $result;
+                }
+
+                $result = $this->publishMediaContainer((string) $igUserId, $token, $creationId);
+            } else {
+                $result = $this->postCarousel(
+                    (string) $igUserId,
+                    $token,
+                    $scheduledPost['final_body'],
+                    $images
+                );
             }
-
-            $result = $this->publishMediaContainer((string) $igUserId, $token, $creationId);
 
         } catch (Throwable $e) {
             $result['error'] = 'InstagramService error: ' . $e->getMessage();
@@ -161,6 +172,51 @@ class InstagramService extends AbstractMetaService
         }
 
         return (string) $response['id'];
+    }
+
+    /**
+     * Publish a carousel post to Instagram.
+     *
+     * Three-step pattern:
+     *   Step 1: Create one carousel item container per image via POST /{igUserId}/media
+     *           with is_carousel_item=true — no caption at this stage.
+     *   Step 2: Create the carousel container via POST /{igUserId}/media with
+     *           media_type=CAROUSEL, comma-separated children IDs, and the caption.
+     *   Step 3: Publish the carousel container via publishMediaContainer().
+     *
+     * resolveImageUrl() (inherited) handles local vs S3 driver differences.
+     *
+     * @param  list<string> $images  Processed image filenames from storage (2–4 items)
+     * @return array{success: bool, platform_post_id: string|null, error: string|null}
+     */
+    private function postCarousel(string $igUserId, string $token, string $caption, array $images): array
+    {
+        $childIds = [];
+        foreach ($images as $filename) {
+            $response = $this->graphPost(rawurlencode($igUserId) . '/media', [
+                'image_url'        => $this->resolveImageUrl($filename),
+                'is_carousel_item' => 'true',
+                'access_token'     => $token,
+            ]);
+            if (isset($response['error']) || empty($response['id'])) {
+                $msg = $response['error']['message'] ?? 'Unknown Graph API error.';
+                return ['success' => false, 'platform_post_id' => null, 'error' => (string) $msg];
+            }
+            $childIds[] = (string) $response['id'];
+        }
+
+        $response = $this->graphPost(rawurlencode($igUserId) . '/media', [
+            'media_type'   => 'CAROUSEL',
+            'children'     => implode(',', $childIds),
+            'caption'      => $caption,
+            'access_token' => $token,
+        ]);
+        if (isset($response['error']) || empty($response['id'])) {
+            $msg = $response['error']['message'] ?? 'Unknown Graph API error.';
+            return ['success' => false, 'platform_post_id' => null, 'error' => (string) $msg];
+        }
+
+        return $this->publishMediaContainer($igUserId, $token, (string) $response['id']);
     }
 
     /**
