@@ -486,14 +486,16 @@ function update(): void
     // -----------------------------------------------------------------------
 
     $stmt = $dbh->prepare(
-        'SELECT dynamic_images_enabled, base_image_filename FROM accounts WHERE id = ? AND company_id = ?'
+        'SELECT dynamic_images_enabled, base_image_filename, overlay_font_color, overlay_font_size FROM accounts WHERE id = ? AND company_id = ?'
     );
     $stmt->execute([$accountId, $companyId]);
     $current = $stmt->fetch(PDO::FETCH_ASSOC);
 
     $imageSettingsChanged = $current
         && ((int) $current['dynamic_images_enabled'] !== $dynamicImages
-            || (string) ($current['base_image_filename'] ?? '') !== (string) ($baseImageFilename ?? ''));
+            || (string) ($current['base_image_filename'] ?? '') !== (string) ($baseImageFilename ?? '')
+            || (string) ($current['overlay_font_color'] ?? '') !== $overlayFontColor
+            || (int) ($current['overlay_font_size'] ?? 0) !== $overlayFontSize);
 
     if ($imageSettingsChanged) {
         $stmt = $dbh->prepare(

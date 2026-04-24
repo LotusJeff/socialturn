@@ -114,8 +114,18 @@ class ImageService
      *                                        null = Layout A (body only), string = Layout B (body + attribution)
      * @return string|null                    Storage-relative path on success, null on any failure — never throws
      */
-    public function generateFromTemplate(string $baseImageFilename, string $text, string $platform, ?string $attribution = null): ?string
-    {
+    public function generateFromTemplate(
+        string $baseImageFilename,
+        string $text,
+        string $platform,
+        ?string $attribution = null,
+        ?string $fontColor = null,
+        ?int $fontSize = null
+    ): ?string {
+        $fontColor = (is_string($fontColor) && preg_match('/^#[0-9a-fA-F]{6}$/', $fontColor))
+            ? $fontColor : '#ffffff';
+        $fontSize  = ($fontSize !== null && $fontSize > 0) ? $fontSize : 24;
+
         $src     = null;
         $canvas  = null;
         $tmpFile = null;
@@ -126,7 +136,7 @@ class ImageService
             $src    = $this->loadImage('originals/' . $baseImageFilename);
             $canvas = $this->resizeAndCrop($src, $targetW, $targetH);
 
-            $this->overlayText($canvas, $text, $targetW, $targetH, $attribution);
+            $this->overlayText($canvas, $text, $targetW, $targetH, $attribution, $fontColor, $fontSize);
 
             $outFilename = $platform . '_gen_' . uniqid() . '.jpg';
             $storedPath  = 'generated/' . $platform . '/' . $outFilename;
@@ -217,82 +227,102 @@ class ImageService
     }
 
     /**
-     * Render post text as a lower-third overlay on the canvas.
+     * Render post text centered on the canvas using TrueType (Poppins SemiBold).
      *
-     * Uses GD built-in fonts — no TTF file required; guaranteed on any server
-     * with GD enabled. GD built-in fonts are ASCII/ISO-8859-1 only; multi-byte
-     * characters will not render correctly until TTF fonts are introduced.
+     * Text is word-wrapped at 80% of canvas width using pixel-accurate measurement
+     * via imagettfbbox(). The combined text block (body + optional attribution) is
+     * centered horizontally and vertically on the canvas. No background bar is drawn.
      *
-     * Layout A ($attribution === null):
-     *   - Post body word-wrapped in font 5 (9×15 px), left-aligned
-     *   - Body text centered vertically within the overlay bar (equal top/bottom padding)
-     *   - Semi-transparent dark bar (~70% opaque), full width, 20px from bottom edge
+     * Layout A ($attribution === null): body lines only, block centered on canvas.
+     * Layout B ($attribution !== null): body lines + "— Attribution" at 75% font size,
+     *   combined block centered on canvas.
      *
-     * Layout B ($attribution !== null):
-     *   - Post body in upper portion of bar (font 5, left-aligned)
-     *   - "-- {attribution}" in lower portion (font 4, right-aligned, smaller)
-     *   - 8px gap between body block and attribution line
-     *   - Attribution is a single line — never wrapped
-     *   - Tags are never passed to this method and must not appear on images
+     * Tags must never be passed as $text — tags are text-only and must not appear on images.
      *
      * Modifies $canvas in place. No return value.
      */
-    private function overlayText(\GdImage $canvas, string $text, int $canvasW, int $canvasH, ?string $attribution = null): void
+    private function overlayText(
+        \GdImage $canvas,
+        string $text,
+        int $canvasW,
+        int $canvasH,
+        ?string $attribution,
+        string $fontColor,
+        int $fontSize
+    ): void {
+        $fontPath   = dirname(__DIR__, 2) . '/assets/fonts/Poppins-SemiBold.ttf';
+        $lineHeight = (int) round($fontSize * 1.5);
+        $wrapWidth  = (int) round($canvasW * 0.80);
+
+        $r = hexdec(substr($fontColor, 1, 2));
+        $g = hexdec(substr($fontColor, 3, 2));
+        $b = hexdec(substr($fontColor, 5, 2));
+        $color = imagecolorallocate($canvas, (int) $r, (int) $g, (int) $b);
+
+        // Word-wrap body text by pixel width
+        $bodyLines = $this->wrapTextTtf($text, $fontSize, $fontPath, $wrapWidth);
+
+        $bodyBlockH = count($bodyLines) * $lineHeight;
+
+        // Attribution line at 75% font size, single line, no wrapping
+        $attrFontSize = (int) round($fontSize * 0.75);
+        $attrLine     = $attribution !== null ? "\u{2014} " . $attribution : null;
+        $attrGap      = (int) round($fontSize * 0.5);
+        $attrLineH    = $attrLine !== null ? $attrFontSize : 0;
+
+        $totalBlockH = $bodyBlockH + ($attrLine !== null ? $attrGap + $attrLineH : 0);
+
+        // imagettftext() Y is the text baseline; offset from block top by $fontSize (ascender)
+        $blockTop    = (int) round(($canvasH - $totalBlockH) / 2);
+        $baselineOff = $fontSize;
+
+        foreach ($bodyLines as $i => $line) {
+            $bbox      = imagettfbbox($fontSize, 0, $fontPath, $line);
+            $lineW     = abs($bbox[4] - $bbox[0]);
+            $x         = (int) round(($canvasW - $lineW) / 2);
+            $y         = $blockTop + ($i * $lineHeight) + $baselineOff;
+            imagettftext($canvas, $fontSize, 0, $x, $y, $color, $fontPath, $line);
+        }
+
+        if ($attrLine !== null) {
+            $bbox  = imagettfbbox($attrFontSize, 0, $fontPath, $attrLine);
+            $lineW = abs($bbox[4] - $bbox[0]);
+            $x     = (int) round(($canvasW - $lineW) / 2);
+            $y     = $blockTop + $bodyBlockH + $attrGap + $attrFontSize;
+            imagettftext($canvas, $attrFontSize, 0, $x, $y, $color, $fontPath, $attrLine);
+        }
+    }
+
+    /**
+     * Wraps $text into lines that fit within $maxWidth pixels at the given font size.
+     * Splits on whitespace; never breaks mid-word unless a single word exceeds maxWidth.
+     *
+     * @return list<string>
+     */
+    private function wrapTextTtf(string $text, int $fontSize, string $fontPath, int $maxWidth): array
     {
-        $fontW       = imagefontwidth(5);    // 9 px per character
-        $fontH       = imagefontheight(5);   // 15 px per line
-        $padH        = 16;                   // horizontal padding each side
-        $padV        = 12;                   // vertical padding top and bottom inside bar
-        $lineSpacing = 4;                    // extra pixels between body lines
+        $words   = preg_split('/\s+/', trim($text), -1, PREG_SPLIT_NO_EMPTY);
+        $lines   = [];
+        $current = '';
 
-        $usableWidth  = $canvasW - ($padH * 2);
-        $charsPerLine = max(1, (int) floor($usableWidth / $fontW));
+        foreach ($words as $word) {
+            $candidate = $current === '' ? $word : $current . ' ' . $word;
+            $bbox      = imagettfbbox($fontSize, 0, $fontPath, $candidate);
+            $width     = abs($bbox[4] - $bbox[0]);
 
-        $wrapped   = wordwrap($text, $charsPerLine, "\n", true);
-        $lines     = explode("\n", $wrapped);
-        $lineCount = count($lines);
-        $lineHeight = $fontH + $lineSpacing;
-
-        // Semi-transparent dark background (alpha 38 ≈ 70% opaque; GD: 0=opaque, 127=transparent)
-        $darkBg = imagecolorallocatealpha($canvas, 0, 0, 0, 38);
-        $white  = imagecolorallocate($canvas, 255, 255, 255);
-
-        if ($attribution !== null) {
-            // Layout B — body text + attribution line
-            $attrFontW   = imagefontwidth(4);
-            $attrFontH   = imagefontheight(4);
-            $attrSpacing = 8;                // gap between body block and attribution line
-            $attrLine    = '-- ' . $attribution;
-
-            $bodyBlockH = ($lineCount * $lineHeight) - $lineSpacing;
-            $barHeight  = ($padV * 2) + $bodyBlockH + $attrSpacing + $attrFontH;
-            $barTop     = $canvasH - $barHeight - 20;
-
-            imagefilledrectangle($canvas, 0, $barTop, $canvasW - 1, $canvasH - 20, $darkBg);
-
-            // Body text — left-aligned, upper portion of bar
-            foreach ($lines as $i => $line) {
-                $y = $barTop + $padV + ($i * $lineHeight);
-                imagestring($canvas, 5, $padH, $y, $line, $white);
-            }
-
-            // Attribution — right-aligned, lower portion of bar
-            $attrY = $barTop + $padV + $bodyBlockH + $attrSpacing;
-            $attrX = max($padH, $canvasW - $padH - (strlen($attrLine) * $attrFontW));
-            imagestring($canvas, 4, $attrX, $attrY, $attrLine, $white);
-
-        } else {
-            // Layout A — body text only, centered vertically in bar
-            $barHeight = ($padV * 2) + ($lineCount * $lineHeight) - $lineSpacing;
-            $barTop    = $canvasH - $barHeight - 20;
-
-            imagefilledrectangle($canvas, 0, $barTop, $canvasW - 1, $canvasH - 20, $darkBg);
-
-            foreach ($lines as $i => $line) {
-                $y = $barTop + $padV + ($i * $lineHeight);
-                imagestring($canvas, 5, $padH, $y, $line, $white);
+            if ($width <= $maxWidth || $current === '') {
+                $current = $candidate;
+            } else {
+                $lines[]  = $current;
+                $current  = $word;
             }
         }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines ?: [''];
     }
 
     /**

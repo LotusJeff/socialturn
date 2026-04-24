@@ -601,10 +601,13 @@ Merge to master. Tag 1.0.0. Public release.
   their counts, causing account 2's depth to always read as above threshold; fixed by joining
   through posts.account_id so the count is scoped to the specific account; same class of bug
   as the queue view display count fix applied in an earlier session
+- accounts/update image settings invalidation incomplete — overlay_font_color and overlay_font_size
+  changes did not trigger generated image invalidation; pre-save SELECT extended to fetch both columns;
+  $imageSettingsChanged condition extended with two additional || clauses comparing pre-save vs posted
+  values for both font settings
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
-- Dynamic image overlay font system — ImageService::generateFromTemplate() currently uses GD built-in bitmap fonts (levels 1–5, hardcoded). overlay_font_color and overlay_font_size columns exist on accounts table (migration 031) but are not yet wired into ImageService. A decision is needed on font system: GD bitmap (limited, no dependencies) vs TrueType via imagettftext() (real point sizes, requires bundled .ttf file). Design and implement once font and sizing decisions are made.
 
 ---
 

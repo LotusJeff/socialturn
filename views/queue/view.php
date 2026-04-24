@@ -94,13 +94,28 @@
                     <?= htmlspecialchars(datify((string) $row['scheduled_time'], (string) $account['timezone']), ENT_QUOTES, 'UTF-8') ?>
                 </span>
 
-                <!-- Body + Has image badge — flexible middle -->
+                <!-- Body — flexible middle -->
                 <div class="flex-grow-1 small text-truncate" style="min-width:0">
                     <?= htmlspecialchars($preview, ENT_QUOTES, 'UTF-8') ?>
-                    <?php if (!empty($row['final_image_filenames'])): ?>
-                    <span class="badge bg-light text-dark border ms-1">Has image</span>
-                    <?php endif; ?>
                 </div>
+
+                <!-- Has image badge -->
+                <?php if (!empty($row['final_image_filenames'])): ?>
+                <?php
+                    $imgs     = json_decode((string) $row['final_image_filenames'], true);
+                    $firstImg = is_array($imgs) && !empty($imgs) ? $imgs[0] : null;
+                ?>
+                <?php if ($firstImg !== null): ?>
+                <div class="flex-shrink-0">
+                    <span class="badge bg-light text-dark border"
+                          style="cursor:pointer"
+                          data-bs-toggle="modal"
+                          data-bs-target="#imagePreviewModal"
+                          data-img-src="<?= htmlspecialchars(BASE_URL . 'images/' . $firstImg, ENT_QUOTES, 'UTF-8') ?>"
+                          data-img-name="<?= htmlspecialchars($firstImg, ENT_QUOTES, 'UTF-8') ?>">Has image</span>
+                </div>
+                <?php endif; ?>
+                <?php endif; ?>
 
                 <!-- Right-side actions -->
                 <div class="d-flex gap-2 flex-shrink-0 align-items-center">
@@ -137,6 +152,37 @@
     </div>
 
     <?php include ROOT . DS . 'views' . DS . 'partials' . DS . 'pagination.php'; ?>
+
+    <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title text-truncate" id="imagePreviewModalLabel"></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center p-2">
+                    <img src="" id="imagePreviewImg"
+                         class="img-fluid rounded"
+                         style="max-height:70vh"
+                         alt="">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        var modal = document.getElementById('imagePreviewModal');
+        modal.addEventListener('show.bs.modal', function (e) {
+            var trigger = e.relatedTarget;
+            document.getElementById('imagePreviewImg').src = trigger.getAttribute('data-img-src');
+            document.getElementById('imagePreviewModalLabel').textContent = trigger.getAttribute('data-img-name');
+        });
+        modal.addEventListener('hidden.bs.modal', function () {
+            document.getElementById('imagePreviewImg').src = '';
+        });
+    }());
+    </script>
 
     <?php else: ?>
 

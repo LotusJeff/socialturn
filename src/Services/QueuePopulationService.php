@@ -137,7 +137,9 @@ class QueuePopulationService
                         $account['base_image_filename'],
                         $post['body'],
                         $account['platform'],
-                        $post['attributed_to'] ?? null
+                        $post['attributed_to'] ?? null,
+                        $account['overlay_font_color'] ?? null,
+                        isset($account['overlay_font_size']) ? (int) $account['overlay_font_size'] : null
                     );
                     if ($generated !== null) {
                         $this->dbh->prepare(
@@ -177,6 +179,7 @@ class QueuePopulationService
         $stmt = $this->dbh->prepare(
             'SELECT a.id, a.connected_platform_id, a.is_posting,
                     a.default_tags, a.dynamic_images_enabled, a.base_image_filename,
+                    a.overlay_font_color, a.overlay_font_size,
                     cp.platform
                FROM accounts a
                JOIN connected_platforms cp ON cp.id = a.connected_platform_id
