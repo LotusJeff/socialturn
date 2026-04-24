@@ -142,8 +142,8 @@ class ContentStoreTest extends IntegrationTestCase
         )->fetchAll();
 
         $ids = array_column($remaining, 'id');
-        $this->assertNotContains((string) $pendingId, $ids);
-        $this->assertContains((string) $postedId, $ids);
+        $this->assertNotContains($pendingId, $ids);
+        $this->assertContains($postedId, $ids);
         $this->assertSame('posted', $remaining[0]['status']);
     }
 

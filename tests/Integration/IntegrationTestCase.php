@@ -170,8 +170,8 @@ abstract class IntegrationTestCase extends TestCase
              VALUES (1, 1, 1, 'Test Account', 1, 1, 0)"
         );
         static::$pdo->exec(
-            "INSERT INTO account_settings (account_id, recycle_threshold, recycle_lookahead_days)
-             VALUES (1, 5, 7)"
+            "INSERT INTO account_settings (account_id, recycle_threshold, recycle_lookahead_days, scheduling_enabled)
+             VALUES (1, 5, 7, 1)"
         );
         static::$pdo->exec(
             "INSERT INTO account_schedules

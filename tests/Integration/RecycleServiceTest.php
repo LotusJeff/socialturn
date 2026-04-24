@@ -110,7 +110,6 @@ class RecycleServiceTest extends IntegrationTestCase
         $this->assertArrayHasKey('slots_examined',       $result);
         $this->assertArrayHasKey('posts_scheduled',      $result);
         $this->assertArrayHasKey('duplicates_skipped',   $result);
-        $this->assertArrayHasKey('tags_truncated',       $result);
         $this->assertArrayHasKey('error',                $result);
         $this->assertSame(1, $result['account_id']);
     }

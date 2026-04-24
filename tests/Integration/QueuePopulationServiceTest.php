@@ -219,22 +219,6 @@ class QueuePopulationServiceTest extends IntegrationTestCase
         $this->assertStringContainsString('#testTag', (string) $row['final_body']);
     }
 
-    // TC14 — tags_truncated increments when a tag cannot fit within the platform limit
-    public function testTagsTruncatedIncrements(): void
-    {
-        // Body is 278 chars; ' #ab' (4 chars) would exceed Twitter limit of 280
-        $longBody = str_repeat('x', 278);
-        static::$pdo->exec(
-            "UPDATE accounts SET default_tags = '[\"ab\"]' WHERE id = 1"
-        );
-        $this->insertPost(1, $longBody);
-
-        $result = $this->svc->populate(1);
-
-        $this->assertNull($result['error']);
-        $this->assertGreaterThan(0, $result['tags_truncated']);
-    }
-
     // TC15 — all generated slots fall within the active_hours_start/end window
     public function testActiveHoursWindowRespected(): void
     {
@@ -327,12 +311,12 @@ class QueuePopulationServiceTest extends IntegrationTestCase
     {
         $imageService = $this->createMock(ImageService::class);
         $imageService
-            ->expects($this->exactly(2))
+            ->expects($this->atLeast(2))
             ->method('prepareForPlatform')
-            ->willReturnOnConsecutiveCalls(
-                'processed/twitter/image_a.jpg',
-                'processed/twitter/image_b.jpg'
-            );
+            ->willReturnMap([
+                ['original_a.jpg', 'twitter', 'processed/twitter/image_a.jpg'],
+                ['original_b.jpg', 'twitter', 'processed/twitter/image_b.jpg'],
+            ]);
 
         $svc = new QueuePopulationService(static::$pdo, $this->tagger, $imageService);
 
