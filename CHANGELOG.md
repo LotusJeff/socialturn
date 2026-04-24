@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.9.3] — 2026-04-24
+
+### Fixed
+- StorageService::store() used @copy() which suppressed write permission failures; @ removed and
+  error_log() added; accounts/update now returns an actionable error when upload fails rather than
+  a misleading "base image required" message
+- accounts/update fatal error when dynamic images enabled — $imageSettingsChanged block referenced
+  image_filename and image_source on posts table; both columns moved to post_images in migration 031;
+  SELECT and DELETE updated to query post_images JOIN posts
+- queue/view, queue/history, queue/errors fatal errors — final_image_filename (singular) renamed to
+  final_image_filenames (plural, JSON array) in migration 032; all stale references updated across
+  controllers and views
+- RecycleService::countPendingPosts() scoped pending count to connected_platform_id only; accounts
+  sharing a platform pooled their counts causing queue population to never trigger for lower-volume
+  accounts; fixed by joining through posts.account_id
+- "Has image" badge in queue/view clipped by text-truncate div; moved to its own flex-shrink-0
+  element; badge is now clickable and opens a Bootstrap 5 modal preview of the first image
+- overlay_font_color and overlay_font_size changes did not trigger generated image invalidation;
+  pre-save SELECT and $imageSettingsChanged condition extended to include both columns
+
+### Added
+- TrueType font overlay system using Poppins SemiBold 600 (assets/fonts/Poppins-SemiBold.ttf);
+  replaces GD bitmap rendering; text centered horizontally and vertically, wraps at 80% canvas width,
+  color and size driven by per-account overlay_font_color and overlay_font_size settings
+- "Has image" badge in queue/view is now a clickable modal image preview
+
 ## [0.9.2] — 2026-04-24
 
 ### Multi-Image Post Support

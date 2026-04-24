@@ -235,6 +235,10 @@ internally as a guard for any call path that bypasses RecycleService.
 When scheduling_enabled = 0, population is skipped and the existing queue
 is left untouched.
 
+RecycleService::countPendingPosts() scopes the pending count to both connected_platform_id AND
+account_id via a JOIN through posts. Never scope to connected_platform_id alone — accounts sharing
+a platform would pool their counts and cause queue population to never trigger for lower-volume accounts.
+
 ### Recycle Threshold (account_settings table)
 Each account has its own recycle_threshold (integer). When scheduled_posts
 in pending status drops below this number, the queue population engine runs
@@ -317,6 +321,7 @@ pending → posted | failed | skipped
 ### scheduled_posts image column
 - final_image_filenames TEXT NULL — JSON array of processed image filenames ready for
   dispatch; NULL = text-only post
+- Never reference final_image_filename (singular) — that column no longer exists (dropped in migration 032). Same applies to post_history: image_filenames (plural, JSON array) replaced image_filename in migration 032.
 
 ### accounts overlay columns
 - overlay_font_color VARCHAR(7) NULL — hex color for dynamic image overlay text; NULL = ImageService default; defaults to #000000 on save if invalid
@@ -400,6 +405,17 @@ Driver-specific behaviour of `retrieve()`:
   inherited from AbstractMetaService, which handles local vs S3 automatically.
 - S3 driver returns a public HTTPS URL — suitable for Meta Graph API directly.
 - TwitterService must always use getReadStream() for media uploads, never retrieve().
+
+ImageService::generateFromTemplate() renders text using imagettftext() with Poppins SemiBold 600
+(assets/fonts/Poppins-SemiBold.ttf). Requires FreeType support in PHP GD (standard on Ubuntu/Debian
+with php-gd). overlay_font_color (hex) and overlay_font_size (int) flow from the accounts table
+through QueuePopulationService::fetchAccount() into generateFromTemplate(). Both must be included
+in fetchAccount()'s SELECT — omitting either causes silently incorrect rendering (defaults applied).
+
+The $imageSettingsChanged invalidation block in controllers/accounts.php compares pre-save vs posted
+values for: dynamic_images_enabled, base_image_filename, overlay_font_color, overlay_font_size.
+Any new image-affecting setting added to accounts must be added to both the pre-save SELECT and the
+$imageSettingsChanged condition or invalidation will silently fail.
 
 ### Tooltip Pattern
 Form field helper text that is descriptive and static (not dynamic
@@ -581,21 +597,6 @@ Merge to master. Tag 1.0.0. Public release.
   PDO native integer return fixed in ContentStoreTest TC5 (PHP 8.1+);
   phantom tags_truncated assertion removed from QueuePopulationServiceTest TC14 and
   RecycleServiceTest TC5.
-- accounts/update image upload failed silently — StorageService::store() used @copy() which suppressed
-  write permission failures; @ removed, error_log() added with source and destination paths;
-  $uploadFailed flag added in controller so storage failure exits with an actionable error message
-  distinct from the "base image required" validation.
-- accounts/update fatal error on save when dynamic images enabled — $imageSettingsChanged block
-  referenced image_filename and image_source on posts table; both columns were moved to post_images
-  in migration 031 and dropped from posts; SELECT and DELETE updated to query post_images JOIN posts
-  on post_id filtered by account_id and image_source = 'generated'.
-- queue/view fatal error — scheduled_posts.final_image_filename renamed to final_image_filenames
-  in migration 032; stale singular references updated in controllers/queue.php (SELECT) and
-  views/queue/view.php (doc comment and !empty() check).
-- queue/history and queue/errors fatal errors — post_history.image_filename renamed to
-  image_filenames in migration 032; stale singular references updated in controllers/queue.php
-  (SELECT in history() and errors()) and views/queue/history.php (doc comment and !empty() check)
-  and views/queue/errors.php (doc comment).
 - Queue population never triggered for account 2 — RecycleService::countPendingPosts() scoped
   the pending count to connected_platform_id only; accounts sharing a connected platform pooled
   their counts, causing account 2's depth to always read as above threshold; fixed by joining
