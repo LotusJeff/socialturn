@@ -326,7 +326,7 @@ function store(): void
     $storage      = new StorageService();
     $imageService = new ImageService($storage);
 
-    // Image upload
+    // File upload
     $imageFilename = null;
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $ext  = strtolower((string) pathinfo((string) $_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -337,6 +337,62 @@ function store(): void
                 $imageFilename = $newFilename;
             }
         }
+    }
+
+    // URL image fetch
+    $urlImageFilename = null;
+    $imageUrl = trim((string) ($_POST['image_url'] ?? ''));
+    if ($imageUrl !== '') {
+        if (!filter_var($imageUrl, FILTER_VALIDATE_URL) || !preg_match('/^https?:\/\//i', $imageUrl)) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Image URL must be a valid http or https address.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,            $imageUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS,      5);
+        curl_setopt($ch, CURLOPT_TIMEOUT,        15);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_PROTOCOLS,      CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_USERAGENT,      'SocialTurn/1.0');
+        $fetchedData = curl_exec($ch);
+        $httpCode    = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($fetchedData === false || $httpCode !== 200) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not fetch image from that URL. Check the address and try again.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
+        $finfo     = new finfo(FILEINFO_MIME_TYPE);
+        $fetchMime = $finfo->buffer($fetchedData);
+        if (!in_array($fetchMime, ['image/jpeg', 'image/png'], true)) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Remote image must be a JPG or PNG.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
+        $fetchExt    = $fetchMime === 'image/png' ? 'png' : 'jpg';
+        $tmpPath     = tempnam(sys_get_temp_dir(), 'st_img_');
+        file_put_contents($tmpPath, $fetchedData);
+        $newFilename = bin2hex(random_bytes(8)) . '.' . $fetchExt;
+        if ($storage->store($tmpPath, 'originals/' . $newFilename)) {
+            $urlImageFilename = $newFilename;
+        }
+        unlink($tmpPath);
+        if ($urlImageFilename === null) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save fetched image. Please try again.'];
+            header('Location: ' . u('content', 'create'));
+            exit;
+        }
+    }
+
+    // 4-image limit (new post starts with 0 existing images)
+    if (($imageFilename !== null ? 1 : 0) + ($urlImageFilename !== null ? 1 : 0) > 4) {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'A post can have at most 4 images.'];
+        header('Location: ' . u('content', 'create'));
+        exit;
     }
 
     $dbh->beginTransaction();
@@ -352,11 +408,19 @@ function store(): void
         ]);
         $postId = (int) $dbh->lastInsertId();
 
+        $imgSortOrder = 0;
         if ($imageFilename !== null) {
             $dbh->prepare(
                 "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
-                 VALUES (?, 0, ?, 'uploaded')"
-            )->execute([$postId, $imageFilename]);
+                 VALUES (?, ?, ?, 'uploaded')"
+            )->execute([$postId, $imgSortOrder, $imageFilename]);
+            $imgSortOrder++;
+        }
+        if ($urlImageFilename !== null) {
+            $dbh->prepare(
+                "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+                 VALUES (?, ?, ?, 'uploaded')"
+            )->execute([$postId, $imgSortOrder, $urlImageFilename]);
         }
 
         if ($intent === 'share_now' || $intent === 'schedule') {
@@ -589,6 +653,68 @@ function update(): void
     }
     $imageOrder = array_map('intval', (array) ($_POST['image_order'] ?? []));
 
+    // URL image fetch
+    $urlImageFilename = null;
+    $imageUrl = trim((string) ($_POST['image_url'] ?? ''));
+    if ($imageUrl !== '') {
+        if (!filter_var($imageUrl, FILTER_VALIDATE_URL) || !preg_match('/^https?:\/\//i', $imageUrl)) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Image URL must be a valid http or https address.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,            $imageUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS,      5);
+        curl_setopt($ch, CURLOPT_TIMEOUT,        15);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_PROTOCOLS,      CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_USERAGENT,      'SocialTurn/1.0');
+        $fetchedData = curl_exec($ch);
+        $httpCode    = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($fetchedData === false || $httpCode !== 200) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not fetch image from that URL. Check the address and try again.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+        $finfo     = new finfo(FILEINFO_MIME_TYPE);
+        $fetchMime = $finfo->buffer($fetchedData);
+        if (!in_array($fetchMime, ['image/jpeg', 'image/png'], true)) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Remote image must be a JPG or PNG.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+        $fetchExt    = $fetchMime === 'image/png' ? 'png' : 'jpg';
+        $tmpPath     = tempnam(sys_get_temp_dir(), 'st_img_');
+        file_put_contents($tmpPath, $fetchedData);
+        $newFilename = bin2hex(random_bytes(8)) . '.' . $fetchExt;
+        if ($storage->store($tmpPath, 'originals/' . $newFilename)) {
+            $urlImageFilename = $newFilename;
+        }
+        unlink($tmpPath);
+        if ($urlImageFilename === null) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save fetched image. Please try again.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+    }
+
+    // Pre-flight 4-image limit check
+    $newAdditions = ($newImageUploaded ? 1 : 0) + ($urlImageFilename !== null ? 1 : 0);
+    if ($newAdditions > 0) {
+        $stmt = $dbh->prepare('SELECT COUNT(*) FROM post_images WHERE post_id = ?');
+        $stmt->execute([$postId]);
+        $currentImageCount = (int) $stmt->fetchColumn();
+        if ($currentImageCount - count($filesToDelete) + $newAdditions > 4) {
+            $_SESSION['notification'] = ['type' => 'error', 'message' => 'A post can have at most 4 images.'];
+            header('Location: ' . u('content', 'edit', ['id' => $postId]));
+            exit;
+        }
+    }
+
     // Load account info needed for queue insertion
     $stmt = $dbh->prepare(
         'SELECT cp.platform, cp.id AS cp_id, a.default_tags,
@@ -684,6 +810,18 @@ function update(): void
                      VALUES (?, ?, ?, 'uploaded')"
                 )->execute([$postId, (int) $max->fetchColumn(), $imageFilename]);
             }
+        }
+
+        // Insert URL-fetched image
+        if ($urlImageFilename !== null) {
+            $max = $dbh->prepare(
+                'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM post_images WHERE post_id = ?'
+            );
+            $max->execute([$postId]);
+            $dbh->prepare(
+                "INSERT INTO post_images (post_id, sort_order, image_filename, image_source)
+                 VALUES (?, ?, ?, 'uploaded')"
+            )->execute([$postId, (int) $max->fetchColumn(), $urlImageFilename]);
         }
 
         if ($intent === 'share_now' || $intent === 'schedule') {

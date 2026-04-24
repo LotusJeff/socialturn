@@ -258,6 +258,16 @@ $currentAccountId  = (int) $post['account_id'];
                             <div class="form-text">Uploading a new image appends it after the existing ones.</div>
                             <?php endif; ?>
                         </div>
+                        <div class="mt-2">
+                            <label for="image_url" class="form-label">Or fetch from URL
+                                <span data-bs-toggle="tooltip"
+                                      data-bs-title="Paste a direct link to a JPG or PNG. A file upload and a URL can both be added at once."
+                                      class="text-muted ms-1" style="cursor:default">&#63;</span>
+                                <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="url" id="image_url" name="image_url"
+                                   class="form-control" style="max-width:400px"
+                                   placeholder="https://example.com/image.jpg">
+                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
