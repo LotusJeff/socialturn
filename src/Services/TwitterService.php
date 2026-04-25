@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SocialTurn\Services;
 
 use Abraham\TwitterOAuth\TwitterOAuth;
-use CURLFile;
 use Throwable;
 
 /**
@@ -78,12 +77,12 @@ class TwitterService
             if (!empty($images)) {
                 $mediaIds = [];
                 foreach ($images as $filename) {
-                    $mediaId = $this->uploadMedia($client, $filename);
-                    if ($mediaId === null) {
-                        $result['error'] = 'Media upload to Twitter failed — check storage and API credentials.';
+                    $mediaResult = $this->uploadMedia($client, $filename);
+                    if (isset($mediaResult['error'])) {
+                        $result['error'] = 'Media upload to Twitter failed — ' . $mediaResult['error'];
                         return $result;
                     }
-                    $mediaIds[] = $mediaId;
+                    $mediaIds[] = $mediaResult['media_id'];
                 }
                 $payload['media'] = ['media_ids' => $mediaIds];
             }
@@ -256,7 +255,7 @@ class TwitterService
      *
      * Returns media_id_string on success, null on any failure.
      */
-    private function uploadMedia(TwitterOAuth $client, string $filename): ?string
+    private function uploadMedia(TwitterOAuth $client, string $filename): array
     {
         $tmpFile = null;
 
@@ -270,14 +269,15 @@ class TwitterService
 
             // Media upload endpoint is v1.1 only — no v2 equivalent exists
             $client->setApiVersion('1.1');
-            $response = $client->upload('media/upload', ['media' => new CURLFile($tmpFile)]);
+            $response = $client->upload('media/upload', ['media' => $tmpFile]);
 
-            return isset($response->media_id_string)
-                ? (string) $response->media_id_string
-                : null;
+            if (!isset($response->media_id_string)) {
+                return ['error' => 'Twitter API did not return media_id_string. Response: ' . json_encode($response)];
+            }
+            return ['media_id' => (string) $response->media_id_string];
 
-        } catch (Throwable) {
-            return null;
+        } catch (Throwable $e) {
+            return ['error' => $e->getMessage()];
         } finally {
             // Always restore v2 on the cached client and clean up the temp file
             $client->setApiVersion('2');

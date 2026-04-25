@@ -19,6 +19,10 @@
   element; badge is now clickable and opens a Bootstrap 5 modal preview of the first image
 - overlay_font_color and overlay_font_size changes did not trigger generated image invalidation;
   pre-save SELECT and $imageSettingsChanged condition extended to include both columns
+- TwitterService::uploadMedia() swallowed exceptions silently; catch block now captures and
+  surfaces the actual error message in post_history
+- TwitterService::uploadMedia() double-wrapped CURLFile caused PHP 8 TypeError; filepath string
+  now passed directly to twitteroauth upload() which handles CURLFile construction internally
 
 ### Added
 - TrueType font overlay system using Poppins SemiBold 600 (assets/fonts/Poppins-SemiBold.ttf);

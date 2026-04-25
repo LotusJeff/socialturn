@@ -606,6 +606,14 @@ Merge to master. Tag 1.0.0. Public release.
   changes did not trigger generated image invalidation; pre-save SELECT extended to fetch both columns;
   $imageSettingsChanged condition extended with two additional || clauses comparing pre-save vs posted
   values for both font settings
+- TwitterService::uploadMedia() swallowed all exceptions with bare catch (Throwable) — no error
+  detail reached post_history; catch block updated to capture $e->getMessage(); non-media_id_string
+  API responses now include raw response body; post() updated to surface actual error in the
+  stored failure message
+- TwitterService::uploadMedia() passed new CURLFile($tmpFile) to $client->upload() — the
+  abraham/twitteroauth library constructs CURLFile internally and calls is_readable() on each
+  param value; passing a pre-built CURLFile object caused PHP 8 TypeError; fixed by passing
+  $tmpFile string directly; unused CURLFile import removed
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
