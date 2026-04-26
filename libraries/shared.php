@@ -267,26 +267,6 @@ function datify($date, string $timezone = 'UTC'): string
 	return $dt->format('g:iA M dS') . ' ' . $dt->format('T');
 }
 
-function hashPassword(string $password): string {
-	return password_hash($password, PASSWORD_BCRYPT);
-}
-
-function verifyPassword(string $password, string $hash): bool {
-	return password_verify($password, $hash);
-}
-
-
-function sendemail($fromname,$fromaddress,$toemail,$subject,$body,$tag = null) {
-
-	Mail_Postmark::compose()->from($fromaddress,$fromname)
-      ->to($toemail)
-      ->subject($subject)
-      ->messagePlain($body)
-	    ->tag($tag)
-      ->send();
-
-}
-
 function getExtensionToMimeTypeMapping() {
     return array(
         'ai'=>'application/postscript',
@@ -476,47 +456,6 @@ function getMimeType($filePath) {
     finfo_close($finfo);
 
     return $mime;
-}
-
-function upload($filePath, $destinationDir = 'images', array $allowedMimes = array()) {
-
-    if (!is_file($filePath) || !is_dir($destinationDir)) {
-        return false;
-    }
-
-    if (!($mime = getMimeType($filePath))) {
-        return false;
-    }
-
-    if (!in_array($mime, $allowedMimes)) {
-        return false;
-    }
-
-    $ext = null;
-    $extMapping = getExtensionToMimeTypeMapping();
-    foreach ($extMapping as $extension => $mimeType) {
-        if ($mimeType == $mime) {
-            $ext = $extension;
-            break;
-        }
-    }
-
-    if (empty($ext)) {
-        $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-    }
-
-    if (empty($ext)) {
-        return false;
-    }
-
-    $fileName = bin2hex(random_bytes(16)) . '.' . $ext;
-    $newFilePath = $destinationDir.'/'.$fileName;
-
-    if(!rename($filePath, $newFilePath)) {
-        return false;
-    }
-
-    return $fileName;
 }
 
 /**

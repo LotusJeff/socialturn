@@ -31,6 +31,12 @@
 - .htaccess PHP execution block added for images/ — brings Apache config to parity
   with nginx.conf.sample
 - .htaccess and nginx.conf.sample deny rules added for vendor/, src/, libraries/, and db/
+- Dead code removal — deleted views/users/invite.php, views/users/inform.php, db/1.txt, db/2.txt, images/index.htm
+- Removed dead functions from controllers/users.php: validate(), invite(), inform()
+- Removed dead functions from libraries/shared.php: hashPassword(), verifyPassword(), sendemail(), upload()
+- Stripped vestigial <form action="users/validate"> wrappers from views/oops/notfound.php,
+  permissions.php, noaccounts.php
+- Removed dead users/inform link from views/oops/noaccounts.php
 
 ### Added
 - TrueType font overlay system using Poppins SemiBold 600 (assets/fonts/Poppins-SemiBold.ttf);

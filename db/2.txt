@@ -1,1 +1,0 @@
-ALTER TABLE `companies` CHANGE COLUMN `email` `name` VARCHAR(255) NULL DEFAULT NULL  ;
