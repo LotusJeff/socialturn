@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use SocialTurn\Services\GeneratedImageService;
 use SocialTurn\Services\StorageService;
 
 /**
@@ -498,26 +499,7 @@ function update(): void
             || (int) ($current['overlay_font_size'] ?? 0) !== $overlayFontSize);
 
     if ($imageSettingsChanged) {
-        $stmt = $dbh->prepare(
-            "SELECT pi.id, pi.image_filename
-               FROM post_images pi
-               JOIN posts p ON pi.post_id = p.id
-              WHERE p.account_id = ? AND pi.image_source = 'generated'"
-        );
-        $stmt->execute([$accountId]);
-        $generatedImages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($generatedImages as $gi) {
-            if (!empty($gi['image_filename'])) {
-                $storage->delete((string) $gi['image_filename']);
-            }
-        }
-
-        $dbh->prepare(
-            "DELETE pi FROM post_images pi
-               JOIN posts p ON pi.post_id = p.id
-              WHERE p.account_id = ? AND pi.image_source = 'generated'"
-        )->execute([$accountId]);
+        (new GeneratedImageService($dbh, $storage))->deleteForAccount($accountId);
     }
 
     // -----------------------------------------------------------------------
