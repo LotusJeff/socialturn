@@ -65,6 +65,15 @@ location = /cron.php {
 }
 
 # ------------------------------------------------------------
+# Security: block direct HTTP access to internal directories.
+# vendor/, src/, libraries/, and db/ contain no web-accessible
+# resources.
+# ------------------------------------------------------------
+location ~* ^/(vendor|src|libraries|db)/ {
+    deny all;
+}
+
+# ------------------------------------------------------------
 # Security: block PHP execution inside the images/ directory.
 # Uploaded files must never be interpreted as PHP.
 # Equivalent to images/.htaccess FilesMatch + php_flag engine off.

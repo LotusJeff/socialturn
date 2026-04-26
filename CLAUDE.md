@@ -369,7 +369,9 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 5. All user input uses prepared statements or sanitize(). Never raw.
 6. Tokens stored in DB must never appear in logs, responses, or views.
 7. config.php must not be web-accessible — .htaccess must block direct access.
-8. The images/ directory must not execute PHP — .htaccess must enforce this.
+8. The images/ directory must not execute PHP — both .htaccess and nginx.conf.sample
+   enforce this. vendor/, src/, libraries/, and db/ must block direct HTTP access —
+   both config files enforce this.
 9. Never ship with debug mode or verbose error output enabled by default.
 10. Default configuration must be secure — never require users to harden it.
 11. Token encryption at rest is deferred to v2.0. Tokens in connected_platforms

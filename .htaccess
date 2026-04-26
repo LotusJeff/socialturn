@@ -44,3 +44,21 @@ DirectoryIndex index.php
     Require all denied
 </FilesMatch>
 
+# -----------------------------------------------------------------------
+# Security: block PHP execution inside images/ — uploaded files must
+# never be interpreted as PHP.
+# -----------------------------------------------------------------------
+<Directory "images/">
+    <FilesMatch "\.ph(p[0-9]?|tml)$">
+        Require all denied
+    </FilesMatch>
+</Directory>
+
+# -----------------------------------------------------------------------
+# Security: block direct HTTP access to internal directories.
+# These directories contain no web-accessible resources.
+# -----------------------------------------------------------------------
+<DirectoryMatch "^(.+)/(vendor|src|libraries|db)/">
+    Require all denied
+</DirectoryMatch>
+

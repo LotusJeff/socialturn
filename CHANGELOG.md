@@ -26,6 +26,11 @@
 - Inline generated image flush logic extracted from accounts.php::update() into
   src/Services/GeneratedImageService — deleteForAccount(int $accountId): int;
   accounts.php::update() now calls the service instead of duplicating the logic
+- Dead file views/connect/facebook.php removed — contained credential-in-URL pattern
+  from prior implementation, not reachable in live routing
+- .htaccess PHP execution block added for images/ — brings Apache config to parity
+  with nginx.conf.sample
+- .htaccess and nginx.conf.sample deny rules added for vendor/, src/, libraries/, and db/
 
 ### Added
 - TrueType font overlay system using Poppins SemiBold 600 (assets/fonts/Poppins-SemiBold.ttf);
