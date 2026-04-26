@@ -23,6 +23,9 @@
   surfaces the actual error message in post_history
 - TwitterService::uploadMedia() double-wrapped CURLFile caused PHP 8 TypeError; filepath string
   now passed directly to twitteroauth upload() which handles CURLFile construction internally
+- Inline generated image flush logic extracted from accounts.php::update() into
+  src/Services/GeneratedImageService — deleteForAccount(int $accountId): int;
+  accounts.php::update() now calls the service instead of duplicating the logic
 
 ### Added
 - TrueType font overlay system using Poppins SemiBold 600 (assets/fonts/Poppins-SemiBold.ttf);

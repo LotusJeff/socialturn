@@ -614,6 +614,10 @@ Merge to master. Tag 1.0.0. Public release.
   abraham/twitteroauth library constructs CURLFile internally and calls is_readable() on each
   param value; passing a pre-built CURLFile object caused PHP 8 TypeError; fixed by passing
   $tmpFile string directly; unused CURLFile import removed
+- Inline generated image flush logic extracted from accounts.php::update() into
+  src/Services/GeneratedImageService — deleteForAccount(int $accountId): int.
+  Single source of truth for deleting generated images and their post_images rows
+  for an account. accounts.php::update() now calls the service.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5

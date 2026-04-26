@@ -74,12 +74,6 @@
 
                     <?php if (hasPermission(1)): ?>
 
-                    <!-- Images — admin only -->
-                    <li class="nav-item">
-                        <a class="nav-link<?php echo ($controller === 'images') ? ' active' : ''; ?>"
-                           href="<?php echo u('images'); ?>">Images</a>
-                    </li>
-
                     <!-- Accounts — admin only -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'accounts') ? ' active' : ''; ?>"

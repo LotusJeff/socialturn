@@ -52,7 +52,7 @@ function authenticate($force = 0) {
 	}
 
 	// Admin-only routes — type=1 required
-	$adminOnlyControllers = ['team', 'accounts', 'connect', 'settings', 'images'];
+	$adminOnlyControllers = ['team', 'accounts', 'connect', 'settings'];
 	if (in_array($controller, $adminOnlyControllers, true) && isLoggedIn()) {
 		if ((int) ($_SESSION['user']['type'] ?? 999) !== 1) {
 			header('Location: ' . u('oops', 'permissions'));
