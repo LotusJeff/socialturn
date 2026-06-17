@@ -157,6 +157,27 @@ migration sql files, creates first admin user and company. Must be
 deleted after install. index.php shows a warning banner to admin
 users until install.php is removed.
 
+The wizard is 3 steps: (1) Database & Site URL, (2) Admin Account,
+(3) Email / Postmark (optional). It does NOT collect platform
+credentials — those are entered per-connection after install via
+Connect Twitter / Connect Facebook.
+
+**Install sequence — all validation before any write:**
+1. Validate fields (format, required)
+2. Pre-flight writability: `dirname($iniPath)` and `ROOT` (web root)
+   must both be writable — if either fails, show all errors and stop;
+   nothing has been written anywhere at this point
+3. Test DB connection (read-only)
+4. Check for existing data (read-only)
+5. Only if all pass: run schema.sql, migration 026, DB transaction
+   (company + admin user + admin_settings), write socialturn.ini,
+   write boot.php
+
+This sequencing was established after a real incident: the DB
+committed but boot.php failed due to directory permissions, leaving
+a half-installed state that required manual cleanup. The pre-flight
+check at step 2 prevents this class of failure.
+
 ### Admin Settings
 admin_settings table stores all non-boot configuration: Postmark
 credentials, recycle threshold, lookahead days, schedule min posts,

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.6] — 2026-06-17
+
+### Changed
+- Install wizard reduced from 4 steps to 3. Step 4 (Platform Credentials) removed
+  entirely — platform credentials are per-connection, entered via Connect Twitter /
+  Connect Facebook after install. They have no place in a global install step and no
+  longer exist as global settings (see 0.9.5).
+- Install wizard now validates everything before writing anything. Revised sequence:
+  validate fields → pre-flight writability checks (ini directory and web root) → test
+  DB connection → check for existing data → only then run any writes (schema, DB
+  transaction, files). Previously, the DB transaction committed before the file writes;
+  a file-write failure left the database populated with no config files on disk,
+  requiring manual cleanup. This class of failure is now impossible: both target paths
+  are confirmed writable before the first write is attempted.
+
+### Fixed
+- Pre-flight writability check for the web root directory (where `boot.php` is written)
+  was absent. On the previous fresh install run, the DB committed and `socialturn.ini`
+  was written, but `boot.php` failed due to directory permissions — leaving a partially
+  installed state that required manual intervention. Added `is_writable(ROOT)` check
+  alongside the existing ini-dir check, both running before any DB or file write.
+
+---
+
 ## [0.9.5] — 2026-06-17
 
 ### Changed

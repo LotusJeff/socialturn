@@ -152,10 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pmKey       = trim((string) ($_POST['postmarkapp_api_key']           ?? ''));
     $pmFrom      = trim((string) ($_POST['postmarkapp_mail_from_address'] ?? ''));
     $pmName      = trim((string) ($_POST['postmarkapp_mail_from_name']   ?? ''));
-    $twKey       = trim((string) ($_POST['twitter_apikey']    ?? ''));
-    $twSecret    = trim((string) ($_POST['twitter_apisecret'] ?? ''));
-    $metaId      = trim((string) ($_POST['meta_app_id']       ?? ''));
-    $metaSecret  = trim((string) ($_POST['meta_app_secret']   ?? ''));
     $threshold   = max(1, (int) ($_POST['recycle_threshold_default'] ?? 10));
     $lookahead   = max(1, (int) ($_POST['recycle_lookahead_days']    ?? 30));
     $minPosts    = max(1, (int) ($_POST['schedule_min_posts']        ?? 5));
@@ -180,6 +176,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $iniPathWarn = true;
             }
         }
+    }
+
+    // --- pre-flight: confirm web root is writable for boot.php ---
+    if (!is_writable(ROOT)) {
+        $errors[] = 'Web root directory is not writable by the web server: ' . ROOT
+                  . ' — run: chmod g+w ' . ROOT;
     }
 
     // --- validate remaining required fields ---
@@ -254,10 +256,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'recycle_threshold_default'     => (string) $threshold,
                 'recycle_lookahead_days'        => (string) $lookahead,
                 'schedule_min_posts'            => (string) $minPosts,
-                'twitter_apikey'                => $twKey,
-                'twitter_apisecret'             => $twSecret,
-                'meta_app_id'                   => $metaId,
-                'meta_app_secret'               => $metaSecret,
                 'postmarkapp_api_key'           => $pmKey,
                 'postmarkapp_mail_from_address' => $pmFrom,
                 'postmarkapp_mail_from_name'    => $pmName,
@@ -326,10 +324,6 @@ $f = [
     'pm_key'      => h((string) ($_POST['postmarkapp_api_key']           ?? '')),
     'pm_from'     => h((string) ($_POST['postmarkapp_mail_from_address'] ?? '')),
     'pm_name'     => h((string) ($_POST['postmarkapp_mail_from_name']   ?? '')),
-    'tw_key'      => h((string) ($_POST['twitter_apikey']    ?? '')),
-    'tw_secret'   => h((string) ($_POST['twitter_apisecret'] ?? '')),
-    'meta_id'     => h((string) ($_POST['meta_app_id']       ?? '')),
-    'meta_secret' => h((string) ($_POST['meta_app_secret']   ?? '')),
     'threshold'   => h((string) ($_POST['recycle_threshold_default'] ?? '10')),
     'lookahead'   => h((string) ($_POST['recycle_lookahead_days']    ?? '30')),
     'min_posts'   => h((string) ($_POST['schedule_min_posts']        ?? '5')),
@@ -441,7 +435,7 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
 
         <!-- Step indicator -->
         <div class="d-flex align-items-center justify-content-center gap-1 mb-4">
-            <template x-for="n in [1,2,3,4]" :key="n">
+            <template x-for="n in [1,2,3]" :key="n">
                 <div class="d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center fw-semibold small"
                          :class="{
@@ -451,7 +445,7 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
                          }"
                          style="width:2rem;height:2rem"
                          x-text="n"></div>
-                    <div x-show="n < 4" style="width:2.5rem;height:2px;background:#dee2e6" class="mx-1"></div>
+                    <div x-show="n < 3" style="width:2.5rem;height:2px;background:#dee2e6" class="mx-1"></div>
                 </div>
             </template>
         </div>
@@ -464,7 +458,7 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
         <div x-show="step === 1" x-cloak>
             <div class="card shadow-sm mb-3">
                 <div class="card-header fw-semibold">
-                    Step 1 of 4 &mdash; Database &amp; Site URL
+                    Step 1 of 3 &mdash; Database &amp; Site URL
                 </div>
                 <div class="card-body p-4">
 
@@ -537,7 +531,7 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
         <div x-show="step === 2" x-cloak>
             <div class="card shadow-sm mb-3">
                 <div class="card-header fw-semibold">
-                    Step 2 of 4 &mdash; Admin Account
+                    Step 2 of 3 &mdash; Admin Account
                 </div>
                 <div class="card-body p-4">
 
@@ -596,7 +590,7 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
         <div x-show="step === 3" x-cloak>
             <div class="card shadow-sm mb-3">
                 <div class="card-header fw-semibold">
-                    Step 3 of 4 &mdash; Email <span class="text-muted fw-normal">(optional)</span>
+                    Step 3 of 3 &mdash; Email <span class="text-muted fw-normal">(optional)</span>
                 </div>
                 <div class="card-body p-4">
 
@@ -640,86 +634,11 @@ $loginUrl = rtrim((string) ($_POST['base_url'] ?? ''), '/') . '/index.php?c=user
 
                 </div>
             </div>
-            <div class="d-flex justify-content-between">
-                <button type="button" class="btn btn-outline-secondary" @click="step = 2">
-                    &larr; Back
-                </button>
-                <button type="button" class="btn btn-primary" @click="step = 4">
-                    Next &rarr;
-                </button>
-            </div>
-        </div>
-
-        <!-- ========================================================
-             Step 4 — Platform Credentials + Install
-             ======================================================== -->
-        <div x-show="step === 4" x-cloak>
-            <div class="card shadow-sm mb-3">
-                <div class="card-header fw-semibold">
-                    Step 4 of 4 &mdash; Platform Credentials <span class="text-muted fw-normal">(optional)</span>
-                </div>
-                <div class="card-body p-4">
-
-                    <p class="text-muted small mb-4">
-                        You can skip this step and add credentials later in
-                        Settings &rarr; Platform Credentials.
-                    </p>
-
-                    <h6 class="fw-semibold">Twitter / X</h6>
-                    <p class="text-muted small mb-3">
-                        Create a project and app at <strong>developer.twitter.com</strong>.
-                        Set permissions to <strong>Read and Write</strong>.
-                        Copy the Consumer Key and Consumer Secret from the app&rsquo;s
-                        Keys and Tokens page.
-                    </p>
-
-                    <div class="mb-3">
-                        <label class="form-label" for="twitter_apikey">Consumer Key (API Key)</label>
-                        <input type="text" class="form-control font-monospace"
-                               id="twitter_apikey" name="twitter_apikey"
-                               value="<?php echo $f['tw_key']; ?>">
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label" for="twitter_apisecret">Consumer Secret (API Secret)</label>
-                        <input type="text" class="form-control font-monospace"
-                               id="twitter_apisecret" name="twitter_apisecret"
-                               value="<?php echo $f['tw_secret']; ?>">
-                    </div>
-
-                    <h6 class="fw-semibold">Facebook / Instagram</h6>
-                    <p class="text-muted small mb-3">
-                        Create an app at <strong>developers.facebook.com</strong>.
-                        Add the <strong>Facebook Login</strong> and
-                        <strong>Instagram Graph API</strong> products.
-                        Copy the App ID and App Secret from App Settings &rarr; Basic.
-                        Instagram connects through the same app.
-                    </p>
-
-                    <div class="mb-3">
-                        <label class="form-label" for="meta_app_id">App ID</label>
-                        <input type="text" class="form-control font-monospace"
-                               id="meta_app_id" name="meta_app_id"
-                               value="<?php echo $f['meta_id']; ?>">
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label" for="meta_app_secret">App Secret</label>
-                        <input type="text" class="form-control font-monospace"
-                               id="meta_app_secret" name="meta_app_secret"
-                               value="<?php echo $f['meta_secret']; ?>">
-                    </div>
-
-                    <!-- Hidden app settings — use defaults, configurable post-install -->
-                    <input type="hidden" name="recycle_threshold_default" value="<?php echo $f['threshold']; ?>">
-                    <input type="hidden" name="recycle_lookahead_days"    value="<?php echo $f['lookahead']; ?>">
-                    <input type="hidden" name="schedule_min_posts"        value="<?php echo $f['min_posts']; ?>">
-
-                </div>
-            </div>
-
+            <input type="hidden" name="recycle_threshold_default" value="<?php echo $f['threshold']; ?>">
+            <input type="hidden" name="recycle_lookahead_days"    value="<?php echo $f['lookahead']; ?>">
+            <input type="hidden" name="schedule_min_posts"        value="<?php echo $f['min_posts']; ?>">
             <div class="d-flex justify-content-between align-items-center">
-                <button type="button" class="btn btn-outline-secondary" @click="step = 3">
+                <button type="button" class="btn btn-outline-secondary" @click="step = 2">
                     &larr; Back
                 </button>
                 <button type="submit" class="btn btn-success btn-lg px-4">
