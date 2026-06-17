@@ -11,8 +11,8 @@ use Throwable;
  *
  * Posts to Twitter/X using API v2.
  * Authenticates via OAuth 1.0a using per-account tokens stored in
- * connected_platforms. App-level credentials (TWITTER_APIKEY, TWITTER_APISECRET)
- * are read from config.php constants.
+ * connected_platforms. App-level credentials (Consumer Key/Secret) are injected
+ * via the constructor and stored per connected_platforms row.
  *
  * Token lifecycle: OAuth 1.0a tokens do not expire. refreshToken() always
  * returns true without making any API call.
@@ -33,7 +33,11 @@ class TwitterService
      */
     private array $clients = [];
 
-    public function __construct(private readonly StorageService $storage) {}
+    public function __construct(
+        private readonly StorageService $storage,
+        private readonly string         $appKey,
+        private readonly string         $appSecret,
+    ) {}
 
     // -----------------------------------------------------------------------
     // Public API
@@ -155,7 +159,7 @@ class TwitterService
      */
     public function getRequestToken(string $callbackUrl): array
     {
-        $connection = new TwitterOAuth(TWITTER_APIKEY, TWITTER_APISECRET);
+        $connection = new TwitterOAuth($this->appKey, $this->appSecret);
         $result     = $connection->oauth('oauth/request_token', ['oauth_callback' => $callbackUrl]);
 
         return is_array($result) ? $result : [];
@@ -171,7 +175,7 @@ class TwitterService
      */
     public function getAuthorizeUrl(string $requestToken): string
     {
-        $connection = new TwitterOAuth(TWITTER_APIKEY, TWITTER_APISECRET);
+        $connection = new TwitterOAuth($this->appKey, $this->appSecret);
 
         return $connection->url('oauth/authorize', ['oauth_token' => $requestToken]);
     }
@@ -199,8 +203,8 @@ class TwitterService
         string $verifier
     ): array {
         $connection = new TwitterOAuth(
-            TWITTER_APIKEY,
-            TWITTER_APISECRET,
+            $this->appKey,
+            $this->appSecret,
             $requestToken,
             $requestTokenSecret
         );
@@ -221,7 +225,7 @@ class TwitterService
      * the client is built once and reused for all calls with the same token
      * rather than being reconstructed on each invocation.
      *
-     * Reads TWITTER_APIKEY and TWITTER_APISECRET from config.php constants.
+     * Uses $this->appKey and $this->appSecret (per-connection credentials).
      * Sets API version to v2 on construction; uploadMedia() temporarily
      * switches to v1.1 and restores v2 in a finally block.
      */
@@ -229,8 +233,8 @@ class TwitterService
     {
         if (!isset($this->clients[$token])) {
             $client = new TwitterOAuth(
-                TWITTER_APIKEY,
-                TWITTER_APISECRET,
+                $this->appKey,
+                $this->appSecret,
                 $token,
                 $tokenSecret
             );

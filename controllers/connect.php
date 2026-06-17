@@ -12,15 +12,20 @@ use SocialTurn\Services\FacebookService;
  * All token logic lives in service classes — this controller only manages
  * redirects, oauth_states DB handshake state, and connected_platforms DB writes.
  *
+ * App credentials (Consumer Key/Secret for Twitter; App ID/Secret for Meta) are
+ * entered per-connection in a credential form before each OAuth flow. They are
+ * persisted in oauth_states during the handshake and written to connected_platforms
+ * on success — never stored as global settings.
+ *
  * Tokens never appear in views, logs, or HTTP responses.
  * oauth_states rows are deleted immediately on use (consumed once, prevent replay).
  * SESSION is used only for post-callback page-selection state (Facebook) and
  * flash notifications — not for OAuth handshake CSRF or request token secrets.
  *
  * Functions:
- *   twitter()            — Initiate Twitter OAuth 1.0a
+ *   twitter()            — GET: credential form; POST: initiate Twitter OAuth 1.0a
  *   twitterCallback()    — Receive Twitter verifier, exchange, store
- *   facebook()           — Initiate Facebook/Instagram OAuth 2.0
+ *   facebook()           — GET: credential form; POST: initiate Facebook/Instagram OAuth 2.0
  *   facebookCallback()   — Receive code, exchange tokens, discover pages
  *   pages()              — Render page/account selection UI
  *   savePage()           — Save a selected Facebook Page or Instagram account
@@ -49,17 +54,41 @@ function connect_userId(): int
 // -----------------------------------------------------------------------
 
 /**
- * Initiate Twitter OAuth 1.0a.
+ * GET: Show the Twitter credential entry form.
+ * POST: Validate credentials, initiate Twitter OAuth 1.0a.
  *
- * Requests a request token from Twitter and redirects to the authorization URL.
- * Persists the request token and secret in oauth_states (keyed by state_key) so
- * concurrent flows in the same browser session cannot overwrite each other.
+ * Credentials (Consumer Key and Consumer Secret) are submitted in the POST body,
+ * stored in oauth_states for the duration of the handshake, and written to
+ * connected_platforms on successful callback. They are never stored as global settings.
  */
 function twitter(): void
 {
-    global $dbh;
+    global $dbh, $template;
 
-    $service = new TwitterService(new StorageService());
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $template->set('callbackUrl', BASE_URL . 'index.php?c=connect&a=twitterCallback');
+        $template->set('csrfToken', csrf_token());
+        return;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . u('connect', 'twitter'));
+        exit;
+    }
+
+    $appKey    = trim((string) ($_POST['app_key']    ?? ''));
+    $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+
+    if ($appKey === '' || $appSecret === '') {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Consumer Key and Consumer Secret are both required.',
+        ];
+        header('Location: ' . u('connect', 'twitter'));
+        exit;
+    }
+
+    $service = new TwitterService(new StorageService(), $appKey, $appSecret);
 
     try {
         $requestToken = $service->getRequestToken(u('connect', 'twitterCallback'));
@@ -67,9 +96,9 @@ function twitter(): void
         error_log('Twitter connect error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not connect to Twitter. Check Platform Credentials in Settings.',
+            'message' => 'Could not reach Twitter. Check your Consumer Key and Secret.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'twitter'));
         exit;
     }
 
@@ -78,18 +107,21 @@ function twitter(): void
             'type'    => 'error',
             'message' => 'Twitter did not return a valid request token. Check your app credentials.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'twitter'));
         exit;
     }
 
     $dbh->prepare(
-        "INSERT INTO oauth_states (state_key, platform, user_id, request_token, request_token_secret)
-         VALUES (?, 'twitter', ?, ?, ?)"
+        "INSERT INTO oauth_states
+             (state_key, platform, user_id, request_token, request_token_secret, app_key, app_secret)
+         VALUES (?, 'twitter', ?, ?, ?, ?, ?)"
     )->execute([
         bin2hex(random_bytes(32)),
         connect_userId(),
         $requestToken['oauth_token'],
         $requestToken['oauth_token_secret'],
+        $appKey,
+        $appSecret,
     ]);
 
     header('Location: ' . $service->getAuthorizeUrl($requestToken['oauth_token']));
@@ -102,7 +134,8 @@ function twitter(): void
  * Looks up handshake state in oauth_states using oauth_token (the request token),
  * which Twitter echoes back in the callback URL. The state row is deleted immediately
  * on retrieval — consumed once, prevents replay. Rows older than 15 minutes are
- * treated as expired. On success, upserts a connected_platforms row.
+ * treated as expired. On success, upserts a connected_platforms row including the
+ * app credentials that were stored during the handshake.
  */
 function twitterCallback(): void
 {
@@ -121,7 +154,7 @@ function twitterCallback(): void
     }
 
     $stmt = $dbh->prepare(
-        "SELECT id, request_token_secret, created_at
+        "SELECT id, request_token_secret, app_key, app_secret, created_at
            FROM oauth_states
           WHERE request_token = ? AND platform = 'twitter'
           LIMIT 1"
@@ -149,11 +182,13 @@ function twitterCallback(): void
     }
 
     $requestSecret = (string) $stateRow['request_token_secret'];
+    $appKey        = (string) ($stateRow['app_key']    ?? '');
+    $appSecret     = (string) ($stateRow['app_secret'] ?? '');
 
     // Delete immediately before the token exchange — prevents replay.
     $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
 
-    $service = new TwitterService(new StorageService());
+    $service = new TwitterService(new StorageService(), $appKey, $appSecret);
 
     try {
         $accessToken = $service->getAccessToken($oauthToken, $requestSecret, $oauthVerifier);
@@ -191,20 +226,24 @@ function twitterCallback(): void
 
     $companyId = connect_companyId();
 
-    // Upsert: re-authorizing the same account updates its token rather than duplicating.
+    // Upsert: re-authorizing the same account updates its token and credentials
+    // rather than creating a duplicate row.
     // platform_name intentionally omitted — Twitter's OAuth 1.0a callback does not
     // return a display name; screen_name stored as platform_username is sufficient.
     $dbh->prepare(
         "INSERT INTO connected_platforms
-             (company_id, platform, platform_account_id, platform_username, access_token, token_secret, is_active)
-         VALUES (?, 'twitter', ?, ?, ?, ?, 1)
+             (company_id, platform, platform_account_id, platform_username,
+              access_token, token_secret, app_key, app_secret, is_active)
+         VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?, 1)
          ON DUPLICATE KEY UPDATE
              access_token      = VALUES(access_token),
              token_secret      = VALUES(token_secret),
+             app_key           = VALUES(app_key),
+             app_secret        = VALUES(app_secret),
              platform_username = VALUES(platform_username),
              is_active         = 1,
              updated_at        = NOW()"
-    )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret]);
+    )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret, $appKey, $appSecret]);
 
     $_SESSION['notification'] = [
         'type'    => 'success',
@@ -219,38 +258,51 @@ function twitterCallback(): void
 // -----------------------------------------------------------------------
 
 /**
- * Initiate Facebook/Instagram OAuth 2.0.
+ * GET: Show the Facebook/Instagram credential entry form.
+ * POST: Validate credentials, initiate Facebook/Instagram OAuth 2.0.
  *
- * Requests both Facebook Page and Instagram Business scopes in one dialog.
- * One authorization covers both platforms — no separate Instagram flow needed.
- * A CSRF state key is persisted in oauth_states (not SESSION) so concurrent
- * flows in the same browser session cannot overwrite each other.
+ * One authorization covers both Facebook Pages and Instagram Business accounts —
+ * no separate Instagram flow needed. A CSRF state key is persisted in oauth_states
+ * (not SESSION) so concurrent flows in the same browser session cannot overwrite
+ * each other. App credentials are stored in oauth_states for the handshake duration
+ * and written to connected_platforms on successful page selection.
  */
 function facebook(): void
 {
-    global $dbh;
+    global $dbh, $template;
 
-    if (!defined('META_APP_ID') || !defined('META_APP_SECRET')
-        || META_APP_ID     === 'your_facebook_app_id'
-        || META_APP_SECRET === 'your_facebook_app_secret'
-    ) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $template->set('callbackUrl', BASE_URL . 'index.php?c=connect&a=facebookCallback');
+        $template->set('csrfToken', csrf_token());
+        return;
+    }
+
+    if (!csrf_validate()) {
+        header('Location: ' . u('connect', 'facebook'));
+        exit;
+    }
+
+    $appId     = trim((string) ($_POST['app_key']    ?? ''));
+    $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+
+    if ($appId === '' || $appSecret === '') {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not connect to Facebook. Check Platform Credentials in Settings.',
+            'message' => 'App ID and App Secret are both required.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'facebook'));
         exit;
     }
 
     $stateKey = bin2hex(random_bytes(32));
 
     $dbh->prepare(
-        "INSERT INTO oauth_states (state_key, platform, user_id)
-         VALUES (?, 'facebook', ?)"
-    )->execute([$stateKey, connect_userId()]);
+        "INSERT INTO oauth_states (state_key, platform, user_id, app_key, app_secret)
+         VALUES (?, 'facebook', ?, ?, ?)"
+    )->execute([$stateKey, connect_userId(), $appId, $appSecret]);
 
     $params = http_build_query([
-        'client_id'     => META_APP_ID,
+        'client_id'     => $appId,
         'redirect_uri'  => u('connect', 'facebookCallback'),
         'scope'         => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
         'state'         => $stateKey,
@@ -269,16 +321,16 @@ function facebook(): void
  * The state row is deleted immediately on retrieval (consumed once, prevents replay).
  * Rows older than 15 minutes are treated as expired.
  *
- * After state validation, exchanges the code for tokens and discovers Pages and
- * Instagram Business accounts. Stores two SESSION indexes keyed by
- * platform_account_id for O(1) token lookup in savePage(). The view never sees
- * any token.
+ * After state validation, reads app credentials from the oauth_states row,
+ * exchanges the code for tokens and discovers Pages and Instagram Business accounts.
+ * Stores two SESSION indexes keyed by platform_account_id for O(1) token lookup in
+ * savePage(). App credentials are also stored in SESSION to be written to
+ * connected_platforms at savePage() time. The view never sees any token.
  */
 function facebookCallback(): void
 {
     global $dbh;
 
-    // CSRF state check via oauth_states — replaces SESSION-based check.
     $returnedState = (string) ($_GET['state'] ?? '');
 
     if ($returnedState === '') {
@@ -291,7 +343,10 @@ function facebookCallback(): void
     }
 
     $stmt = $dbh->prepare(
-        "SELECT id, created_at FROM oauth_states WHERE state_key = ? AND platform = 'facebook' LIMIT 1"
+        "SELECT id, app_key, app_secret, created_at
+           FROM oauth_states
+          WHERE state_key = ? AND platform = 'facebook'
+          LIMIT 1"
     );
     $stmt->execute([$returnedState]);
     $stateRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -315,6 +370,9 @@ function facebookCallback(): void
         exit;
     }
 
+    $appId     = (string) ($stateRow['app_key']    ?? '');
+    $appSecret = (string) ($stateRow['app_secret'] ?? '');
+
     // Delete immediately before token exchange — prevents replay.
     $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
 
@@ -329,7 +387,7 @@ function facebookCallback(): void
         exit;
     }
 
-    $service = new FacebookService($dbh, new StorageService());
+    $service = new FacebookService($dbh, new StorageService(), $appId, $appSecret);
 
     $shortLivedToken = $service->exchangeCodeForToken($code, u('connect', 'facebookCallback'));
 
@@ -382,8 +440,12 @@ function facebookCallback(): void
         }
     }
 
+    // App credentials stored alongside page data so savePage() can write them
+    // to connected_platforms. The handshake row is already deleted at this point.
     $_SESSION['oauth']['facebook_pages']     = $pages;
     $_SESSION['oauth']['facebook_instagram'] = $instagram;
+    $_SESSION['oauth']['app_key']            = $appId;
+    $_SESSION['oauth']['app_secret']         = $appSecret;
     $_SESSION['oauth']['expires']            = time() + 600;
 
     header('Location: ' . u('connect', 'pages'));
@@ -453,13 +515,14 @@ function pages(): void
  * The POST body carries only display identifiers: platform, platform_account_id,
  * platform_name, platform_username. The access token is looked up from SESSION
  * using platform_account_id as the key — it is never present in the request body
- * or HTML source.
+ * or HTML source. App credentials are read from SESSION and written to
+ * connected_platforms alongside the OAuth token.
  *
  * Page Access Tokens obtained from a long-lived user token do not expire.
  * token_expires_at is stored as NULL.
  *
- * Upsert: re-connecting the same account refreshes its token without duplicating.
- * SESSION is cleared on all outcomes.
+ * Upsert: re-connecting the same account refreshes its token and credentials
+ * without creating duplicates. SESSION is cleared on all outcomes.
  */
 function savePage(): void
 {
@@ -485,12 +548,15 @@ function savePage(): void
         exit;
     }
 
-    // Token lookup from SESSION — never from POST body
+    // Token and credential lookup from SESSION — never from POST body
     if ($platform === 'facebook') {
         $token = $_SESSION['oauth']['facebook_pages'][$platformAccountId]['access_token'] ?? null;
     } else {
         $token = $_SESSION['oauth']['facebook_instagram'][$platformAccountId]['page_access_token'] ?? null;
     }
+
+    $appKey    = (string) ($_SESSION['oauth']['app_key']    ?? '');
+    $appSecret = (string) ($_SESSION['oauth']['app_secret'] ?? '');
 
     if ($token === null) {
         unset($_SESSION['oauth']);
@@ -505,19 +571,23 @@ function savePage(): void
     $companyId = connect_companyId();
 
     // Page Access Tokens from a long-lived user token do not expire — token_expires_at = NULL.
-    // Upsert: re-connecting the same account refreshes its token without creating duplicates.
+    // Upsert: re-connecting the same account refreshes its token and credentials without duplicates.
     $dbh->prepare(
         'INSERT INTO connected_platforms
-             (company_id, platform, platform_account_id, platform_name, platform_username, access_token, token_expires_at, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, NULL, 1)
+             (company_id, platform, platform_account_id, platform_name, platform_username,
+              access_token, token_expires_at, app_key, app_secret, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1)
          ON DUPLICATE KEY UPDATE
              platform_name     = VALUES(platform_name),
              platform_username = VALUES(platform_username),
              access_token      = VALUES(access_token),
              token_expires_at  = NULL,
+             app_key           = VALUES(app_key),
+             app_secret        = VALUES(app_secret),
              is_active         = 1,
              updated_at        = NOW()'
-    )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername, $token]);
+    )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername,
+                $token, $appKey, $appSecret]);
 
     unset($_SESSION['oauth']);
 

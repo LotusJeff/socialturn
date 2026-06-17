@@ -10,10 +10,8 @@ function index(): void {
     $template->set('dbHost',    $cfg['db_host'] ?? '');
     $template->set('dbName',    $cfg['db_name'] ?? '');
     $template->set('baseUrl',   $cfg['base_url'] ?? '');
-    $template->set('pmConfigured',     !empty(POSTMARKAPP_API_KEY));
-    $template->set('twConfigured',     !empty(TWITTER_APIKEY));
-    $template->set('metaConfigured',   !empty(META_APP_ID));
-    $template->set('notifyFailure',    defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
+    $template->set('pmConfigured',  !empty(POSTMARKAPP_API_KEY));
+    $template->set('notifyFailure', defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
 }
 
 function database(): void {
@@ -143,47 +141,6 @@ function email(): void {
     $template->set('saveSuccess', true);
 }
 
-function platforms(): void {
-    global $dbh, $template;
-    checkPermission(1);
-
-    $template->set('saveError',   null);
-    $template->set('saveSuccess', false);
-    $template->set('csrfToken', csrf_token());
-
-    $template->set('twKey',      TWITTER_APIKEY);
-    $template->set('twSecret',   TWITTER_APISECRET);
-    $template->set('metaId',     META_APP_ID);
-    $template->set('metaSecret', META_APP_SECRET);
-
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        return;
-    }
-
-    if (!csrf_validate()) {
-        header('Location: ' . u('settings', 'platforms'));
-        exit;
-    }
-
-    $twKey      = trim((string) ($_POST['twitter_apikey']   ?? ''));
-    $twSecret   = trim((string) ($_POST['twitter_apisecret'] ?? ''));
-    $metaId     = trim((string) ($_POST['meta_app_id']      ?? ''));
-    $metaSecret = trim((string) ($_POST['meta_app_secret']  ?? ''));
-
-    $updates = [
-        'twitter_apikey'   => $twKey,
-        'twitter_apisecret' => $twSecret,
-        'meta_app_id'       => $metaId,
-        'meta_app_secret'   => $metaSecret,
-    ];
-    save_admin_settings($dbh, $updates);
-
-    $template->set('twKey',      $twKey);
-    $template->set('twSecret',   $twSecret);
-    $template->set('metaId',     $metaId);
-    $template->set('metaSecret', $metaSecret);
-    $template->set('saveSuccess', true);
-}
 
 function app(): void {
     global $dbh, $template;

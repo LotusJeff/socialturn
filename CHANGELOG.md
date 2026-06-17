@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.9.5] — 2026-06-17
+
+### Changed
+- Developer app credentials (Twitter Consumer Key/Secret; Meta App ID/Secret) moved from
+  global `admin_settings` to per-row `app_key` and `app_secret` columns on
+  `connected_platforms`. Each platform connection now carries its own credentials,
+  enabling multiple independent developer apps to coexist (e.g. two Twitter accounts
+  under separate apps).
+- Twitter and Facebook connect flows now show a credential entry form before initiating
+  OAuth. Credentials are stored in `oauth_states` during the handshake and written to
+  `connected_platforms` on success — never stored as global settings.
+- `TwitterService` now accepts app credentials as constructor parameters. All
+  `TWITTER_APIKEY` / `TWITTER_APISECRET` constant references replaced with injected values.
+- `AbstractMetaService` (parent of `FacebookService` and `InstagramService`) now accepts
+  `$appId` and `$appSecret` as constructor parameters. All `META_APP_ID` / `META_APP_SECRET`
+  constant references replaced with injected values.
+- `cron_dispatchToPlatform()` instantiates service classes with per-row credentials read
+  from `$account['app_key']` / `$account['app_secret']` (selected by `cron_fetchActiveAccounts()`).
+- `AbstractMetaService::refreshToken()` reads `app_key` and `app_secret` from the
+  `connected_platforms` row being refreshed, not from constructor-injected values — a
+  single maintenance call works correctly regardless of which service instance was created.
+
+### Removed
+- **Settings → Platform Credentials screen** (`settings/platforms`) removed. App credentials
+  are entered per-connection at connect time, not stored or edited globally.
+- `twitter_apikey`, `twitter_apisecret`, `meta_app_id`, `meta_app_secret` rows removed from
+  `admin_settings` seed data and from `load_admin_settings()` `$keyMap`.
+- PHP constants `TWITTER_APIKEY`, `TWITTER_APISECRET`, `META_APP_ID`, `META_APP_SECRET` no
+  longer defined anywhere in the application.
+
+### Schema
+- Migration 034: `app_key VARCHAR(255) NULL` and `app_secret VARCHAR(255) NULL` added to
+  `connected_platforms`. `oauth_states.app_key` and `oauth_states.app_secret` (added in
+  migration 033, previously unused) are now actively used to transit credentials through
+  the OAuth handshake.
+- Existing installs upgrading from 0.9.4: run `db/migrations/034_per_connection_app_credentials.sql`,
+  then reconnect each platform connection through the new credential form — existing OAuth
+  tokens remain valid and only the app credential columns need to be populated.
+
+---
+
 ## [0.9.4] — 2026-06-17
 
 ### Fixed

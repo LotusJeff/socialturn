@@ -18,6 +18,11 @@ use Throwable;
  * Child classes must implement post() and verifyToken().
  * All other methods are inherited.
  *
+ * App credentials ($appId, $appSecret) are injected at construction and stored
+ * per connected_platforms row. refreshToken() re-reads them from the DB row
+ * rather than using the constructor-provided values, so a single maintenance
+ * call works correctly regardless of which instance was created.
+ *
  * Token lifecycle: Meta tokens expire in ~60 days. refreshToken() performs
  * the fb_exchange_token exchange and persists the new token automatically.
  * isNearExpiry() lets the cron controller proactively refresh before expiry.
@@ -37,6 +42,8 @@ abstract class AbstractMetaService
     public function __construct(
         protected readonly PDO            $dbh,
         protected readonly StorageService $storage,
+        protected readonly string         $appId,
+        protected readonly string         $appSecret,
         ?Client $client = null
     ) {
         if ($client !== null) {
@@ -83,8 +90,11 @@ abstract class AbstractMetaService
      *
      * Uses the fb_exchange_token grant against GET /oauth/access_token.
      * Applies identically to Facebook Page tokens and Instagram tokens —
-     * both are issued by Meta and share the same exchange endpoint and
-     * the same app credentials (META_APP_ID, META_APP_SECRET).
+     * both are issued by Meta and share the same exchange endpoint.
+     *
+     * App credentials are read from the connected_platforms row (app_key,
+     * app_secret) rather than from constructor-injected values, so this
+     * method works correctly regardless of which service instance calls it.
      *
      * On success: writes new token and computed token_expires_at to
      * connected_platforms via a prepared statement.
@@ -100,10 +110,17 @@ abstract class AbstractMetaService
                 return false;
             }
 
+            $appId     = (string) ($tokenData['app_key']    ?? '');
+            $appSecret = (string) ($tokenData['app_secret'] ?? '');
+
+            if ($appId === '' || $appSecret === '') {
+                return false;
+            }
+
             $response = $this->graphGet('oauth/access_token', [
                 'grant_type'        => 'fb_exchange_token',
-                'client_id'         => META_APP_ID,
-                'client_secret'     => META_APP_SECRET,
+                'client_id'         => $appId,
+                'client_secret'     => $appSecret,
                 'fb_exchange_token' => $tokenData['access_token'],
             ]);
 
@@ -148,8 +165,8 @@ abstract class AbstractMetaService
     public function exchangeCodeForToken(string $code, string $redirectUri): ?string
     {
         $response = $this->graphGet('oauth/access_token', [
-            'client_id'     => META_APP_ID,
-            'client_secret' => META_APP_SECRET,
+            'client_id'     => $this->appId,
+            'client_secret' => $this->appSecret,
             'redirect_uri'  => $redirectUri,
             'code'          => $code,
         ]);
@@ -176,8 +193,8 @@ abstract class AbstractMetaService
     {
         $response = $this->graphGet('oauth/access_token', [
             'grant_type'        => 'fb_exchange_token',
-            'client_id'         => META_APP_ID,
-            'client_secret'     => META_APP_SECRET,
+            'client_id'         => $this->appId,
+            'client_secret'     => $this->appSecret,
             'fb_exchange_token' => $shortLivedToken,
         ]);
 
@@ -230,15 +247,16 @@ abstract class AbstractMetaService
     /**
      * Fetch the stored token row for a connected platform.
      *
-     * Returns the row as an associative array with at least access_token
-     * and token_expires_at, or null if the row is not found or is inactive.
+     * Returns the row as an associative array with at least access_token,
+     * token_expires_at, app_key, and app_secret — or null if the row is not
+     * found or is inactive.
      *
-     * @return array{access_token: string, token_expires_at: string|null}|null
+     * @return array{access_token: string, token_expires_at: string|null, app_key: string|null, app_secret: string|null}|null
      */
     protected function fetchTokenData(int $connectedPlatformId): ?array
     {
         $stmt = $this->dbh->prepare(
-            'SELECT access_token, token_expires_at
+            'SELECT access_token, token_expires_at, app_key, app_secret
                FROM connected_platforms
               WHERE id = ? AND is_active = 1
               LIMIT 1'

@@ -55,11 +55,15 @@ Adding a new platform requires two changes only:
 
 ### Credential Architecture — Two Layers
 
-**Layer 1 — Developer App Credentials (config.php)**
-These identify your installation of SocialTurn to each platform.
-One set per platform, shared across all connected accounts.
-- Twitter/X: TWITTER_API_KEY, TWITTER_API_SECRET
-- Meta (Facebook + Instagram): META_APP_ID, META_APP_SECRET
+**Layer 1 — Developer App Credentials (per-connection, database)**
+These identify the developer app to each platform. Entered once per platform
+connection at connect time; stored as `app_key` and `app_secret` on
+`connected_platforms`. Multiple connections can use separate developer apps.
+- Twitter/X: Consumer Key (`app_key`) + Consumer Secret (`app_secret`) per connection
+- Meta (Facebook + Instagram): App ID (`app_key`) + App Secret (`app_secret`) per connection
+
+There are no global PHP constants for platform credentials. No platform credential
+appears in config, admin_settings, or any constant.
 
 **Layer 2 — Per-Account OAuth Tokens (database)**
 These identify each individual social account to the platform.
@@ -69,8 +73,8 @@ Users can connect unlimited accounts of any supported platform type.
 - Facebook: page_access_token per page
 - Instagram: access_token per business account
 
-config.php contains ONLY Layer 1 credentials and app config.
-Never store individual account tokens in config.php.
+Both layers live in connected_platforms.
+Never store either layer in config, code, constants, or admin_settings.
 Never hardcode any credentials anywhere in code.
 
 ### Token Handling Rules
@@ -79,7 +83,7 @@ Never hardcode any credentials anywhere in code.
 - Facebook/Instagram tokens expire in 60 days — auto-refresh is mandatory
 - Twitter/X tokens are permanent unless revoked by the user
 - Tokens must never appear in logs, error messages, views, or API responses
-- Each user of SocialTurn supplies their own API credentials via config.php
+- Each user of SocialTurn supplies their own API credentials at connect time
   — there are no shared platform credentials
 
 ---
@@ -155,11 +159,14 @@ users until install.php is removed.
 
 ### Admin Settings
 admin_settings table stores all non-boot configuration: Postmark
-credentials, Twitter/Meta API keys, recycle threshold, lookahead
-days, schedule min posts, owner email. Loaded at bootstrap via
+credentials, recycle threshold, lookahead days, schedule min posts,
+owner email, notification settings. Loaded at bootstrap via
 load_admin_settings() in libraries/shared.php which defines each
 value as a PHP constant. Editable via controllers/settings.php
 (admin only).
+
+Platform API credentials (Twitter/Meta) are NOT in admin_settings —
+they are stored per-connection in connected_platforms as app_key/app_secret.
 
 **Any new admin_settings key must also be added to the $keyMap
 array in load_admin_settings() in libraries/shared.php.** Without
@@ -297,12 +304,13 @@ path needed. UI must display: "Post will publish within 5 minutes."
 | oauth_states | Transient OAuth handshake state — one row per in-flight connect flow; deleted on use |
 
 ### connected_platforms columns
-- id, account_id
+- id, company_id
 - platform (twitter|facebook|instagram)
 - platform_account_id (page ID, Twitter user ID, Instagram account ID)
-- platform_account_name (display name — for UI listing)
+- platform_name, platform_username (display identifiers — for UI listing)
 - access_token, token_secret
 - token_expires_at (NULL = never expires)
+- app_key, app_secret (developer app credentials — entered at connect time; NULL on pre-034 rows until reconnected)
 - is_active
 - created_at, updated_at
 
@@ -352,8 +360,11 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
   replaced by image_filenames TEXT NULL (JSON array)
 - Migration 033: oauth_states refactored for active use — account_id column, FK, and
   index dropped (no accounts row exists during connect flow); app_key VARCHAR(255) NULL
-  and app_secret VARCHAR(255) NULL added (unused until GAP 1 per-connection credentials
-  lands)
+  and app_secret VARCHAR(255) NULL added (activated by GAP 1 in migration 034)
+- Migration 034: app_key VARCHAR(255) NULL and app_secret VARCHAR(255) NULL added to
+  connected_platforms; admin_settings seed rows for twitter_apikey, twitter_apisecret,
+  meta_app_id, meta_app_secret removed; credentials now entered per-connection at
+  connect time and stored directly on the connected_platforms row
 
 ### post_images columns
 - id — auto-increment primary key
@@ -377,9 +388,10 @@ Rows older than 15 minutes are treated as expired; cron purges them automaticall
 - request_token VARCHAR(512) NULL — Twitter OAuth 1.0a only; echoed back by Twitter as
   `oauth_token` in the callback URL; used as the lookup key in twitterCallback()
 - request_token_secret VARCHAR(512) NULL — Twitter OAuth 1.0a only
-- app_key VARCHAR(255) NULL — reserved for GAP 1 (per-connection app credentials);
-  currently NULL on all rows; do not read or rely on this column until GAP 1 lands
-- app_secret VARCHAR(255) NULL — same as app_key
+- app_key VARCHAR(255) NULL — developer app key transiting during the OAuth handshake;
+  written on INSERT (from POST body), read back in the callback, then written to
+  connected_platforms on success; deleted with the row (consumed-once)
+- app_secret VARCHAR(255) NULL — same lifecycle as app_key
 - created_at DATETIME — set on INSERT; used for expiry check and cron purge
 
 **SESSION vs oauth_states boundary (important):**
@@ -582,6 +594,10 @@ Architectural changes completed during Phase 9:
   Twitter multi-upload; Facebook two-phase unpublished + /feed; Instagram carousel
   flow for 2–4 images
 - Overlay font color and size configurable per account for dynamic image generation
+- GAP 1: Per-connection developer app credentials — platform credentials moved from
+  global admin_settings to per-row app_key/app_secret on connected_platforms (migration 034);
+  connect flows now include credential entry forms; service classes accept credentials
+  via constructor; Settings → Platform Credentials screen removed
 
 ### Phase 10 — 1.0 Release
 Merge to master. Tag 1.0.0. Public release.
@@ -659,9 +675,18 @@ Merge to master. Tag 1.0.0. Public release.
   twitterCallback() looks up by request_token; facebookCallback() looks up by state_key;
   both delete the row immediately on use. SESSION no longer holds any OAuth handshake
   state. Facebook post-handshake page-selection SESSION usage is unchanged.
+- Per-connection developer app credentials (GAP 1, migration 034): Twitter Consumer
+  Key/Secret and Meta App ID/Secret moved from global admin_settings constants to per-row
+  app_key/app_secret on connected_platforms. TwitterService and AbstractMetaService now
+  accept credentials via constructor. cron_dispatchToPlatform() instantiates service
+  classes with credentials from the connected_platforms row. Connect flows show a
+  credential entry form before initiating OAuth; credentials transit through oauth_states
+  during the handshake and are written to connected_platforms on success.
+  AbstractMetaService::refreshToken() reads app_key/app_secret directly from the DB row.
+  Settings → Platform Credentials screen removed entirely.
 
 ### Open
-- Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5
+(none)
 
 ---
 
@@ -728,38 +753,34 @@ managed. Posting Schedules are created and configured under each connection.
 
 ### Schema Changes Required
 
-- Add `app_key` and `app_secret` columns to `connected_platforms` — store
-  developer app credentials per connection (currently shared constants in config.php)
-- config.php platform credential constants (`TWITTER_APIKEY`, `TWITTER_APISECRET`,
-  `META_APP_ID`, `META_APP_SECRET`) become optional fallback defaults and are
-  eventually removed
-- Migration required for both new columns and any table renames
+- ✓ DONE (migration 034): `app_key` and `app_secret` added to `connected_platforms`
+- ✓ DONE: Platform credential constants (`TWITTER_APIKEY` etc.) removed entirely
+- Remaining: table renames if the Posting Schedule / Platform Connection conceptual
+  split is implemented (deferred — see below)
 
 ### Service Class Changes
 
-- TwitterService, FacebookService, InstagramService currently read app credentials
-  from PHP constants
-- Redesign to accept `app_key` and `app_secret` as constructor parameters or via
-  the context array passed from `cron_dispatchToPlatform()`
-- `cron_dispatchToPlatform()` reads app credentials from the `connected_platforms`
-  row and passes them to the service class — no more constant references
+- ✓ DONE: TwitterService and AbstractMetaService accept credentials via constructor
+- ✓ DONE: cron_dispatchToPlatform() passes per-row credentials to service classes
+- ✓ DONE: Connect flows show credential entry form before OAuth
 
 ### Impact
 
-- Touches: connect flow, schema, service classes, cron dispatch, account
-  management UI, config.php
-- config.php platform credential constants removed or made optional
-- Fully backward compatible migration path for existing installs required
+- Remaining scope: the Posting Schedules rename and one-to-many connection model
+  (one Platform Connection → multiple Posting Schedules) has not been built yet.
+  The credential infrastructure (Layers 1 and 2 both in connected_platforms) is
+  complete and working. The UI and model restructure is the remaining v0.9.5 work.
 
 ### Implementation Order
 
-1. Schema migration — add `app_key`, `app_secret` to `connected_platforms`
-2. Service class updates — accept credentials as parameters instead of constants
-3. Cron dispatch update — pass credentials from DB row
-4. Connect wizard UI — multi-step flow per platform with credential entry
+1. ✓ Schema migration — app_key, app_secret on connected_platforms (migration 034)
+2. ✓ Service class updates — credentials as constructor parameters
+3. ✓ Cron dispatch update — credentials from DB row
+4. ✓ Connect wizard UI — credential entry form before OAuth per platform
 5. Posting Schedule model — decouple from Platform Connection, support multiple
-   schedules per connection
-6. config.php cleanup — remove or deprecate platform credential constants
+   schedules per connection (not yet started)
+6. Naming/nav restructure — rename accounts → Posting Schedules in UI and nav
+   (not yet started)
 
 ---
 
