@@ -718,103 +718,66 @@ Merge to master. Tag 1.0.0. Public release.
 - Facebook/Instagram posting is manually tested and confirmed working
 - All Phase 9 bugs are resolved and tested
 
-### The Three-Level Model (corrected — supersedes earlier "shared connection" design)
+### Naming and Conceptual Reframe
 
-An earlier version of this roadmap described a Platform Connection as a single
-OAuth-token holder shared across many Posting Schedules with no re-authentication
-needed to add a schedule. **That premise is wrong and must not be implemented.**
-Twitter requires a separate developer app per real connected account — there is
-no way to authenticate two different real Twitter accounts under one developer
-app. Per project decision, every platform is treated the same way for consistency,
-even where a platform (e.g. Meta) might technically allow broader sharing: one
-developer app credential set per one real connected account, always.
+The current naming conflates two distinct concepts. This redesign separates them
+clearly and renames them throughout the UI and codebase:
 
-The corrected model has three conceptual levels, but only two are separately
-addressable in the schema and UI (Levels 1 and 2 are fused):
+**Platform Connection** (replaces "connected platform")
+- Developer app credentials + OAuth token for one platform account
+- Set up once per social media account (e.g. one Twitter account, one Facebook page)
+- Stored in the `connected_platforms` table
+- Managed under Admin → Accounts
 
-**Level 1+2 — Platform Connection** (the `connected_platforms` row, already built)
-- A real, authenticated social media account (e.g. "Fred's Tool Company — Twitter")
-- Carries BOTH its own developer app credentials (`app_key`, `app_secret`) AND its
-  own OAuth token (`access_token`, `token_secret`) — these are fused into one row,
-  not separate layers, because the 1:1 constraint means there is never a case where
-  one credential set serves more than one real account
-- Set up once, rarely touched after it works — this is admin-only, infrastructure-
-  level setup, analogous to "register a new account with a vendor," not a
-  day-to-day action
-- Managed in its own dedicated admin section, separate from day-to-day scheduling
-  (see "Connections vs. Posting Schedules UI Split" below) — must NOT be reachable
-  from or co-located with the scheduling-account screen
-
-**Level 3 — Posting Schedule** (replaces "account" in the `accounts` table)
-- A named, departmental scheduling structure attached to exactly one Platform
-  Connection (e.g. Marketing's schedule and Ops' schedule, both posting through
-  the same Fred's Tool Company Twitter connection)
+**Posting Schedule** (replaces "account")
+- A named schedule attached to a Platform Connection
 - Has its own content pool, posting interval, active hours, tags, and queue settings
 - Multiple Posting Schedules can run under a single Platform Connection
-- This is the frequent, operational, day-to-day layer — never requires touching
-  credentials
+- Enables e.g. "Brand X Morning Posts" and "Brand X Evening Posts" both posting
+  through the same Twitter connection
 
-**UI naming note:** "Posting Schedule" is the working term for Level 3, but is not
-yet finalized — see "Open Naming Question" below.
+The Admin "Accounts" section becomes the place where Platform Connections are
+managed. Posting Schedules are created and configured under each connection.
 
-### Connections vs. Posting Schedules — UI Split (approved, not yet built)
+### New UX Flow
 
-Both screens are admin-only (`type=1`) under the existing permission system — there
-is no separate "super-admin" role, and none is being added for this. The split is
-purely navigational/visual, not a permissions change. Discovery confirmed: the
-`accounts`, `connect`, `settings`, and `team` controllers are already gated
-identically (`$adminOnlyControllers` in `libraries/shared.php`); team members
-(`type=100`) cannot reach any of them today and are unaffected by this work.
+**Adding a Platform Connection:**
+1. Admin → Accounts → Add Platform Connection
+2. Select platform; screen displays step-by-step instructions for obtaining
+   developer app credentials for that platform:
+   - Twitter/X: developer.twitter.com — create project/app, set Read+Write
+     permissions, add callback URL, copy Consumer Key and Consumer Secret
+   - Facebook: developers.facebook.com — create app, add Facebook Login and
+     Instagram Graph API products, copy App ID and App Secret
+   - Instagram: connected through the Facebook app — no separate credentials
+3. Enter app credentials; credentials are validated before proceeding to OAuth
+4. OAuth flow — redirect to platform, token returned and stored
+5. System auto-creates a first Posting Schedule under the new connection with
+   bare-minimum defaults (interval: hourly, active hours: 08:00–20:00 UTC)
+6. User is dropped into the Posting Schedule edit screen to configure it fully
 
-**Approved design (not yet implemented in code):**
-- New top-level nav item "Connections" (sibling to "Posting Schedules," not nested
-  under Settings — Settings is machine-level system config; Connections is
-  account-level setup the admin returns to)
-- New `connect/index()` action + view — lists all `connected_platforms` rows with
-  status, platform badge, and count of Posting Schedules using each connection;
-  "Add Twitter Connection" / "Add Facebook/Instagram Connection" buttons; disconnect
-  action. (Note: a similarly-named screen existed pre-GAP-1 as
-  `views/settings/platforms.php` but was a pure global-credential edit form with no
-  OAuth re-trigger and no per-connection awareness — it is not a usable starting
-  point and should not be revived as-is.)
-- The "Connect Twitter" / "Connect Facebook" buttons move OFF `views/accounts/index.php`
-  entirely
-- `accounts/index.php` is renamed in all user-facing UI from "Accounts" to "Posting
-  Schedules" (internal table/column/route names unchanged — this is a UI label
-  change only)
-- A new Posting Schedule cannot be created if no Platform Connection exists yet —
-  the UI must guide the admin to Connections first, not allow inline connection
-  creation from the Posting Schedules screen
-- Editing an existing Platform Connection's app credentials (e.g. rotating to a new
-  developer app) re-triggers the OAuth handshake for that specific row, producing a
-  new token — this re-uses the existing per-row `oauth_states`-based connect flow,
-  not a separate mechanism
+**Adding a second Posting Schedule under an existing connection:**
+- From the Platform Connection detail screen, user clicks "Add Posting Schedule"
+- New schedule is created with bare defaults under the same OAuth token
+- No re-authentication required — the existing token is reused
 
-**Status: approved in design discussion, not yet implemented.** No code changes
-have been made for this split as of the GAP 1 / GAP 2 / install-wizard work
-(0.9.4–0.9.6). This is the next major piece of v0.9.5 scope.
+### One Platform Connection → Many Posting Schedules
 
-### Open Naming Question
-
-"Posting Schedule" is the current working term for Level 3 but has not been
-finalized. Candidates considered: Posting Schedule, Schedule, Scheduling Profile,
-Content Channel, Queue. Leading candidate is "Posting Schedule" / "Schedule" —
-centers the right concept (when/what gets posted, not who is posting) and reads
-naturally in UI copy ("create a new posting schedule for the sales team"). "Content
-Channel" was considered and rejected — "channel" already colloquially refers to the
-platform itself (e.g. "our Twitter channel"), which would collide with the layer
-above it. Decide and lock in before implementing the nav restructure above, so the
-rename only has to happen once.
+- A Platform Connection is the OAuth token holder; it is shared across all
+  Posting Schedules under it
+- Each Posting Schedule has its own: content library, posting interval,
+  active hours window, timezone, default tags, recycle threshold, lookahead days
+- The queue population engine runs per Posting Schedule — each schedule fills
+  its own queue independently
+- cron dispatches via the Platform Connection's token, routing to the correct
+  Posting Schedule's queue rows
 
 ### Schema Changes Required
 
 - ✓ DONE (migration 034): `app_key` and `app_secret` added to `connected_platforms`
 - ✓ DONE: Platform credential constants (`TWITTER_APIKEY` etc.) removed entirely
-- No further schema changes required for the three-level model — `connected_platforms`
-  already correctly holds one row per real account with its own fused credentials,
-  and `accounts.connected_platform_id` already correctly supports many Posting
-  Schedules per connection. This is a UI/navigation restructure only, not a data
-  model change.
+- Remaining: table renames if the Posting Schedule / Platform Connection conceptual
+  split is implemented (deferred — see below)
 
 ### Service Class Changes
 
@@ -822,19 +785,23 @@ rename only has to happen once.
 - ✓ DONE: cron_dispatchToPlatform() passes per-row credentials to service classes
 - ✓ DONE: Connect flows show credential entry form before OAuth
 
+### Impact
+
+- Remaining scope: the Posting Schedules rename and one-to-many connection model
+  (one Platform Connection → multiple Posting Schedules) has not been built yet.
+  The credential infrastructure (Layers 1 and 2 both in connected_platforms) is
+  complete and working. The UI and model restructure is the remaining v0.9.5 work.
+
 ### Implementation Order
 
 1. ✓ Schema migration — app_key, app_secret on connected_platforms (migration 034)
 2. ✓ Service class updates — credentials as constructor parameters
 3. ✓ Cron dispatch update — credentials from DB row
 4. ✓ Connect wizard UI — credential entry form before OAuth per platform
-5. ✓ Install wizard cleanup — credential collection removed from install entirely;
-   pre-flight writability checks added (0.9.6)
-6. Finalize Posting Schedule naming (open question above) — do this first, before #7
-7. Connections vs. Posting Schedules UI split — new connect/index() screen, nav
-   restructure, rename throughout views/accounts/* and controllers/accounts.php
-   user-facing strings, remove connect buttons from accounts/index.php (approved,
-   not started)
+5. Posting Schedule model — decouple from Platform Connection, support multiple
+   schedules per connection (not yet started)
+6. Naming/nav restructure — rename accounts → Posting Schedules in UI and nav
+   (not yet started)
 
 ---
 
