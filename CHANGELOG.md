@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.4] — 2026-06-17
+
+### Fixed
+- OAuth handshake state for both Twitter and Facebook connect flows moved from
+  `$_SESSION['oauth']` to the `oauth_states` database table. Previously, starting
+  a second OAuth flow in a new browser tab (same session) would overwrite the first
+  flow's request token secret or CSRF state key, causing the first flow to fail on
+  callback. Each flow now writes its own independent row keyed by a unique `state_key`
+  (64-char hex), so concurrent flows in the same browser session complete independently
+  without collision.
+- Twitter callback now looks up handshake state by `request_token` (which Twitter
+  echoes back as `oauth_token` in the callback URL) rather than a SESSION key.
+- Facebook callback now validates CSRF state by `state_key` DB lookup rather than
+  reading `$_SESSION['oauth']['facebook_state']`.
+- `oauth_states` rows are deleted immediately on first use (prevents replay). Rows
+  older than 15 minutes are treated as expired — the flow errors with a clear message
+  and the stale row is deleted. The cron maintenance pass now purges abandoned rows
+  older than 15 minutes automatically.
+- SESSION is still used (correctly, by design) for the Facebook post-handshake
+  page-selection step (`facebook_pages`, `facebook_instagram`, `expires` keys) — that
+  is not a handshake state concern and is unaffected.
+
+### Schema
+- Migration 033: `oauth_states` table refactored for active use. Drops `account_id`
+  column, `idx_oauth_states_account_id` key, and `fk_oauth_states_account` FK (no
+  `accounts` row exists during the connect flow — the FK was never satisfiable). Adds
+  `app_key VARCHAR(255) NULL` and `app_secret VARCHAR(255) NULL` (nullable, unused
+  until GAP 1 per-connection app credentials lands).
+
 ## [0.9.3] — 2026-04-24
 
 ### Fixed

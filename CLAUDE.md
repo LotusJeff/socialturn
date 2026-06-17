@@ -294,6 +294,7 @@ path needed. UI must display: "Post will publish within 5 minutes."
 | scheduled_posts | Queue — a scheduled instance of a post at a specific datetime |
 | post_history | Immutable log of every successfully sent post |
 | admin_settings | Key/value store for all non-boot application configuration |
+| oauth_states | Transient OAuth handshake state — one row per in-flight connect flow; deleted on use |
 
 ### connected_platforms columns
 - id, account_id
@@ -349,6 +350,10 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 032: final_image_filename dropped from scheduled_posts, replaced by
   final_image_filenames TEXT NULL (JSON array); image_filename dropped from post_history,
   replaced by image_filenames TEXT NULL (JSON array)
+- Migration 033: oauth_states refactored for active use — account_id column, FK, and
+  index dropped (no accounts row exists during connect flow); app_key VARCHAR(255) NULL
+  and app_secret VARCHAR(255) NULL added (unused until GAP 1 per-connection credentials
+  lands)
 
 ### post_images columns
 - id — auto-increment primary key
@@ -357,6 +362,33 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - image_filename — bare filename (uploaded) or storage-relative path (generated)
 - image_source ENUM('uploaded','generated','url_fetched')
 - created_at — auto-set timestamp
+
+### oauth_states table
+Holds transient OAuth handshake state for in-flight platform connect flows.
+One row per flow; deleted immediately on first use (consumed-once pattern, prevents replay).
+Rows older than 15 minutes are treated as expired; cron purges them automatically.
+
+**Columns:**
+- state_key CHAR(64) UNIQUE — `bin2hex(random_bytes(32))`; passed as OAuth 2.0 `state`
+  parameter for Facebook; used as synthetic unique key for Twitter flows (Twitter does
+  not support a `state` parameter — callbacks are looked up by `request_token` instead)
+- platform ENUM('twitter','facebook','instagram')
+- user_id FK → users.id — identifies who initiated the flow; CASCADE on user delete
+- request_token VARCHAR(512) NULL — Twitter OAuth 1.0a only; echoed back by Twitter as
+  `oauth_token` in the callback URL; used as the lookup key in twitterCallback()
+- request_token_secret VARCHAR(512) NULL — Twitter OAuth 1.0a only
+- app_key VARCHAR(255) NULL — reserved for GAP 1 (per-connection app credentials);
+  currently NULL on all rows; do not read or rely on this column until GAP 1 lands
+- app_secret VARCHAR(255) NULL — same as app_key
+- created_at DATETIME — set on INSERT; used for expiry check and cron purge
+
+**SESSION vs oauth_states boundary (important):**
+- OAuth handshake CSRF state and request token secrets → oauth_states only (not SESSION)
+- Facebook post-handshake page-selection data (`facebook_pages`, `facebook_instagram`,
+  `expires`) → SESSION only (this is not a handshake concern; the oauth_states row has
+  already been deleted by the time page selection begins)
+- Flash notifications → SESSION only (`$_SESSION['notification']`)
+- Never put handshake secrets back into SESSION — that re-introduces the collision bug
 
 ---
 
@@ -620,6 +652,13 @@ Merge to master. Tag 1.0.0. Public release.
   src/Services/GeneratedImageService — deleteForAccount(int $accountId): int.
   Single source of truth for deleting generated images and their post_images rows
   for an account. accounts.php::update() now calls the service.
+- OAuth handshake state collision — concurrent OAuth flows in the same browser session
+  overwrote each other's SESSION key (`twitter_request_secret` or `facebook_state`),
+  causing the earlier flow to fail on callback. Fixed by moving handshake state to the
+  oauth_states table (migration 033): twitter() and facebook() INSERT one row per flow;
+  twitterCallback() looks up by request_token; facebookCallback() looks up by state_key;
+  both delete the row immediately on use. SESSION no longer holds any OAuth handshake
+  state. Facebook post-handshake page-selection SESSION usage is unchanged.
 
 ### Open
 - Two Twitter accounts with separate developer apps cannot both be connected — architecture limitation, deferred to v0.9.5

@@ -10,10 +10,12 @@ use SocialTurn\Services\FacebookService;
  *
  * Orchestrates OAuth flows for Twitter (1.0a) and Facebook/Instagram (2.0).
  * All token logic lives in service classes — this controller only manages
- * redirects, SESSION handshake state, and connected_platforms DB writes.
+ * redirects, oauth_states DB handshake state, and connected_platforms DB writes.
  *
  * Tokens never appear in views, logs, or HTTP responses.
- * SESSION oauth state is always cleared on success, failure, or cancel.
+ * oauth_states rows are deleted immediately on use (consumed once, prevent replay).
+ * SESSION is used only for post-callback page-selection state (Facebook) and
+ * flash notifications — not for OAuth handshake CSRF or request token secrets.
  *
  * Functions:
  *   twitter()            — Initiate Twitter OAuth 1.0a
@@ -37,6 +39,11 @@ function connect_companyId(): int
     return (int) ($_SESSION['user']['company_id'] ?? $_SESSION['user']['companyid'] ?? 0);
 }
 
+function connect_userId(): int
+{
+    return (int) ($_SESSION['user']['loggedin'] ?? 0);
+}
+
 // -----------------------------------------------------------------------
 // Twitter — OAuth 1.0a
 // -----------------------------------------------------------------------
@@ -45,10 +52,13 @@ function connect_companyId(): int
  * Initiate Twitter OAuth 1.0a.
  *
  * Requests a request token from Twitter and redirects to the authorization URL.
- * Stores the request token secret in SESSION for use in twitterCallback().
+ * Persists the request token and secret in oauth_states (keyed by state_key) so
+ * concurrent flows in the same browser session cannot overwrite each other.
  */
 function twitter(): void
 {
+    global $dbh;
+
     $service = new TwitterService(new StorageService());
 
     try {
@@ -72,7 +82,15 @@ function twitter(): void
         exit;
     }
 
-    $_SESSION['oauth']['twitter_request_secret'] = $requestToken['oauth_token_secret'];
+    $dbh->prepare(
+        "INSERT INTO oauth_states (state_key, platform, user_id, request_token, request_token_secret)
+         VALUES (?, 'twitter', ?, ?, ?)"
+    )->execute([
+        bin2hex(random_bytes(32)),
+        connect_userId(),
+        $requestToken['oauth_token'],
+        $requestToken['oauth_token_secret'],
+    ]);
 
     header('Location: ' . $service->getAuthorizeUrl($requestToken['oauth_token']));
     exit;
@@ -81,9 +99,10 @@ function twitter(): void
 /**
  * Twitter OAuth 1.0a callback.
  *
- * Exchanges the verifier for a permanent access token pair, verifies it,
- * then upserts a connected_platforms row. SESSION state is cleared on
- * all outcomes — success, failure, or user cancellation.
+ * Looks up handshake state in oauth_states using oauth_token (the request token),
+ * which Twitter echoes back in the callback URL. The state row is deleted immediately
+ * on retrieval — consumed once, prevents replay. Rows older than 15 minutes are
+ * treated as expired. On success, upserts a connected_platforms row.
  */
 function twitterCallback(): void
 {
@@ -91,10 +110,8 @@ function twitterCallback(): void
 
     $oauthToken    = (string) ($_GET['oauth_token']    ?? '');
     $oauthVerifier = (string) ($_GET['oauth_verifier'] ?? '');
-    $requestSecret = (string) ($_SESSION['oauth']['twitter_request_secret'] ?? '');
 
-    if ($oauthToken === '' || $oauthVerifier === '' || $requestSecret === '') {
-        unset($_SESSION['oauth']);
+    if ($oauthToken === '' || $oauthVerifier === '') {
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Twitter authorization was cancelled or did not complete.',
@@ -103,12 +120,44 @@ function twitterCallback(): void
         exit;
     }
 
+    $stmt = $dbh->prepare(
+        "SELECT id, request_token_secret, created_at
+           FROM oauth_states
+          WHERE request_token = ? AND platform = 'twitter'
+          LIMIT 1"
+    );
+    $stmt->execute([$oauthToken]);
+    $stateRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($stateRow)) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Twitter authorization state not found. Please try again.',
+        ];
+        header('Location: ' . u('accounts'));
+        exit;
+    }
+
+    if (new DateTimeImmutable($stateRow['created_at']) < new DateTimeImmutable('-15 minutes')) {
+        $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Twitter authorization expired. Please try again.',
+        ];
+        header('Location: ' . u('accounts'));
+        exit;
+    }
+
+    $requestSecret = (string) $stateRow['request_token_secret'];
+
+    // Delete immediately before the token exchange — prevents replay.
+    $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+
     $service = new TwitterService(new StorageService());
 
     try {
         $accessToken = $service->getAccessToken($oauthToken, $requestSecret, $oauthVerifier);
     } catch (Throwable) {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Twitter token exchange failed. Please try again.',
@@ -118,7 +167,6 @@ function twitterCallback(): void
     }
 
     if (empty($accessToken['oauth_token']) || empty($accessToken['oauth_token_secret'])) {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Twitter did not return a valid access token. Please try again.',
@@ -133,7 +181,6 @@ function twitterCallback(): void
     $screenName  = (string) ($accessToken['screen_name'] ?? '');
 
     if (!$service->verifyToken($token, $tokenSecret)) {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Twitter token verification failed. Please try again.',
@@ -159,8 +206,6 @@ function twitterCallback(): void
              updated_at        = NOW()"
     )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret]);
 
-    unset($_SESSION['oauth']);
-
     $_SESSION['notification'] = [
         'type'    => 'success',
         'message' => 'Twitter account @' . htmlspecialchars($screenName, ENT_QUOTES, 'UTF-8') . ' connected.',
@@ -178,10 +223,13 @@ function twitterCallback(): void
  *
  * Requests both Facebook Page and Instagram Business scopes in one dialog.
  * One authorization covers both platforms — no separate Instagram flow needed.
- * A CSRF state key is generated and stored in SESSION for validation in the callback.
+ * A CSRF state key is persisted in oauth_states (not SESSION) so concurrent
+ * flows in the same browser session cannot overwrite each other.
  */
 function facebook(): void
 {
+    global $dbh;
+
     if (!defined('META_APP_ID') || !defined('META_APP_SECRET')
         || META_APP_ID     === 'your_facebook_app_id'
         || META_APP_SECRET === 'your_facebook_app_secret'
@@ -194,14 +242,18 @@ function facebook(): void
         exit;
     }
 
-    $state = bin2hex(random_bytes(16));
-    $_SESSION['oauth']['facebook_state'] = $state;
+    $stateKey = bin2hex(random_bytes(32));
+
+    $dbh->prepare(
+        "INSERT INTO oauth_states (state_key, platform, user_id)
+         VALUES (?, 'facebook', ?)"
+    )->execute([$stateKey, connect_userId()]);
 
     $params = http_build_query([
         'client_id'     => META_APP_ID,
         'redirect_uri'  => u('connect', 'facebookCallback'),
         'scope'         => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
-        'state'         => $state,
+        'state'         => $stateKey,
         'response_type' => 'code',
     ]);
 
@@ -212,35 +264,63 @@ function facebook(): void
 /**
  * Facebook/Instagram OAuth 2.0 callback.
  *
- * Validates CSRF state, exchanges the authorization code for a short-lived
- * user token, exchanges that for a long-lived user token (~60 days), then
- * calls getPagesWithInstagram() to discover Pages and Instagram Business accounts.
+ * Validates CSRF state via oauth_states lookup (not SESSION) — the state_key
+ * stored in the DB is compared against the state parameter Facebook echoes back.
+ * The state row is deleted immediately on retrieval (consumed once, prevents replay).
+ * Rows older than 15 minutes are treated as expired.
  *
- * Stores two SESSION indexes keyed by platform_account_id for O(1) token lookup
- * in savePage(). The view never sees any token.
+ * After state validation, exchanges the code for tokens and discovers Pages and
+ * Instagram Business accounts. Stores two SESSION indexes keyed by
+ * platform_account_id for O(1) token lookup in savePage(). The view never sees
+ * any token.
  */
 function facebookCallback(): void
 {
     global $dbh;
 
-    // CSRF state check
+    // CSRF state check via oauth_states — replaces SESSION-based check.
     $returnedState = (string) ($_GET['state'] ?? '');
-    $storedState   = (string) ($_SESSION['oauth']['facebook_state'] ?? '');
 
-    if ($returnedState === '' || !hash_equals($storedState, $returnedState)) {
-        unset($_SESSION['oauth']);
+    if ($returnedState === '') {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Facebook authorization state mismatch. Please try again.',
+            'message' => 'Facebook authorization state missing. Please try again.',
         ];
         header('Location: ' . u('accounts'));
         exit;
     }
 
+    $stmt = $dbh->prepare(
+        "SELECT id, created_at FROM oauth_states WHERE state_key = ? AND platform = 'facebook' LIMIT 1"
+    );
+    $stmt->execute([$returnedState]);
+    $stateRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (empty($stateRow)) {
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Facebook authorization state not found. Please try again.',
+        ];
+        header('Location: ' . u('accounts'));
+        exit;
+    }
+
+    if (new DateTimeImmutable($stateRow['created_at']) < new DateTimeImmutable('-15 minutes')) {
+        $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Facebook authorization expired. Please try again.',
+        ];
+        header('Location: ' . u('accounts'));
+        exit;
+    }
+
+    // Delete immediately before token exchange — prevents replay.
+    $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+
     $code = (string) ($_GET['code'] ?? '');
 
     if ($code === '') {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Facebook authorization was cancelled.',
@@ -254,7 +334,6 @@ function facebookCallback(): void
     $shortLivedToken = $service->exchangeCodeForToken($code, u('connect', 'facebookCallback'));
 
     if ($shortLivedToken === null) {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Facebook token exchange failed. Please try again.',
@@ -266,7 +345,6 @@ function facebookCallback(): void
     $longLivedData = $service->exchangeForLongLivedToken($shortLivedToken);
 
     if ($longLivedData === null) {
-        unset($_SESSION['oauth']);
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => 'Could not obtain a long-lived Facebook token. Please try again.',

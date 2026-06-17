@@ -50,6 +50,9 @@ function post(): void
     // Purge activity log entries older than 48 hours — rolling window only.
     $dbh->exec("DELETE FROM activity_log WHERE created_at < NOW() - INTERVAL 48 HOUR");
 
+    // Purge abandoned OAuth handshake state older than 15 minutes.
+    $dbh->exec("DELETE FROM oauth_states WHERE created_at < NOW() - INTERVAL 15 MINUTE");
+
     $accounts       = cron_fetchActiveAccounts($dbh);
     $postsAttempted = 0;
     $postsSucceeded = 0;
