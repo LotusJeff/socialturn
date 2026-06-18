@@ -8,6 +8,7 @@
  *   $baseUrl         string   Current base URL from config.ini
  *   $pmConfigured    bool     True if POSTMARKAPP_API_KEY is non-empty
  *   $connectionCount int      Count of connected_platforms rows for the company
+ *   $memberCount     int      Count of active type=100 users for the company
  */
 ?>
 <div class="container py-4">
@@ -64,6 +65,24 @@
                     <?php endif; ?>
                     <br>
                     <a href="<?php echo u('settings', 'app'); ?>" class="btn btn-sm btn-outline-primary">Edit</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Team</h5>
+                    <p class="card-text text-muted small">
+                        Team members and their workspace access.
+                    </p>
+                    <?php if ($memberCount > 0): ?>
+                        <span class="badge bg-success mb-2"><?php echo (int) $memberCount; ?> <?php echo $memberCount === 1 ? 'member' : 'members'; ?></span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary mb-2">No members</span>
+                    <?php endif; ?>
+                    <br>
+                    <a href="<?php echo u('team'); ?>" class="btn btn-sm btn-outline-primary">Manage</a>
                 </div>
             </div>
         </div>

@@ -13,6 +13,13 @@
 ?>
 <div class="container py-4">
 
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="<?php echo u('settings'); ?>">Settings</a></li>
+            <li class="breadcrumb-item active">Connections</li>
+        </ol>
+    </nav>
+
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Connections</h1>
         <div class="d-flex gap-2">
@@ -70,7 +77,10 @@
                     </div>
                 </div>
 
-                <div class="flex-shrink-0">
+                <div class="d-flex gap-2 flex-shrink-0">
+                    <?php $reconnectAction = $conn['platform'] === 'twitter' ? 'twitter' : 'facebook'; ?>
+                    <a href="<?= u('connect', $reconnectAction, ['reconnect_id' => (int) $conn['id']]) ?>"
+                       class="btn btn-sm btn-outline-secondary">Reconnect</a>
                     <?php if ((int) $conn['workspace_count'] > 0): ?>
                     <button type="button" class="btn btn-sm btn-outline-danger" disabled
                             data-bs-toggle="tooltip"

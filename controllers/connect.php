@@ -17,6 +17,12 @@ use SocialTurn\Services\FacebookService;
  * persisted in oauth_states during the handshake and written to connected_platforms
  * on success — never stored as global settings.
  *
+ * Reconnect: passing reconnect_id=<connected_platforms.id> on the GET form causes
+ * the callback to UPDATE the existing row in place rather than INSERT a new one.
+ * The reconnect_id transits through oauth_states.connected_platform_id; the existing
+ * row is untouched until the very last successful write, so an abandoned reconnect
+ * leaves nothing in a half-modified state.
+ *
  * Tokens never appear in views, logs, or HTTP responses.
  * oauth_states rows are deleted immediately on use (consumed once, prevent replay).
  * SESSION is used only for post-callback page-selection state (Facebook) and
@@ -91,12 +97,36 @@ function index(): void
  * Credentials (Consumer Key and Consumer Secret) are submitted in the POST body,
  * stored in oauth_states for the duration of the handshake, and written to
  * connected_platforms on successful callback. They are never stored as global settings.
+ *
+ * Optional GET param reconnect_id: when present and matching a company-owned row,
+ * displays masked existing credentials and sets up an in-place UPDATE on callback.
  */
 function twitter(): void
 {
     global $dbh, $template;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $reconnectId    = (int) ($_GET['reconnect_id'] ?? 0);
+        $existingAppKey = null;
+        $secretLast4    = null;
+
+        if ($reconnectId > 0) {
+            $stmt = $dbh->prepare(
+                'SELECT app_key, app_secret
+                   FROM connected_platforms
+                  WHERE id = ? AND company_id = ?'
+            );
+            $stmt->execute([$reconnectId, connect_companyId()]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!empty($row['app_key']) && !empty($row['app_secret'])) {
+                $existingAppKey = (string) $row['app_key'];
+                $secretLast4    = mb_substr((string) $row['app_secret'], -4);
+            }
+        }
+
+        $template->set('reconnectId',    $reconnectId);
+        $template->set('existingAppKey', $existingAppKey);
+        $template->set('secretLast4',    $secretLast4);
         $template->set('callbackUrl', BASE_URL . 'index.php?c=connect&a=twitterCallback');
         $template->set('csrfToken', csrf_token());
         return;
@@ -107,16 +137,57 @@ function twitter(): void
         exit;
     }
 
-    $appKey    = trim((string) ($_POST['app_key']    ?? ''));
-    $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+    $reconnectId  = (int) ($_POST['reconnect_id'] ?? 0);
+    $newAppKey    = trim((string) ($_POST['new_app_key']    ?? ''));
+    $newAppSecret = trim((string) ($_POST['new_app_secret'] ?? ''));
 
-    if ($appKey === '' || $appSecret === '') {
-        $_SESSION['notification'] = [
-            'type'    => 'error',
-            'message' => 'Consumer Key and Consumer Secret are both required.',
-        ];
-        header('Location: ' . u('connect', 'twitter'));
-        exit;
+    if ($reconnectId > 0) {
+        $bothFilled    = $newAppKey !== '' && $newAppSecret !== '';
+        $neitherFilled = $newAppKey === '' && $newAppSecret === '';
+
+        if (!$bothFilled && !$neitherFilled) {
+            $_SESSION['notification'] = [
+                'type'    => 'error',
+                'message' => 'Enter both fields if providing new credentials.',
+            ];
+            header('Location: ' . u('connect', 'twitter', ['reconnect_id' => $reconnectId]));
+            exit;
+        }
+
+        if ($bothFilled) {
+            $appKey    = $newAppKey;
+            $appSecret = $newAppSecret;
+        } else {
+            $stmt = $dbh->prepare(
+                'SELECT app_key, app_secret
+                   FROM connected_platforms
+                  WHERE id = ? AND company_id = ?'
+            );
+            $stmt->execute([$reconnectId, connect_companyId()]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (empty($row) || empty($row['app_key']) || empty($row['app_secret'])) {
+                $_SESSION['notification'] = [
+                    'type'    => 'error',
+                    'message' => 'Could not retrieve stored credentials. Enter new credentials to continue.',
+                ];
+                header('Location: ' . u('connect', 'twitter', ['reconnect_id' => $reconnectId]));
+                exit;
+            }
+            $appKey    = (string) $row['app_key'];
+            $appSecret = (string) $row['app_secret'];
+        }
+    } else {
+        $appKey    = trim((string) ($_POST['app_key']    ?? ''));
+        $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+
+        if ($appKey === '' || $appSecret === '') {
+            $_SESSION['notification'] = [
+                'type'    => 'error',
+                'message' => 'Consumer Key and Consumer Secret are both required.',
+            ];
+            header('Location: ' . u('connect', 'twitter'));
+            exit;
+        }
     }
 
     $service = new TwitterService(new StorageService(), $appKey, $appSecret);
@@ -127,25 +198,34 @@ function twitter(): void
         error_log('Twitter connect error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not reach Twitter. Check your Consumer Key and Secret.',
+            'message' => $reconnectId > 0
+                ? 'Could not reach Twitter. Check your Consumer Key and Secret, or try entering new credentials.'
+                : 'Could not reach Twitter. Check your Consumer Key and Secret.',
         ];
-        header('Location: ' . u('connect', 'twitter'));
+        header('Location: ' . ($reconnectId > 0
+            ? u('connect', 'twitter', ['reconnect_id' => $reconnectId])
+            : u('connect', 'twitter')));
         exit;
     }
 
     if (empty($requestToken['oauth_token']) || empty($requestToken['oauth_token_secret'])) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Twitter did not return a valid request token. Check your app credentials.',
+            'message' => $reconnectId > 0
+                ? 'Twitter did not return a valid request token. Try entering new credentials.'
+                : 'Twitter did not return a valid request token. Check your app credentials.',
         ];
-        header('Location: ' . u('connect', 'twitter'));
+        header('Location: ' . ($reconnectId > 0
+            ? u('connect', 'twitter', ['reconnect_id' => $reconnectId])
+            : u('connect', 'twitter')));
         exit;
     }
 
     $dbh->prepare(
         "INSERT INTO oauth_states
-             (state_key, platform, user_id, request_token, request_token_secret, app_key, app_secret)
-         VALUES (?, 'twitter', ?, ?, ?, ?, ?)"
+             (state_key, platform, user_id, request_token, request_token_secret, app_key, app_secret,
+              connected_platform_id)
+         VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?)"
     )->execute([
         bin2hex(random_bytes(32)),
         connect_userId(),
@@ -153,6 +233,7 @@ function twitter(): void
         $requestToken['oauth_token_secret'],
         $appKey,
         $appSecret,
+        $reconnectId > 0 ? $reconnectId : null,
     ]);
 
     header('Location: ' . $service->getAuthorizeUrl($requestToken['oauth_token']));
@@ -167,6 +248,9 @@ function twitter(): void
  * on retrieval — consumed once, prevents replay. Rows older than 15 minutes are
  * treated as expired. On success, upserts a connected_platforms row including the
  * app credentials that were stored during the handshake.
+ *
+ * When the consumed state row carries connected_platform_id, the final write is an
+ * UPDATE of that existing row rather than an upsert.
  */
 function twitterCallback(): void
 {
@@ -185,7 +269,7 @@ function twitterCallback(): void
     }
 
     $stmt = $dbh->prepare(
-        "SELECT id, request_token_secret, app_key, app_secret, created_at
+        "SELECT id, request_token_secret, app_key, app_secret, created_at, connected_platform_id
            FROM oauth_states
           WHERE request_token = ? AND platform = 'twitter'
           LIMIT 1"
@@ -202,11 +286,17 @@ function twitterCallback(): void
         exit;
     }
 
+    $reconnectPlatformId = !empty($stateRow['connected_platform_id'])
+        ? (int) $stateRow['connected_platform_id']
+        : 0;
+
     if (new DateTimeImmutable($stateRow['created_at']) < new DateTimeImmutable('-15 minutes')) {
         $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Twitter authorization expired. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Twitter reconnect authorization expired. Please try again.'
+                : 'Twitter authorization expired. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -226,7 +316,9 @@ function twitterCallback(): void
     } catch (Throwable) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Twitter token exchange failed. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Twitter reconnect failed: token exchange error. Please try again.'
+                : 'Twitter token exchange failed. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -235,7 +327,9 @@ function twitterCallback(): void
     if (empty($accessToken['oauth_token']) || empty($accessToken['oauth_token_secret'])) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Twitter did not return a valid access token. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Twitter reconnect failed: no access token returned. Please try again.'
+                : 'Twitter did not return a valid access token. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -249,7 +343,9 @@ function twitterCallback(): void
     if (!$service->verifyToken($token, $tokenSecret)) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Twitter token verification failed. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Twitter reconnect failed: token verification error. Please try again.'
+                : 'Twitter token verification failed. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -257,28 +353,50 @@ function twitterCallback(): void
 
     $companyId = connect_companyId();
 
-    // Upsert: re-authorizing the same account updates its token and credentials
-    // rather than creating a duplicate row.
-    // platform_name intentionally omitted — Twitter's OAuth 1.0a callback does not
-    // return a display name; screen_name stored as platform_username is sufficient.
-    $dbh->prepare(
-        "INSERT INTO connected_platforms
-             (company_id, platform, platform_account_id, platform_username,
-              access_token, token_secret, app_key, app_secret, is_active)
-         VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE
-             access_token      = VALUES(access_token),
-             token_secret      = VALUES(token_secret),
-             app_key           = VALUES(app_key),
-             app_secret        = VALUES(app_secret),
-             platform_username = VALUES(platform_username),
-             is_active         = 1,
-             updated_at        = NOW()"
-    )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret, $appKey, $appSecret]);
+    if ($reconnectPlatformId > 0) {
+        $dbh->prepare(
+            'UPDATE connected_platforms SET
+                 platform_account_id = ?,
+                 platform_username   = ?,
+                 access_token        = ?,
+                 token_secret        = ?,
+                 token_expires_at    = NULL,
+                 app_key             = ?,
+                 app_secret          = ?,
+                 is_active           = 1,
+                 updated_at          = NOW()
+             WHERE id = ? AND company_id = ?'
+        )->execute([
+            $twitterId, $screenName, $token, $tokenSecret,
+            $appKey, $appSecret,
+            $reconnectPlatformId, $companyId,
+        ]);
+    } else {
+        // Upsert: re-authorizing the same account updates its token and credentials
+        // rather than creating a duplicate row.
+        // platform_name intentionally omitted — Twitter's OAuth 1.0a callback does not
+        // return a display name; screen_name stored as platform_username is sufficient.
+        $dbh->prepare(
+            "INSERT INTO connected_platforms
+                 (company_id, platform, platform_account_id, platform_username,
+                  access_token, token_secret, app_key, app_secret, is_active)
+             VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+                 access_token      = VALUES(access_token),
+                 token_secret      = VALUES(token_secret),
+                 app_key           = VALUES(app_key),
+                 app_secret        = VALUES(app_secret),
+                 platform_username = VALUES(platform_username),
+                 is_active         = 1,
+                 updated_at        = NOW()"
+        )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret, $appKey, $appSecret]);
+    }
 
     $_SESSION['notification'] = [
         'type'    => 'success',
-        'message' => 'Twitter account @' . htmlspecialchars($screenName, ENT_QUOTES, 'UTF-8') . ' connected.',
+        'message' => 'Twitter account @'
+            . htmlspecialchars($screenName, ENT_QUOTES, 'UTF-8')
+            . ($reconnectPlatformId > 0 ? ' reconnected.' : ' connected.'),
     ];
     header('Location: ' . u('connect', 'index'));
     exit;
@@ -297,12 +415,36 @@ function twitterCallback(): void
  * (not SESSION) so concurrent flows in the same browser session cannot overwrite
  * each other. App credentials are stored in oauth_states for the handshake duration
  * and written to connected_platforms on successful page selection.
+ *
+ * Optional GET param reconnect_id: when present and matching a company-owned row,
+ * displays masked existing credentials and sets up an in-place UPDATE on callback.
  */
 function facebook(): void
 {
     global $dbh, $template;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $reconnectId    = (int) ($_GET['reconnect_id'] ?? 0);
+        $existingAppKey = null;
+        $secretLast4    = null;
+
+        if ($reconnectId > 0) {
+            $stmt = $dbh->prepare(
+                'SELECT app_key, app_secret
+                   FROM connected_platforms
+                  WHERE id = ? AND company_id = ?'
+            );
+            $stmt->execute([$reconnectId, connect_companyId()]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!empty($row['app_key']) && !empty($row['app_secret'])) {
+                $existingAppKey = (string) $row['app_key'];
+                $secretLast4    = mb_substr((string) $row['app_secret'], -4);
+            }
+        }
+
+        $template->set('reconnectId',    $reconnectId);
+        $template->set('existingAppKey', $existingAppKey);
+        $template->set('secretLast4',    $secretLast4);
         $template->set('callbackUrl', BASE_URL . 'index.php?c=connect&a=facebookCallback');
         $template->set('csrfToken', csrf_token());
         return;
@@ -313,24 +455,65 @@ function facebook(): void
         exit;
     }
 
-    $appId     = trim((string) ($_POST['app_key']    ?? ''));
-    $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+    $reconnectId  = (int) ($_POST['reconnect_id'] ?? 0);
+    $newAppKey    = trim((string) ($_POST['new_app_key']    ?? ''));
+    $newAppSecret = trim((string) ($_POST['new_app_secret'] ?? ''));
 
-    if ($appId === '' || $appSecret === '') {
-        $_SESSION['notification'] = [
-            'type'    => 'error',
-            'message' => 'App ID and App Secret are both required.',
-        ];
-        header('Location: ' . u('connect', 'facebook'));
-        exit;
+    if ($reconnectId > 0) {
+        $bothFilled    = $newAppKey !== '' && $newAppSecret !== '';
+        $neitherFilled = $newAppKey === '' && $newAppSecret === '';
+
+        if (!$bothFilled && !$neitherFilled) {
+            $_SESSION['notification'] = [
+                'type'    => 'error',
+                'message' => 'Enter both fields if providing new credentials.',
+            ];
+            header('Location: ' . u('connect', 'facebook', ['reconnect_id' => $reconnectId]));
+            exit;
+        }
+
+        if ($bothFilled) {
+            $appId     = $newAppKey;
+            $appSecret = $newAppSecret;
+        } else {
+            $stmt = $dbh->prepare(
+                'SELECT app_key, app_secret
+                   FROM connected_platforms
+                  WHERE id = ? AND company_id = ?'
+            );
+            $stmt->execute([$reconnectId, connect_companyId()]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (empty($row) || empty($row['app_key']) || empty($row['app_secret'])) {
+                $_SESSION['notification'] = [
+                    'type'    => 'error',
+                    'message' => 'Could not retrieve stored credentials. Enter new credentials to continue.',
+                ];
+                header('Location: ' . u('connect', 'facebook', ['reconnect_id' => $reconnectId]));
+                exit;
+            }
+            $appId     = (string) $row['app_key'];
+            $appSecret = (string) $row['app_secret'];
+        }
+    } else {
+        $appId     = trim((string) ($_POST['app_key']    ?? ''));
+        $appSecret = trim((string) ($_POST['app_secret'] ?? ''));
+
+        if ($appId === '' || $appSecret === '') {
+            $_SESSION['notification'] = [
+                'type'    => 'error',
+                'message' => 'App ID and App Secret are both required.',
+            ];
+            header('Location: ' . u('connect', 'facebook'));
+            exit;
+        }
     }
 
     $stateKey = bin2hex(random_bytes(32));
 
     $dbh->prepare(
-        "INSERT INTO oauth_states (state_key, platform, user_id, app_key, app_secret)
-         VALUES (?, 'facebook', ?, ?, ?)"
-    )->execute([$stateKey, connect_userId(), $appId, $appSecret]);
+        "INSERT INTO oauth_states (state_key, platform, user_id, app_key, app_secret, connected_platform_id)
+         VALUES (?, 'facebook', ?, ?, ?, ?)"
+    )->execute([$stateKey, connect_userId(), $appId, $appSecret, $reconnectId > 0 ? $reconnectId : null]);
 
     $params = http_build_query([
         'client_id'     => $appId,
@@ -357,6 +540,9 @@ function facebook(): void
  * Stores two SESSION indexes keyed by platform_account_id for O(1) token lookup in
  * savePage(). App credentials are also stored in SESSION to be written to
  * connected_platforms at savePage() time. The view never sees any token.
+ *
+ * When the consumed state row carries connected_platform_id, that value is forwarded
+ * through SESSION so savePage() can issue an UPDATE rather than an upsert.
  */
 function facebookCallback(): void
 {
@@ -374,7 +560,7 @@ function facebookCallback(): void
     }
 
     $stmt = $dbh->prepare(
-        "SELECT id, app_key, app_secret, created_at
+        "SELECT id, app_key, app_secret, created_at, connected_platform_id
            FROM oauth_states
           WHERE state_key = ? AND platform = 'facebook'
           LIMIT 1"
@@ -391,11 +577,17 @@ function facebookCallback(): void
         exit;
     }
 
+    $reconnectPlatformId = !empty($stateRow['connected_platform_id'])
+        ? (int) $stateRow['connected_platform_id']
+        : 0;
+
     if (new DateTimeImmutable($stateRow['created_at']) < new DateTimeImmutable('-15 minutes')) {
         $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Facebook authorization expired. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Facebook reconnect authorization expired. Please try again.'
+                : 'Facebook authorization expired. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -412,7 +604,9 @@ function facebookCallback(): void
     if ($code === '') {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Facebook authorization was cancelled.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Facebook reconnect authorization was cancelled.'
+                : 'Facebook authorization was cancelled.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -425,7 +619,9 @@ function facebookCallback(): void
     if ($shortLivedToken === null) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Facebook token exchange failed. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Facebook reconnect failed: token exchange error. Please try again.'
+                : 'Facebook token exchange failed. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -436,7 +632,9 @@ function facebookCallback(): void
     if ($longLivedData === null) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Could not obtain a long-lived Facebook token. Please try again.',
+            'message' => $reconnectPlatformId > 0
+                ? 'Facebook reconnect failed: could not obtain a long-lived token. Please try again.'
+                : 'Could not obtain a long-lived Facebook token. Please try again.',
         ];
         header('Location: ' . u('connect', 'index'));
         exit;
@@ -471,13 +669,14 @@ function facebookCallback(): void
         }
     }
 
-    // App credentials stored alongside page data so savePage() can write them
-    // to connected_platforms. The handshake row is already deleted at this point.
-    $_SESSION['oauth']['facebook_pages']     = $pages;
-    $_SESSION['oauth']['facebook_instagram'] = $instagram;
-    $_SESSION['oauth']['app_key']            = $appId;
-    $_SESSION['oauth']['app_secret']         = $appSecret;
-    $_SESSION['oauth']['expires']            = time() + 600;
+    // App credentials and reconnect flag stored alongside page data so savePage()
+    // can write them to connected_platforms. The handshake row is already deleted.
+    $_SESSION['oauth']['facebook_pages']        = $pages;
+    $_SESSION['oauth']['facebook_instagram']    = $instagram;
+    $_SESSION['oauth']['app_key']               = $appId;
+    $_SESSION['oauth']['app_secret']            = $appSecret;
+    $_SESSION['oauth']['reconnect_platform_id'] = $reconnectPlatformId;
+    $_SESSION['oauth']['expires']               = time() + 600;
 
     header('Location: ' . u('connect', 'pages'));
     exit;
@@ -552,8 +751,8 @@ function pages(): void
  * Page Access Tokens obtained from a long-lived user token do not expire.
  * token_expires_at is stored as NULL.
  *
- * Upsert: re-connecting the same account refreshes its token and credentials
- * without creating duplicates. SESSION is cleared on all outcomes.
+ * When SESSION carries reconnect_platform_id > 0, the final write is an UPDATE of
+ * that existing row rather than an upsert. SESSION is cleared on all outcomes.
  */
 function savePage(): void
 {
@@ -586,8 +785,9 @@ function savePage(): void
         $token = $_SESSION['oauth']['facebook_instagram'][$platformAccountId]['page_access_token'] ?? null;
     }
 
-    $appKey    = (string) ($_SESSION['oauth']['app_key']    ?? '');
-    $appSecret = (string) ($_SESSION['oauth']['app_secret'] ?? '');
+    $appKey              = (string) ($_SESSION['oauth']['app_key']               ?? '');
+    $appSecret           = (string) ($_SESSION['oauth']['app_secret']            ?? '');
+    $reconnectPlatformId = (int)    ($_SESSION['oauth']['reconnect_platform_id'] ?? 0);
 
     if ($token === null) {
         unset($_SESSION['oauth']);
@@ -601,31 +801,54 @@ function savePage(): void
 
     $companyId = connect_companyId();
 
-    // Page Access Tokens from a long-lived user token do not expire — token_expires_at = NULL.
-    // Upsert: re-connecting the same account refreshes its token and credentials without duplicates.
-    $dbh->prepare(
-        'INSERT INTO connected_platforms
-             (company_id, platform, platform_account_id, platform_name, platform_username,
-              access_token, token_expires_at, app_key, app_secret, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE
-             platform_name     = VALUES(platform_name),
-             platform_username = VALUES(platform_username),
-             access_token      = VALUES(access_token),
-             token_expires_at  = NULL,
-             app_key           = VALUES(app_key),
-             app_secret        = VALUES(app_secret),
-             is_active         = 1,
-             updated_at        = NOW()'
-    )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername,
-                $token, $appKey, $appSecret]);
+    if ($reconnectPlatformId > 0) {
+        $dbh->prepare(
+            'UPDATE connected_platforms SET
+                 platform            = ?,
+                 platform_account_id = ?,
+                 platform_name       = ?,
+                 platform_username   = ?,
+                 access_token        = ?,
+                 token_expires_at    = NULL,
+                 app_key             = ?,
+                 app_secret          = ?,
+                 is_active           = 1,
+                 updated_at          = NOW()
+             WHERE id = ? AND company_id = ?'
+        )->execute([
+            $platform, $platformAccountId, $platformName, $platformUsername,
+            $token, $appKey, $appSecret,
+            $reconnectPlatformId, $companyId,
+        ]);
+    } else {
+        // Page Access Tokens from a long-lived user token do not expire — token_expires_at = NULL.
+        // Upsert: re-connecting the same account refreshes its token and credentials without duplicates.
+        $dbh->prepare(
+            'INSERT INTO connected_platforms
+                 (company_id, platform, platform_account_id, platform_name, platform_username,
+                  access_token, token_expires_at, app_key, app_secret, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+                 platform_name     = VALUES(platform_name),
+                 platform_username = VALUES(platform_username),
+                 access_token      = VALUES(access_token),
+                 token_expires_at  = NULL,
+                 app_key           = VALUES(app_key),
+                 app_secret        = VALUES(app_secret),
+                 is_active         = 1,
+                 updated_at        = NOW()'
+        )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername,
+                    $token, $appKey, $appSecret]);
+    }
 
     unset($_SESSION['oauth']);
 
     $label = $platformUsername !== '' ? '@' . $platformUsername : $platformName;
     $_SESSION['notification'] = [
         'type'    => 'success',
-        'message' => ucfirst($platform) . ' account "' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '" connected.',
+        'message' => ucfirst($platform) . ' account "'
+            . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '"'
+            . ($reconnectPlatformId > 0 ? ' reconnected.' : ' connected.'),
     ];
     header('Location: ' . u('connect', 'index'));
     exit;

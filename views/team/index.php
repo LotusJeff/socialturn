@@ -13,6 +13,13 @@ $selfId = (int) ($_SESSION['user']['loggedin'] ?? 0);
 ?>
 <div class="container py-4">
 
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="<?php echo u('settings'); ?>">Settings</a></li>
+            <li class="breadcrumb-item active">Team</li>
+        </ol>
+    </nav>
+
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0">Team</h1>
         <a href="<?php echo u('team', 'invite'); ?>" class="btn btn-primary">Invite team member</a>

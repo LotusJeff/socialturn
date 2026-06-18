@@ -80,12 +80,6 @@
                            href="<?php echo u('accounts'); ?>">Workspaces</a>
                     </li>
 
-                    <!-- Team — admin only -->
-                    <li class="nav-item">
-                        <a class="nav-link<?php echo ($controller === 'team') ? ' active' : ''; ?>"
-                           href="<?php echo u('team'); ?>">Team</a>
-                    </li>
-
                     <!-- Settings — admin only -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'settings') ? ' active' : ''; ?>"

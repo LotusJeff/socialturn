@@ -10,6 +10,8 @@ function index(): void {
     $companyId = (int) ($_SESSION['user']['company_id'] ?? $_SESSION['user']['companyid'] ?? 0);
     $stmt = $dbh->prepare('SELECT COUNT(*) FROM connected_platforms WHERE company_id = ?');
     $stmt->execute([$companyId]);
+    $memberStmt = $dbh->prepare('SELECT COUNT(*) FROM users WHERE company_id = ? AND type = 100 AND active = 1');
+    $memberStmt->execute([$companyId]);
 
     $template->set('dbHost',          $cfg['db_host'] ?? '');
     $template->set('dbName',          $cfg['db_name'] ?? '');
@@ -17,6 +19,7 @@ function index(): void {
     $template->set('pmConfigured',    !empty(POSTMARKAPP_API_KEY));
     $template->set('notifyFailure',   defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
     $template->set('connectionCount', (int) $stmt->fetchColumn());
+    $template->set('memberCount',     (int) $memberStmt->fetchColumn());
 }
 
 function database(): void {
