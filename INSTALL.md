@@ -2,7 +2,7 @@
 
 ## Requirements
 
-> **Current release:** 0.9.0 pre-release. Feature complete but integration and platform tests are pending live server validation. Not recommended for production use until 1.0.0 is tagged.
+> **Current release:** 0.9.8
 
 - **PHP 8.2+** with extensions: `pdo`, `pdo_mysql`, `gd`, `mbstring`, `finfo`, `curl`
 - **MySQL 8.0+**
@@ -61,7 +61,7 @@ Open your browser and navigate to:
 https://yoursite.com/socialturn/install.php
 ```
 
-The wizard walks you through four steps:
+The wizard walks you through three steps:
 
 1. **Database & Site URL** — enter your MySQL credentials and the full public URL
    to your installation (with trailing slash). The wizard also shows the path where
@@ -69,12 +69,11 @@ The wizard walks you through four steps:
    (e.g. `/var/www/yoursite.com/socialturn.ini`). You can change this path. A
    yellow advisory is shown if the path resolves inside the web root; this is
    non-blocking but less secure.
-2. **Admin Account** — choose your admin email address and password.
+2. **Admin Account** — enter your organization name, then choose your admin email
+   address and password. The organization name can be changed later in settings.
    This creates the first admin user directly — no email verification required.
 3. **Email (optional)** — enter Postmark credentials for password resets and team invites.
    You can skip this step and configure it later in Settings → Email.
-4. **Platform Credentials (optional)** — enter Twitter/X and Facebook/Instagram
-   developer app keys. You can skip and configure later in Settings → Platform Credentials.
 
 Click **Install SocialTurn** on the final step. The wizard:
 - Tests the database connection
@@ -109,7 +108,10 @@ Output is appended to the log file — check it to confirm posts are being sent.
 
 ### 7. Connect your first platform account
 
-Log in, navigate to **Accounts**, create an account, and connect it to a platform.
+Log in and navigate to **Settings → Connections** to connect your first platform
+account. The connect flow will prompt for your developer app credentials before
+starting OAuth. Once connected, navigate to **Workspaces** to create a Workspace
+linked to that connection.
 See [Platform Credentials](#platform-credentials) for what you will need before
 starting an OAuth flow.
 
@@ -119,7 +121,9 @@ starting an OAuth flow.
 
 ### Twitter / X
 
-**Settings location:** Settings → Platform Credentials → Consumer Key / Consumer Secret
+**Where to enter:** During the Connect Twitter flow — Settings → Connections →
+Connect Twitter. The wizard prompts for your Consumer Key and Consumer Secret
+before starting OAuth.
 
 **Developer portal:** [developer.twitter.com](https://developer.twitter.com)
 
@@ -135,7 +139,10 @@ https://yoursite.com/socialturn/index.php?c=connect&a=twitterCallback
 
 ### Facebook Pages + Instagram Business
 
-**Settings location:** Settings → Platform Credentials → App ID / App Secret
+**Where to enter:** During the Connect Facebook flow — Settings → Connections →
+Connect Facebook. The wizard prompts for your App ID and App Secret before
+starting OAuth. Instagram connects through the same Facebook app and OAuth
+flow — no separate Instagram app is needed.
 
 **Developer portal:** [developers.facebook.com](https://developers.facebook.com)
 
@@ -149,9 +156,6 @@ Copy the **App ID** and **App Secret** from App Settings > Basic.
 ```
 https://yoursite.com/socialturn/index.php?c=connect&a=facebookCallback
 ```
-
-Instagram connects through the same Facebook app and OAuth flow — no
-separate Instagram app is needed.
 
 ### Email (Postmark)
 
@@ -222,8 +226,7 @@ interface (S3 support is planned for v2.0).
 
 - `socialturn.ini` is ideally stored **above the web root** (the install wizard
   auto-detects this path). If stored inside the web root, it is blocked by
-  `.htaccess` and the nginx deny rules. Verify the 403 checks in step 7 pass
-  before going live.
+  `.htaccess` and the nginx deny rules.
 - `socialturn.ini` is written with permissions `0644` by the install wizard.
 - `boot.php` is blocked by `.htaccess` and the nginx deny rules. It contains
   no credentials but does reveal the filesystem path to `socialturn.ini`.
@@ -231,7 +234,7 @@ interface (S3 support is planned for v2.0).
   Uploaded files are never interpreted as PHP.
 - HTTPS is mandatory for production installs. OAuth tokens stored in the
   database are at risk on plain HTTP.
-- Token encryption at rest is not implemented in v0.9.0. Restrict database
+- Token encryption at rest is not implemented in v1.0. Restrict database
   access to localhost or a trusted host. Do not expose MySQL directly to
   the internet.
 - Delete `install.php` immediately after installation. SocialTurn displays

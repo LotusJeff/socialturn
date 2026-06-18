@@ -19,6 +19,16 @@
 - `admin_settings` `setting_key` column `COMMENT` in `schema.sql` updated to use
   `owner_email` as the example key instead of the removed `twitter_apikey`.
 
+### Documentation
+- `INSTALL.md` corrected to match the current install process. Seven items fixed:
+  version tag updated to 0.9.8; wizard step count corrected from four to three;
+  organization name field documented in Step 2; Step 4 (Platform Credentials) removed —
+  that wizard step no longer exists; Step 7 updated to use Workspace terminology and
+  direct users to Settings → Connections for the connect flow; Platform Credentials
+  section "Settings location" lines replaced with accurate "Where to enter" descriptions
+  pointing to the connect flow; stale "step 7" 403-check reference removed from
+  Security Notes.
+
 ---
 
 ## [0.9.7] — 2026-06-18
