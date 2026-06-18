@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.16] — 2026-06-18
+
+### Changed
+- `declare(strict_types=1)` added to `controllers/home.php`,
+  `controllers/oops.php`, `controllers/settings.php`, `controllers/team.php`,
+  and `controllers/users.php` — all controllers now declare strict types,
+  consistent with the rest of the codebase.
+- `: void` return type added to `index()` in `controllers/home.php` and to
+  `notfound()`, `permissions()`, and `noaccounts()` in `controllers/oops.php`.
+  All controller functions now have explicit return type declarations.
+
+---
+
 ## [0.9.15] — 2026-06-18
 
 ### Fixed

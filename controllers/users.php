@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Returns the post-login destination URL for the given user type.

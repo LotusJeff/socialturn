@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Team management controller — Admin only (type=1).
