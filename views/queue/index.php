@@ -16,44 +16,6 @@
  *   $csrfToken        string
  */
 
-function queue_index_platformBadge(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'bg-info text-dark',
-        'facebook'  => 'bg-primary',
-        'instagram' => 'bg-danger',
-        default     => 'bg-secondary',
-    };
-}
-
-function queue_index_platformLabel(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'Twitter / X',
-        'facebook'  => 'Facebook',
-        'instagram' => 'Instagram',
-        default     => ucfirst($platform),
-    };
-}
-
-/**
- * Returns connection status badge HTML — identical logic to connectionStatus()
- * in accounts/index, using platform_active and token_expires_at from the row.
- */
-function queue_index_connectionStatus(array $r): string
-{
-    if (!(int) $r['platform_active']) {
-        return '<span class="badge bg-danger">Disconnected</span>';
-    }
-    if (!empty($r['token_expires_at'])) {
-        $expiresAt = new DateTimeImmutable($r['token_expires_at']);
-        $threshold = new DateTimeImmutable('+7 days');
-        if ($expiresAt <= $threshold) {
-            return '<span class="badge bg-warning text-dark">Expires soon</span>';
-        }
-    }
-    return '<span class="badge bg-success">Connected</span>';
-}
 ?>
 <div class="container py-4">
 
@@ -102,13 +64,13 @@ function queue_index_connectionStatus(array $r): string
             <?php foreach ($rows as $r): ?>
             <tr>
                 <td>
-                    <span class="badge <?= queue_index_platformBadge((string) $r['platform']) ?>">
-                        <?= queue_index_platformLabel((string) $r['platform']) ?>
+                    <span class="badge <?= platformBadgeClass((string) $r['platform']) ?>">
+                        <?= platformLabel((string) $r['platform']) ?>
                     </span>
                 </td>
                 <td>
                     <div class="d-flex gap-1">
-                        <?= queue_index_connectionStatus($r) ?>
+                        <?= connectionStatus($r) ?>
                         <?php if ((int) $r['is_posting']): ?>
                         <span class="badge bg-success">Posting</span>
                         <?php else: ?>

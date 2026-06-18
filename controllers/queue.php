@@ -137,7 +137,7 @@ function index(): void
     // Correlated subqueries keep this as a single round-trip.
     $stmt = $dbh->prepare(
         "SELECT a.id, a.name, a.is_posting, cp.platform, cp.platform_name,
-                cp.is_active AS platform_active, cp.token_expires_at,
+                cp.is_active AS is_active, cp.token_expires_at,
                 (SELECT COUNT(*)
                    FROM posts p
                   WHERE p.account_id = a.id

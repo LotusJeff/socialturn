@@ -4,7 +4,6 @@ declare(strict_types=1);
 use SocialTurn\Services\CsvParser;
 use SocialTurn\Services\ImageService;
 use SocialTurn\Services\StorageService;
-use SocialTurn\Services\TagAppenderService;
 
 /**
  * Content library controller — Admins and authorized team members.
@@ -632,7 +631,6 @@ function update(): void
 
     // Image upload — preserve existing if no new file uploaded
     $imageFilename    = ($existingImage['image_filename'] ?? null) ?: null;
-    $imageSource      = $existingImage['image_source'] ?? null;
     $newImageUploaded = false;
 
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
@@ -642,7 +640,6 @@ function update(): void
             $newFilename = bin2hex(random_bytes(8)) . '.' . $ext;
             if ($storage->store((string) $_FILES['image']['tmp_name'], 'originals/' . $newFilename)) {
                 $imageFilename    = $newFilename;
-                $imageSource      = 'uploaded';
                 $newImageUploaded = true;
             }
         }

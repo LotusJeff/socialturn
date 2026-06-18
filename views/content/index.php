@@ -18,31 +18,6 @@
  *   $csrfToken        string
  */
 
-/**
- * Returns a Bootstrap badge class for a platform name.
- */
-function content_platformBadgeClass(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'bg-info text-dark',
-        'facebook'  => 'bg-primary',
-        'instagram' => 'bg-danger',
-        default     => 'bg-secondary',
-    };
-}
-
-/**
- * Returns a human-readable platform label.
- */
-function content_platformLabel(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'Twitter / X',
-        'facebook'  => 'Facebook',
-        'instagram' => 'Instagram',
-        default     => ucfirst($platform),
-    };
-}
 ?>
 <div class="container py-4">
 
@@ -130,8 +105,8 @@ function content_platformLabel(string $platform): string
             <div class="d-flex align-items-center gap-2">
 
                 <!-- Platform badge -->
-                <span class="badge <?= content_platformBadgeClass((string) $p['platform']) ?> flex-shrink-0">
-                    <?= content_platformLabel((string) $p['platform']) ?>
+                <span class="badge <?= platformBadgeClass((string) $p['platform']) ?> flex-shrink-0">
+                    <?= platformLabel((string) $p['platform']) ?>
                 </span>
 
                 <!-- Account name -->

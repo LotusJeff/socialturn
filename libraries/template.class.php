@@ -16,14 +16,6 @@ class Template {
 		$this->variables[$name] = $value;
 	}
 
-	function overrideController($controller) {
-		$this->_controller = $controller;
-	}
-
-	function overrideAction($action) {
-		$this->_action = $action;
-	}
-
 	/** Display Template **/
 	
     function render() {

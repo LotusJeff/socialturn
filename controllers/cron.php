@@ -6,7 +6,6 @@ use SocialTurn\Services\ImageService;
 use SocialTurn\Services\TwitterService;
 use SocialTurn\Services\FacebookService;
 use SocialTurn\Services\InstagramService;
-use SocialTurn\Services\TagAppenderService;
 use SocialTurn\Services\QueuePopulationService;
 use SocialTurn\Services\RecycleService;
 use SocialTurn\Services\NotificationService;
@@ -34,10 +33,9 @@ function post(): void
 {
     global $dbh;
 
-    $tagger   = new TagAppenderService();
     $storage  = new StorageService();
     $images   = new ImageService($storage);
-    $queue    = new QueuePopulationService($dbh, $tagger, $images);
+    $queue    = new QueuePopulationService($dbh, $images);
     $recycle  = new RecycleService($dbh, $queue);
     $notifier = new NotificationService();
 

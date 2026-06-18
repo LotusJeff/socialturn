@@ -14,7 +14,6 @@ declare(strict_types=1);
  *   forceReset()  — generate a new password-reset token and send email
  */
 
-authenticate();
 checkPermission(1);
 
 /**

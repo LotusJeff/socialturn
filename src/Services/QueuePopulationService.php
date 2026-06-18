@@ -22,9 +22,8 @@ use PDOException;
 class QueuePopulationService
 {
     public function __construct(
-        private readonly PDO                $dbh,
-        private readonly TagAppenderService $tagger,
-        private readonly ImageService       $imageService
+        private readonly PDO          $dbh,
+        private readonly ImageService $imageService
     ) {}
 
     /**

@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.17] — 2026-06-18
+
+### Changed
+- `getExtensionToMimeTypeMapping()` removed from `libraries/shared.php` — 177-line
+  unused MIME-type lookup table; `getMimeType()` uses PHP's `finfo` extension directly
+  and was never a caller.
+- `$force` parameter removed from `authenticate()` in `libraries/shared.php` — never
+  passed at any call site and never read inside the function.
+- Stale TODO sentence removed from `isLoggedIn()` docblock in `libraries/shared.php`
+  — referenced `validate()` and Section 4, both long completed.
+- `overrideController()` and `overrideAction()` removed from
+  `libraries/template.class.php` — defined but never called anywhere in the codebase.
+- `TagAppenderService` dead dependency removed: constructor parameter and implicit
+  property removed from `QueuePopulationService`; `use` import and `$tagger`
+  instantiation removed from `controllers/cron.php`; unused `use` import removed
+  from `controllers/content.php`; integration test files updated to match the
+  two-parameter constructor signature.
+- Unused `$imageSource` variable assignments removed from `content/update()` in
+  `controllers/content.php` — assigned twice, never read; `image_source` is
+  hardcoded in the SQL literals.
+- Redundant `authenticate()` call removed from `controllers/team.php` —
+  `libraries/shared.php` already calls it at boot before any controller loads.
+- Duplicate view-level platform helper functions removed from
+  `views/content/index.php` (`content_platformBadgeClass()`,
+  `content_platformLabel()`) and `views/queue/index.php`
+  (`queue_index_platformBadge()`, `queue_index_platformLabel()`,
+  `queue_index_connectionStatus()`); all call sites updated to use
+  `platformBadgeClass()`, `platformLabel()`, and `connectionStatus()` from
+  `libraries/shared.php`. Column alias in `controllers/queue.php` corrected
+  from `platform_active` to `is_active` to match what `connectionStatus()` expects.
+
+---
+
 ## [0.9.16] — 2026-06-18
 
 ### Changed

@@ -5,14 +5,12 @@ namespace Tests\Integration;
 
 use SocialTurn\Services\ImageService;
 use SocialTurn\Services\QueuePopulationService;
-use SocialTurn\Services\TagAppenderService;
 
 /**
  * Integration tests for QueuePopulationService::populate().
  *
  * Uses a real MySQL test database (see IntegrationTestCase for setup).
- * ImageService is mocked — no filesystem access. TagAppenderService is
- * instantiated directly (pure string operations, no external dependencies).
+ * ImageService is mocked — no filesystem access.
  *
  * Requires TEST_DB_* environment variables. Run with:
  *   composer test:integration
@@ -20,7 +18,6 @@ use SocialTurn\Services\TagAppenderService;
 class QueuePopulationServiceTest extends IntegrationTestCase
 {
     private ImageService $imageService;
-    private TagAppenderService $tagger;
     private QueuePopulationService $svc;
 
     protected function setUp(): void
@@ -32,10 +29,8 @@ class QueuePopulationServiceTest extends IntegrationTestCase
         $this->imageService->method('prepareForPlatform')->willReturn(null);
         $this->imageService->method('generateFromTemplate')->willReturn(null);
 
-        $this->tagger = new TagAppenderService();
         $this->svc    = new QueuePopulationService(
             static::$pdo,
-            $this->tagger,
             $this->imageService
         );
     }
@@ -293,7 +288,7 @@ class QueuePopulationServiceTest extends IntegrationTestCase
             ->method('prepareForPlatform')
             ->willReturn($returnedFilename);
 
-        $svc = new QueuePopulationService(static::$pdo, $this->tagger, $imageService);
+        $svc = new QueuePopulationService(static::$pdo, $imageService);
 
         $postId = $this->insertPost(1, 'Post with image');
         $this->insertPostImage($postId, 'original.jpg');
@@ -318,7 +313,7 @@ class QueuePopulationServiceTest extends IntegrationTestCase
                 ['original_b.jpg', 'twitter', 'processed/twitter/image_b.jpg'],
             ]);
 
-        $svc = new QueuePopulationService(static::$pdo, $this->tagger, $imageService);
+        $svc = new QueuePopulationService(static::$pdo, $imageService);
 
         $postId = $this->insertPost(1, 'Post with two images');
         $this->insertPostImage($postId, 'original_a.jpg', 0);

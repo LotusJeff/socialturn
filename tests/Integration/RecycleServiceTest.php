@@ -6,7 +6,6 @@ namespace Tests\Integration;
 use SocialTurn\Services\ImageService;
 use SocialTurn\Services\QueuePopulationService;
 use SocialTurn\Services\RecycleService;
-use SocialTurn\Services\TagAppenderService;
 
 /**
  * Integration tests for RecycleService::check().
@@ -38,7 +37,6 @@ class RecycleServiceTest extends IntegrationTestCase
 
         $this->queue = new QueuePopulationService(
             static::$pdo,
-            new TagAppenderService(),
             $imageService
         );
         $this->svc = new RecycleService(static::$pdo, $this->queue);
