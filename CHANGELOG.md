@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.9.7] — 2026-06-18
+
+### Changed
+- **Account → Workspace UI rename** — all UI-rendered text (view labels, page headings, flash
+  messages, outbound emails) updated to use "Workspace" in place of "Account." Internal codebase
+  variable names, table names, and column names are unchanged.
+- **Settings → Connections screen** (`connect/index`) — new sub-screen listing all
+  `connected_platforms` rows with platform badge, connection status, workspace count, and
+  Reconnect / Disconnect actions. Accessible via a new Settings overview card and the
+  Settings → Connections breadcrumb.
+- **Reconnect feature** — "Reconnect" action on the Connections screen re-runs the full OAuth
+  handshake for an existing `connected_platforms` row and updates it in place. The row id, all
+  workspace references, and post history are preserved. Developer app credentials and OAuth tokens
+  are overwritten with whatever the new handshake produces.
+- **Masked credential display** — on the Connections screen, `app_key` is shown in full
+  (it is an identifier); `app_secret` is shown as bullets + last 4 characters only
+  (e.g. `••••a8f2`). The full secret is never rendered in any view.
+- **Team moved into Settings** — Team removed from the top-level header navigation. A Team card
+  added to the Settings overview shows a live member count. Settings → Team breadcrumb added to
+  the Team screen.
+- **Settings breadcrumbs** — Connections and Team sub-screens display a Settings → [Screen]
+  breadcrumb for navigation consistency.
+
+### Schema
+- Migration 035: `connected_platform_id INT UNSIGNED NULL` added to `oauth_states`; FK to
+  `connected_platforms(id)` ON DELETE SET NULL. Carries the target row id through the OAuth
+  reconnect handshake so the callback can UPDATE the existing row rather than INSERT a new one.
+  Existing installs upgrading from 0.9.6: run `db/migrations/035_oauth_states_reconnect.sql`.
+
+---
+
 ## [0.9.6] — 2026-06-17
 
 ### Changed
