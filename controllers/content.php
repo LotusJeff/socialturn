@@ -1492,31 +1492,59 @@ function content_duplicates(): void
     $accounts = content_accessibleAccounts();
 
     if (empty($accounts)) {
-        $template->set('groups',    []);
-        $template->set('csrfToken', csrf_token());
+        $template->set('groups',           []);
+        $template->set('csrfToken',        csrf_token());
+        $template->set('page',             1);
+        $template->set('perPage',          50);
+        $template->set('totalPages',       1);
+        $template->set('totalItems',       0);
+        $template->set('paginationParams', ['c' => 'content', 'a' => 'content_duplicates']);
         return;
     }
 
     $accessibleIds = array_column($accounts, 'id');
     $inList        = implode(',', array_fill(0, count($accessibleIds), '?'));
 
+    // Count distinct duplicate groups (account_id + body_normalized pairs with > 1 active post)
+    $countStmt = $dbh->prepare(
+        "SELECT COUNT(*)
+           FROM (
+               SELECT p.account_id, p.body_normalized
+                 FROM posts p
+                WHERE p.account_id IN ($inList)
+                  AND p.is_active = 1
+                  AND p.body_normalized != ''
+                GROUP BY p.account_id, p.body_normalized
+               HAVING COUNT(*) > 1
+           ) AS dup_groups"
+    );
+    $countStmt->execute($accessibleIds);
+    $totalItems = (int) $countStmt->fetchColumn();
+
+    [$page, $perPage, $offset, $totalPages] = pagination_calc($totalItems);
+
+    // Fetch all posts belonging to the duplicate groups on this page.
+    // The derived table (page_groups) selects the current page of group keys
+    // with LIMIT/OFFSET; joining against it keeps groups intact across pages.
     $stmt = $dbh->prepare(
         "SELECT p.id, p.body, p.attributed_to, p.is_recyclable, p.created_at,
                 p.body_normalized, p.account_id, a.name AS account_name
            FROM posts p
            JOIN accounts a ON a.id = p.account_id
-          WHERE p.account_id IN ($inList)
-            AND p.is_active = 1
-            AND p.body_normalized != ''
-            AND p.body_normalized IN (
-                SELECT body_normalized
-                  FROM posts
-                 WHERE account_id = p.account_id
-                   AND is_active = 1
-                   AND body_normalized != ''
-                 GROUP BY body_normalized
-                HAVING COUNT(*) > 1
-            )
+           JOIN (
+               SELECT p2.account_id, p2.body_normalized
+                 FROM posts p2
+                WHERE p2.account_id IN ($inList)
+                  AND p2.is_active = 1
+                  AND p2.body_normalized != ''
+                GROUP BY p2.account_id, p2.body_normalized
+               HAVING COUNT(*) > 1
+                ORDER BY p2.account_id ASC, p2.body_normalized ASC
+                LIMIT $perPage OFFSET $offset
+           ) AS page_groups
+             ON page_groups.account_id      = p.account_id
+            AND page_groups.body_normalized = p.body_normalized
+          WHERE p.is_active = 1
           ORDER BY p.account_id ASC, p.body_normalized ASC, p.created_at ASC"
     );
     $stmt->execute($accessibleIds);
@@ -1536,6 +1564,11 @@ function content_duplicates(): void
         $groups[$accountId]['posts'][$normalized][] = $row;
     }
 
-    $template->set('groups',    $groups);
-    $template->set('csrfToken', csrf_token());
+    $template->set('groups',           $groups);
+    $template->set('csrfToken',        csrf_token());
+    $template->set('page',             $page);
+    $template->set('perPage',          $perPage);
+    $template->set('totalPages',       $totalPages);
+    $template->set('totalItems',       $totalItems);
+    $template->set('paginationParams', ['c' => 'content', 'a' => 'content_duplicates']);
 }

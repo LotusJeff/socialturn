@@ -3,12 +3,17 @@
  * Duplicate post detection view — rendered by content/content_duplicates.
  *
  * Template variables:
- *   $groups     array   Grouped duplicate posts.
- *                       Structure: $groups[$accountId]['account_name'] string
- *                                  $groups[$accountId]['posts'][$normalized][] post row
- *                       Post row keys: id, body, attributed_to, is_recyclable,
- *                                      created_at, body_normalized, account_id, account_name
- *   $csrfToken  string
+ *   $groups           array   Grouped duplicate posts — current page only.
+ *                             Structure: $groups[$accountId]['account_name'] string
+ *                                        $groups[$accountId]['posts'][$normalized][] post row
+ *                             Post row keys: id, body, attributed_to, is_recyclable,
+ *                                            created_at, body_normalized, account_id, account_name
+ *   $csrfToken        string
+ *   $page             int
+ *   $perPage          int
+ *   $totalPages       int
+ *   $totalItems       int     Count of distinct duplicate groups (not individual posts)
+ *   $paginationParams array
  */
 ?>
 <div class="container py-4" style="max-width:900px">
@@ -39,6 +44,8 @@
     </div>
 
     <?php else: ?>
+
+    <?php include ROOT . '/views/partials/pagination.php'; ?>
 
     <?php foreach ($groups as $accountId => $accountGroup): ?>
 
@@ -102,6 +109,8 @@
 
     <?php endforeach; ?>
     <?php endforeach; ?>
+
+    <?php include ROOT . '/views/partials/pagination.php'; ?>
 
     <?php endif; ?>
 

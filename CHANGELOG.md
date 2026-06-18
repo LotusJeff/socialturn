@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.19] — 2026-06-18
+
+### Changed
+- `content_duplicates()` paginated using `pagination_calc()` — count query counts
+  distinct duplicate groups (`account_id` + `body_normalized` pairs with more than
+  one active post); page fetch uses a derived-table JOIN so groups are never split
+  across page boundaries; pagination partial added above and below the group list
+  in `views/content/content_duplicates.php`; consistent with all other paginated
+  list views (`content/index`, `queue/index`, `queue/history`, `queue/errors`).
+- `README.md` updated with screenshots and captions for Settings, Application
+  Settings, Workspaces, Workspace Setup, Queue Dashboard, and New Post.
+
+---
+
 ## [0.9.18] — 2026-06-18
 
 ### Changed

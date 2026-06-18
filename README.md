@@ -68,15 +68,23 @@ Stay informed without logging in. Receive email alerts for publishing confirmati
 
 ## Screenshots
 
-[Screenshot: Queue dashboard]
+![Admin Settings](assets/img/Settings.png)
+*The Settings Dashboard provides quick access to all administrative functions, including application configuration, email services, team management, and social media connections.*
 
-[Screenshot: Content library]
+![Application Settings](assets/img/Settings1.png)
+*Set global defaults for queue management, content recycling, scheduling thresholds, and email alerts. These settings establish the baseline behavior for every workspace in the system.*
 
-[Screenshot: Account setup]
+![Workspaces](assets/img/workspaces.png)
+*Each workspace is an independent publishing environment with its own calendar, content library, queue, and posting strategy. Multiple workspaces can publish to the same social media account while maintaining separate schedules and content.*
 
-[Screenshot: Post creation]
+![Workspace-setup](assets/img/workspace-setup.png)
+*Configure scheduling, content rules, and automation settings independently for each workspace.*
 
-> Screenshots will be added after the v1.0.0 release.
+![Queue Dashboard](assets/img/Queue.png)
+*Monitor the publishing status of all workspaces from a single view. Track queue depth, pending posts, publishing activity, failures, and quickly create new content for any workspace.*
+
+![New Posts](assets/img/new-post.png)
+*Create and categorize content, attach media, and define its publishing intent. Posts can be stored for long-term recycling, published immediately, or scheduled for future publication.*
 
 ---
 
