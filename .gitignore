@@ -10,6 +10,11 @@ config.php
 # Local test/debug files — never commit
 pathtest.php
 
+# Development-only scripts — seed data, one-off utilities, etc.
+# README.md is tracked so the directory purpose is documented in the repo.
+/dev/*
+!/dev/README.md
+
 # Uploaded images — ignore all image files but track directory structure
 # /images/** (recursive) rather than /images/* (one level) so processed/ and
 # generated/ subdirectory contents are also covered.
