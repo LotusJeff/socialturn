@@ -224,13 +224,17 @@ CREATE TABLE IF NOT EXISTS `oauth_states` (
     `request_token_secret` VARCHAR(512)  NULL     DEFAULT NULL              COMMENT 'OAuth 1.0a request token secret (Twitter only)',
     `app_key`              VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Developer app key transiting during OAuth handshake; written to connected_platforms on success',
     `app_secret`           VARCHAR(255)  NULL     DEFAULT NULL              COMMENT 'Developer app secret transiting during OAuth handshake; written to connected_platforms on success',
+    `connected_platform_id` INT UNSIGNED NULL     DEFAULT NULL              COMMENT 'When set, this handshake reconnects an existing connected_platforms row in place; NULL = fresh connection',
     `created_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Used to identify and purge rows older than 15 minutes',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_oauth_states_state_key` (`state_key`),
     KEY `idx_oauth_states_created_at` (`created_at`),
     CONSTRAINT `fk_oauth_states_user`
         FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-        ON DELETE CASCADE ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_oauth_states_connected_platform`
+        FOREIGN KEY (`connected_platform_id`) REFERENCES `connected_platforms` (`id`)
+        ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------

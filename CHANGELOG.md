@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.10] — 2026-06-18
+
+### Fixed
+- `db/schema.sql` corrected to include `oauth_states.connected_platform_id`
+  (INT UNSIGNED NULL) and its FK constraint `fk_oauth_states_connected_platform`.
+  Migration 035 added this column to the live DB in v0.9.5 but schema.sql was
+  never updated — fresh installs were missing the column and the Reconnect
+  feature would have been broken on any new installation.
+- Migration 036 executed against live database. Four ghost credential rows
+  (`twitter_apikey`, `twitter_apisecret`, `meta_app_id`, `meta_app_secret`)
+  removed from `admin_settings`. Row count confirmed: 15 → 11.
+
+### Internal
+- MariaDB 11.4+ documented as compatible alongside MySQL 8.0+ in CLAUDE.md.
+  Live server runs MariaDB 11.4.12.
+
+---
+
 ## [0.9.9] — 2026-06-18
 
 ### Fixed

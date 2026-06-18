@@ -19,7 +19,7 @@ Development workflow: See DEVELOPMENT_PROCESS.md in the repo root for the full b
 
 ## Current Stack
 - PHP 8.2+
-- MySQL 8.0+
+- MySQL 8.0+ / MariaDB 11.4+
 - Apache or nginx (all requests route through index.php via query-string routing — no mod_rewrite required)
 - Composer for dependency management
 - Bootstrap 5, vanilla JS — no frontend build tools
@@ -29,7 +29,7 @@ Development workflow: See DEVELOPMENT_PROCESS.md in the repo root for the full b
 ## Deployment
 
 - Live environment: https://polisci101.com/socialturn/
-- Server: PHP 8.3, nginx + PHP-FPM, MySQL 8.0
+- Server: PHP 8.3, nginx + PHP-FPM, MariaDB 11.4
 - Branch: master
 - Deployed: April 2026
 
@@ -392,6 +392,7 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 035: connected_platform_id INT UNSIGNED NULL added to oauth_states; FK to
   connected_platforms(id) ON DELETE SET NULL; enables in-place reconnect — callbacks
   branch on its presence to UPDATE the existing row vs INSERT a new row.
+  schema.sql corrected in v0.9.10 to include this column (was missing since v0.9.5).
 - Migration 036: twitter_apikey, twitter_apisecret, meta_app_id, meta_app_secret rows
   deleted from admin_settings for existing installs; these rows were seeded by migration
   026 but unused since v0.9.5 (GAP 1); migration 026 INSERT IGNORE list corrected
