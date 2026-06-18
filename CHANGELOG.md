@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.11] — 2026-06-18
+
+### Fixed
+- Twitter and Meta OAuth final writes to `connected_platforms` (both reconnect
+  UPDATE and fresh INSERT paths) are now wrapped in try/catch. On failure,
+  `error_log()` is called and an error flash notification is shown — success
+  notification is only reached if the write succeeds.
+- Meta `savePage()`: `unset($_SESSION['oauth'])` moved to after the confirmed
+  successful write. On DB write failure, page selection SESSION state is
+  preserved so the user retains context without re-running the full OAuth flow.
+- `oauth_states` DELETE before Twitter token exchange now checks the execute()
+  return value; `error_log()` fires if the delete fails, noting the row ID and
+  replay risk.
+- Twitter `getAccessToken()` catch block now captures the exception as `$e` and
+  logs the message via `error_log()`. User-facing behavior unchanged.
+
+---
+
 ## [0.9.10] — 2026-06-18
 
 ### Fixed

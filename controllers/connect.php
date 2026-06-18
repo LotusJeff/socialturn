@@ -307,13 +307,17 @@ function twitterCallback(): void
     $appSecret     = (string) ($stateRow['app_secret'] ?? '');
 
     // Delete immediately before the token exchange — prevents replay.
-    $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+    $deleted = $dbh->prepare('DELETE FROM oauth_states WHERE id = ?')->execute([$stateRow['id']]);
+    if (!$deleted) {
+        error_log('[SocialTurn] oauth_states DELETE failed for id=' . $stateRow['id'] . ' — row may persist, replay risk');
+    }
 
     $service = new TwitterService(new StorageService(), $appKey, $appSecret);
 
     try {
         $accessToken = $service->getAccessToken($oauthToken, $requestSecret, $oauthVerifier);
-    } catch (Throwable) {
+    } catch (Throwable $e) {
+        error_log('Twitter getAccessToken error: ' . $e->getMessage());
         $_SESSION['notification'] = [
             'type'    => 'error',
             'message' => $reconnectPlatformId > 0
@@ -353,43 +357,55 @@ function twitterCallback(): void
 
     $companyId = connect_companyId();
 
-    if ($reconnectPlatformId > 0) {
-        $dbh->prepare(
-            'UPDATE connected_platforms SET
-                 platform_account_id = ?,
-                 platform_username   = ?,
-                 access_token        = ?,
-                 token_secret        = ?,
-                 token_expires_at    = NULL,
-                 app_key             = ?,
-                 app_secret          = ?,
-                 is_active           = 1,
-                 updated_at          = NOW()
-             WHERE id = ? AND company_id = ?'
-        )->execute([
-            $twitterId, $screenName, $token, $tokenSecret,
-            $appKey, $appSecret,
-            $reconnectPlatformId, $companyId,
-        ]);
-    } else {
-        // Upsert: re-authorizing the same account updates its token and credentials
-        // rather than creating a duplicate row.
-        // platform_name intentionally omitted — Twitter's OAuth 1.0a callback does not
-        // return a display name; screen_name stored as platform_username is sufficient.
-        $dbh->prepare(
-            "INSERT INTO connected_platforms
-                 (company_id, platform, platform_account_id, platform_username,
-                  access_token, token_secret, app_key, app_secret, is_active)
-             VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE
-                 access_token      = VALUES(access_token),
-                 token_secret      = VALUES(token_secret),
-                 app_key           = VALUES(app_key),
-                 app_secret        = VALUES(app_secret),
-                 platform_username = VALUES(platform_username),
-                 is_active         = 1,
-                 updated_at        = NOW()"
-        )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret, $appKey, $appSecret]);
+    try {
+        if ($reconnectPlatformId > 0) {
+            $dbh->prepare(
+                'UPDATE connected_platforms SET
+                     platform_account_id = ?,
+                     platform_username   = ?,
+                     access_token        = ?,
+                     token_secret        = ?,
+                     token_expires_at    = NULL,
+                     app_key             = ?,
+                     app_secret          = ?,
+                     is_active           = 1,
+                     updated_at          = NOW()
+                 WHERE id = ? AND company_id = ?'
+            )->execute([
+                $twitterId, $screenName, $token, $tokenSecret,
+                $appKey, $appSecret,
+                $reconnectPlatformId, $companyId,
+            ]);
+        } else {
+            // Upsert: re-authorizing the same account updates its token and credentials
+            // rather than creating a duplicate row.
+            // platform_name intentionally omitted — Twitter's OAuth 1.0a callback does not
+            // return a display name; screen_name stored as platform_username is sufficient.
+            $dbh->prepare(
+                "INSERT INTO connected_platforms
+                     (company_id, platform, platform_account_id, platform_username,
+                      access_token, token_secret, app_key, app_secret, is_active)
+                 VALUES (?, 'twitter', ?, ?, ?, ?, ?, ?, 1)
+                 ON DUPLICATE KEY UPDATE
+                     access_token      = VALUES(access_token),
+                     token_secret      = VALUES(token_secret),
+                     app_key           = VALUES(app_key),
+                     app_secret        = VALUES(app_secret),
+                     platform_username = VALUES(platform_username),
+                     is_active         = 1,
+                     updated_at        = NOW()"
+            )->execute([$companyId, $twitterId, $screenName, $token, $tokenSecret, $appKey, $appSecret]);
+        }
+    } catch (Throwable $e) {
+        error_log('Twitter connect DB write failed: ' . $e->getMessage());
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => $reconnectPlatformId > 0
+                ? 'Twitter reconnect authorized but could not be saved. Please try again.'
+                : 'Twitter authorized but could not be saved. Please try again.',
+        ];
+        header('Location: ' . u('connect', 'index'));
+        exit;
     }
 
     $_SESSION['notification'] = [
@@ -801,44 +817,56 @@ function savePage(): void
 
     $companyId = connect_companyId();
 
-    if ($reconnectPlatformId > 0) {
-        $dbh->prepare(
-            'UPDATE connected_platforms SET
-                 platform            = ?,
-                 platform_account_id = ?,
-                 platform_name       = ?,
-                 platform_username   = ?,
-                 access_token        = ?,
-                 token_expires_at    = NULL,
-                 app_key             = ?,
-                 app_secret          = ?,
-                 is_active           = 1,
-                 updated_at          = NOW()
-             WHERE id = ? AND company_id = ?'
-        )->execute([
-            $platform, $platformAccountId, $platformName, $platformUsername,
-            $token, $appKey, $appSecret,
-            $reconnectPlatformId, $companyId,
-        ]);
-    } else {
-        // Page Access Tokens from a long-lived user token do not expire — token_expires_at = NULL.
-        // Upsert: re-connecting the same account refreshes its token and credentials without duplicates.
-        $dbh->prepare(
-            'INSERT INTO connected_platforms
-                 (company_id, platform, platform_account_id, platform_name, platform_username,
-                  access_token, token_expires_at, app_key, app_secret, is_active)
-             VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1)
-             ON DUPLICATE KEY UPDATE
-                 platform_name     = VALUES(platform_name),
-                 platform_username = VALUES(platform_username),
-                 access_token      = VALUES(access_token),
-                 token_expires_at  = NULL,
-                 app_key           = VALUES(app_key),
-                 app_secret        = VALUES(app_secret),
-                 is_active         = 1,
-                 updated_at        = NOW()'
-        )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername,
-                    $token, $appKey, $appSecret]);
+    try {
+        if ($reconnectPlatformId > 0) {
+            $dbh->prepare(
+                'UPDATE connected_platforms SET
+                     platform            = ?,
+                     platform_account_id = ?,
+                     platform_name       = ?,
+                     platform_username   = ?,
+                     access_token        = ?,
+                     token_expires_at    = NULL,
+                     app_key             = ?,
+                     app_secret          = ?,
+                     is_active           = 1,
+                     updated_at          = NOW()
+                 WHERE id = ? AND company_id = ?'
+            )->execute([
+                $platform, $platformAccountId, $platformName, $platformUsername,
+                $token, $appKey, $appSecret,
+                $reconnectPlatformId, $companyId,
+            ]);
+        } else {
+            // Page Access Tokens from a long-lived user token do not expire — token_expires_at = NULL.
+            // Upsert: re-connecting the same account refreshes its token and credentials without duplicates.
+            $dbh->prepare(
+                'INSERT INTO connected_platforms
+                     (company_id, platform, platform_account_id, platform_name, platform_username,
+                      access_token, token_expires_at, app_key, app_secret, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1)
+                 ON DUPLICATE KEY UPDATE
+                     platform_name     = VALUES(platform_name),
+                     platform_username = VALUES(platform_username),
+                     access_token      = VALUES(access_token),
+                     token_expires_at  = NULL,
+                     app_key           = VALUES(app_key),
+                     app_secret        = VALUES(app_secret),
+                     is_active         = 1,
+                     updated_at        = NOW()'
+            )->execute([$companyId, $platform, $platformAccountId, $platformName, $platformUsername,
+                        $token, $appKey, $appSecret]);
+        }
+    } catch (Throwable $e) {
+        error_log('Meta connect DB write failed: ' . $e->getMessage());
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => $reconnectPlatformId > 0
+                ? 'Facebook/Instagram reconnect authorized but could not be saved. Please try again.'
+                : 'Facebook/Instagram authorized but could not be saved. Please try again.',
+        ];
+        header('Location: ' . u('connect', 'index'));
+        exit;
     }
 
     unset($_SESSION['oauth']);
