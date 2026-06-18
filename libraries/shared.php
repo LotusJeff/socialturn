@@ -174,10 +174,8 @@ function sanitize($input,$type = "old") {
 		$input = htmlentities($input, ENT_QUOTES);
 	break;
 
-	case "old":
-		echo "Old version of sanitize called";
-		exit();
-	break;
+	default:
+		throw new \InvalidArgumentException("sanitize() called with unknown type '{$type}'");
 
 	}
 

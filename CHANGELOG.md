@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.9] — 2026-06-18
+
+### Fixed
+- `StorageService::storeFromBytes(string $bytes, string $filename): bool` added.
+  Accepts raw file bytes and stores them to managed storage, handling temp file
+  creation and cleanup internally via a `finally` block. Callers never write to
+  the filesystem directly.
+- URL image fetch in `content/store` and `content/update` refactored to call
+  `storeFromBytes()`. Direct `file_put_contents()` and `unlink()` calls removed
+  from the controller — all filesystem operations now go through StorageService
+  as the storage architecture requires.
+- `sanitize()` in `libraries/shared.php`: `case "old"` (which called `echo` then
+  `exit()`) replaced with a `default:` branch that throws `\InvalidArgumentException`.
+  Unrecognized type arguments now fail with a proper exception instead of producing
+  inline output and terminating the request.
+
+---
+
 ## [0.9.8] — 2026-06-18
 
 ### Fixed

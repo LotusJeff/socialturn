@@ -96,6 +96,34 @@ class StorageService
     }
 
     /**
+     * Write raw bytes into managed storage without touching the filesystem
+     * in the caller. Creates a temp file internally, delegates to store(),
+     * and guarantees cleanup in all paths.
+     *
+     * @param string $bytes    Raw file bytes (e.g. from a curl fetch)
+     * @param string $filename Target filename within managed storage
+     */
+    public function storeFromBytes(string $bytes, string $filename): bool
+    {
+        $tmpPath = tempnam(sys_get_temp_dir(), 'st_img_');
+        if ($tmpPath === false) {
+            return false;
+        }
+        try {
+            if (file_put_contents($tmpPath, $bytes) === false) {
+                return false;
+            }
+            return $this->store($tmpPath, $filename);
+        } finally {
+            // store() unlinks on the local driver; this catches the S3 path
+            // and any failure path where store() did not consume the file.
+            if (file_exists($tmpPath)) {
+                @unlink($tmpPath);
+            }
+        }
+    }
+
+    /**
      * Resolve a filename to its canonical readable location.
      *
      * -----------------------------------------------------------------------

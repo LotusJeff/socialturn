@@ -500,6 +500,9 @@ Driver-specific behaviour of `retrieve()`:
   inherited from AbstractMetaService, which handles local vs S3 automatically.
 - S3 driver returns a public HTTPS URL — suitable for Meta Graph API directly.
 - TwitterService must always use getReadStream() for media uploads, never retrieve().
+- To store raw bytes (e.g. from a curl fetch) without creating a temp file in the
+  caller, use storeFromBytes(string $bytes, string $filename): bool — temp file
+  creation and cleanup are handled internally.
 
 ImageService::generateFromTemplate() renders text using imagettftext() with Poppins SemiBold 600
 (assets/fonts/Poppins-SemiBold.ttf). Requires FreeType support in PHP GD (standard on Ubuntu/Debian

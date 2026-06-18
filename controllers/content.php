@@ -374,13 +374,10 @@ function store(): void
             exit;
         }
         $fetchExt    = $fetchMime === 'image/png' ? 'png' : 'jpg';
-        $tmpPath     = tempnam(sys_get_temp_dir(), 'st_img_');
-        file_put_contents($tmpPath, $fetchedData);
         $newFilename = bin2hex(random_bytes(8)) . '.' . $fetchExt;
-        if ($storage->store($tmpPath, 'originals/' . $newFilename)) {
+        if ($storage->storeFromBytes($fetchedData, 'originals/' . $newFilename)) {
             $urlImageFilename = $newFilename;
         }
-        unlink($tmpPath);
         if ($urlImageFilename === null) {
             $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save fetched image. Please try again.'];
             header('Location: ' . u('content', 'create'));
@@ -703,13 +700,10 @@ function update(): void
             exit;
         }
         $fetchExt    = $fetchMime === 'image/png' ? 'png' : 'jpg';
-        $tmpPath     = tempnam(sys_get_temp_dir(), 'st_img_');
-        file_put_contents($tmpPath, $fetchedData);
         $newFilename = bin2hex(random_bytes(8)) . '.' . $fetchExt;
-        if ($storage->store($tmpPath, 'originals/' . $newFilename)) {
+        if ($storage->storeFromBytes($fetchedData, 'originals/' . $newFilename)) {
             $urlImageFilename = $newFilename;
         }
-        unlink($tmpPath);
         if ($urlImageFilename === null) {
             $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not save fetched image. Please try again.'];
             header('Location: ' . u('content', 'edit', ['id' => $postId]));
