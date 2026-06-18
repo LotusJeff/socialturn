@@ -276,7 +276,7 @@ abstract class AbstractMetaService
      * Default threshold is TOKEN_REFRESH_THRESHOLD_DAYS (7 days), giving
      * the cron controller a week of buffer before a Meta token goes dead.
      */
-    protected function isNearExpiry(
+    public function isNearExpiry(
         ?string $tokenExpiresAt,
         int     $days = self::TOKEN_REFRESH_THRESHOLD_DAYS
     ): bool {

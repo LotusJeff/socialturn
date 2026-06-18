@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.14] — 2026-06-18
+
+### Fixed
+- Meta token auto-refresh implemented in cron. `isNearExpiry()` is now checked
+  before each Facebook and Instagram dispatch; if the token expires within the
+  7-day threshold, `refreshToken()` is called before posting. On refresh failure,
+  a warning is logged via `error_log()` and the dispatch continues with the
+  existing token — posts are never skipped due to a failed refresh.
+  `token_expires_at` added to the `cron_fetchActiveAccounts()` SELECT so the
+  value is available in the dispatch loop without an extra query. Satisfies the
+  CLAUDE.md requirement: "Facebook/Instagram tokens expire in 60 days —
+  auto-refresh is mandatory."
+- `UNIQUE KEY uq_scheduled_posts_platform_time (connected_platform_id,
+  scheduled_time)` added to `scheduled_posts` via migration 037. Prevents
+  concurrent `populate()` runs from creating duplicate queue rows for the same
+  platform connection and time slot. On a duplicate INSERT attempt, the full
+  batch rolls back and the error is caught and logged by `RecycleService` — the
+  first successful populate run covers the queue. `schema.sql` updated to match.
+  `AbstractMetaService::isNearExpiry()` visibility changed from `protected` to
+  `public` to allow the check to be called from `cron_dispatchToPlatform()`.
+- `cron_markPosted()` wrapped in a row-level try/catch in the dispatch loop.
+  On failure, logs the exception with the `scheduled_post_id` and calls
+  `cron_markFailed()` to record the row as failed, preventing re-dispatch after
+  the 10-minute stale lock reset. If `cron_markFailed()` also throws (DB
+  completely unavailable), that exception is caught and logged separately. A
+  false failure record is preferable to a double-send.
+
+---
+
 ## [0.9.13] — 2026-06-18
 
 ### Fixed

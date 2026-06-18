@@ -375,6 +375,7 @@ CREATE TABLE IF NOT EXISTS `scheduled_posts` (
     `locked_at`             DATETIME      NULL     DEFAULT NULL              COMMENT 'Set atomically by cron when claiming a row; prevents double-posting on overlapping runs',
     `created_at`            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_scheduled_posts_platform_time` (`connected_platform_id`, `scheduled_time`),
     KEY `idx_scheduled_posts_platform_status_time` (`connected_platform_id`, `status`, `scheduled_time`),
     KEY `idx_scheduled_posts_post_platform_status` (`post_id`, `connected_platform_id`, `status`),
     CONSTRAINT `fk_scheduled_posts_connected_platform`

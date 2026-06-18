@@ -80,7 +80,19 @@ function post(): void
                 $result = cron_dispatchToPlatform($account, $row, $dbh, $storage);
 
                 if ($result['success']) {
-                    cron_markPosted($dbh, (int) $row['id']);
+                    try {
+                        cron_markPosted($dbh, (int) $row['id']);
+                    } catch (Throwable $e) {
+                        error_log('[SocialTurn] cron_markPosted() failed for scheduled_post #'
+                            . ((int) $row['id']) . ' after successful dispatch'
+                            . ' — marking failed to prevent re-dispatch: ' . $e->getMessage());
+                        try {
+                            cron_markFailed($dbh, (int) $row['id']);
+                        } catch (Throwable $e2) {
+                            error_log('[SocialTurn] cron_markFailed() also failed for scheduled_post #'
+                                . ((int) $row['id']) . ': ' . $e2->getMessage());
+                        }
+                    }
                     try {
                         cron_writePostHistory($dbh, [
                             'connected_platform_id' => (int) $account['connected_platform_id'],
@@ -244,6 +256,7 @@ function post(): void
  *     platform: string,
  *     access_token: string,
  *     token_secret: string|null,
+ *     token_expires_at: string|null,
  *     platform_account_id: string,
  *     app_key: string|null,
  *     app_secret: string|null
@@ -253,8 +266,8 @@ function cron_fetchActiveAccounts(PDO $dbh): array
 {
     $stmt = $dbh->prepare(
         'SELECT a.id, a.company_id, a.connected_platform_id, a.name,
-                cp.platform, cp.access_token, cp.token_secret, cp.platform_account_id,
-                cp.app_key, cp.app_secret,
+                cp.platform, cp.access_token, cp.token_secret, cp.token_expires_at,
+                cp.platform_account_id, cp.app_key, cp.app_secret,
                 COALESCE(s.timezone, \'UTC\') AS timezone
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
@@ -360,6 +373,12 @@ function cron_dispatchToPlatform(
 
         case 'facebook':
             $service = new FacebookService($dbh, $storage, $appKey, $appSecret);
+            if ($service->isNearExpiry($account['token_expires_at'] ?? null)) {
+                if (!$service->refreshToken((int) $account['connected_platform_id'])) {
+                    error_log('[SocialTurn] Token refresh failed for Facebook connection #'
+                        . ((int) $account['connected_platform_id']) . ' — proceeding with existing token.');
+                }
+            }
             return $service->post($scheduledPost, $token, $tokenSecret, [
                 'page_id'               => $account['platform_account_id'],
                 'connected_platform_id' => $account['connected_platform_id'],
@@ -368,6 +387,12 @@ function cron_dispatchToPlatform(
 
         case 'instagram':
             $service = new InstagramService($dbh, $storage, $appKey, $appSecret);
+            if ($service->isNearExpiry($account['token_expires_at'] ?? null)) {
+                if (!$service->refreshToken((int) $account['connected_platform_id'])) {
+                    error_log('[SocialTurn] Token refresh failed for Instagram connection #'
+                        . ((int) $account['connected_platform_id']) . ' — proceeding with existing token.');
+                }
+            }
             return $service->post($scheduledPost, $token, $tokenSecret, [
                 'ig_user_id'            => $account['platform_account_id'],
                 'connected_platform_id' => $account['connected_platform_id'],
