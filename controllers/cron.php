@@ -94,8 +94,10 @@ function post(): void
                             'status'                => 'posted',
                             'error_message'         => null,
                         ]);
-                    } catch (Throwable) {
-                        // post_history write failed — best-effort; scheduled_posts already marked posted.
+                    } catch (Throwable $e) {
+                        error_log('[SocialTurn] post_history write failed for scheduled_post #'
+                            . ((int) $row['id']) . ': ' . $e->getMessage());
+                        // Best-effort — scheduled_posts already marked posted.
                     }
                     cron_logActivity($dbh, (int) $account['company_id'], 'post_success', 'Post sent successfully.',
                         (int) $account['id'], (int) $account['connected_platform_id'], [
@@ -118,8 +120,10 @@ function post(): void
                             'status'                => 'failed',
                             'error_message'         => $result['error'],
                         ]);
-                    } catch (Throwable) {
-                        // post_history write failed — best-effort; scheduled_posts already marked failed.
+                    } catch (Throwable $e) {
+                        error_log('[SocialTurn] post_history write failed for scheduled_post #'
+                            . ((int) $row['id']) . ': ' . $e->getMessage());
+                        // Best-effort — scheduled_posts already marked failed.
                     }
                     cron_logActivity($dbh, (int) $account['company_id'], 'post_failure',
                         'Post failed: ' . ($result['error'] ?? 'unknown error'),
@@ -157,9 +161,13 @@ function post(): void
 
         } catch (Throwable $e) {
             $postsFailed++;
-            // Do not include $e->getMessage() in any output — it may contain token data
-            // if the exception originated inside a platform service call.
-            // Do not serialize $account — it contains access_token.
+            // Platform service post() methods catch all throwables internally —
+            // exceptions reaching here are most likely DB or logic errors, not
+            // API call exceptions carrying token data. Account ID is safe to log;
+            // the full $account array must never be serialized (contains access_token).
+            error_log('[SocialTurn] Cron account-level exception for account #'
+                . ((int) ($account['id'] ?? 0)) . ': '
+                . get_class($e) . ': ' . $e->getMessage());
             // Execution continues to the next account.
         }
     }
@@ -191,8 +199,14 @@ function post(): void
                     $stats['total_failed'],
                     $stats['accounts']
                 );
-                cron_updateAdminSetting($dbh, 'notify_recap_last_sent', $nowStr);
-            } catch (Throwable) {
+                try {
+                    cron_updateAdminSetting($dbh, 'notify_recap_last_sent', $nowStr);
+                } catch (Throwable $e) {
+                    // Email sent but timestamp not persisted — recap will resend on next run.
+                    error_log('[SocialTurn] Failed to update notify_recap_last_sent after recap email: ' . $e->getMessage());
+                }
+            } catch (Throwable $e) {
+                error_log('[SocialTurn] Recap email failed: ' . $e->getMessage());
                 // Best-effort — never disrupt cron output.
             }
         }
@@ -439,7 +453,8 @@ function cron_logActivity(
             $message,
             $context !== null ? json_encode($context) : null,
         ]);
-    } catch (Throwable) {
+    } catch (Throwable $e) {
+        error_log('[SocialTurn] activity_log write failed: ' . $e->getMessage());
         // Best-effort — never let activity logging disrupt cron.
     }
 }

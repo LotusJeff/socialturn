@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.12] — 2026-06-18
+
+### Fixed
+- Cron account-level outer `catch (Throwable)` now calls `error_log()` with
+  exception class, message, and account ID. Previously wrote nothing on any
+  account-level failure, leaving no detectable trace in logs or database.
+- `post_history` write failures in both the success and failure dispatch paths
+  now log via `error_log()` with the scheduled post ID. Best-effort design
+  intent unchanged — cron continues regardless.
+- Recap email `catch` now logs the failure via `error_log()`.
+  `cron_updateAdminSetting()` moved into a nested try/catch so a timestamp
+  write failure after a successful email send is logged independently and does
+  not allow the outer catch to mask the fact that the email was sent — prevents
+  a silent resend loop on subsequent cron runs.
+- `cron_logActivity()` catch now logs via `error_log()` so persistent
+  `activity_log` table failures are detectable. Best-effort design intent
+  unchanged.
+
+---
+
 ## [0.9.11] — 2026-06-18
 
 ### Fixed
