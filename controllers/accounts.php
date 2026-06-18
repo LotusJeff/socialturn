@@ -49,7 +49,7 @@ function index(): void
     $stmt = $dbh->prepare(
         'SELECT a.id, a.name, a.display_name, a.is_posting, a.dynamic_images_enabled,
                 cp.id AS cp_id, cp.platform, cp.platform_name, cp.platform_username,
-                cp.is_active AS platform_active, cp.token_expires_at
+                cp.is_active, cp.token_expires_at
            FROM accounts a
            JOIN connected_platforms cp ON cp.id = a.connected_platform_id
           WHERE a.company_id = ? AND a.is_active = 1

@@ -510,6 +510,49 @@ function build_final_body(string $body, ?string $attributedTo, ?string $postTags
     return $result['body'];
 }
 
+// -------------------------------------------------------------------------
+// Platform display helpers — shared by accounts/index and connect/index
+// -------------------------------------------------------------------------
+
+function platformBadgeClass(string $platform): string
+{
+    return match ($platform) {
+        'twitter'   => 'bg-info text-dark',
+        'facebook'  => 'bg-primary',
+        'instagram' => 'bg-danger',
+        default     => 'bg-secondary',
+    };
+}
+
+function platformLabel(string $platform): string
+{
+    return match ($platform) {
+        'twitter'   => 'Twitter / X',
+        'facebook'  => 'Facebook',
+        'instagram' => 'Instagram',
+        default     => ucfirst($platform),
+    };
+}
+
+/**
+ * Returns a Bootstrap connection status badge.
+ * is_active=0 → Disconnected; token near expiry → Expires soon; otherwise → Connected.
+ */
+function connectionStatus(array $row): string
+{
+    if (!(int) $row['is_active']) {
+        return '<span class="badge bg-danger">Disconnected</span>';
+    }
+    if (!empty($row['token_expires_at'])) {
+        $expiresAt = new DateTimeImmutable($row['token_expires_at']);
+        $threshold = new DateTimeImmutable('+7 days');
+        if ($expiresAt <= $threshold) {
+            return '<span class="badge bg-warning text-dark">Expires soon</span>';
+        }
+    }
+    return '<span class="badge bg-success">Connected</span>';
+}
+
 if (!defined('RUNNING_TESTS')) {
     db();
     authenticate();

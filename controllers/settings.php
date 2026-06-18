@@ -1,17 +1,22 @@
 <?php
 
 function index(): void {
-    global $template;
+    global $dbh, $template;
     checkPermission(1);
 
     $ini = @parse_ini_file(CONFIG_PATH, true);
     $cfg = $ini['socialturn'] ?? [];
 
-    $template->set('dbHost',    $cfg['db_host'] ?? '');
-    $template->set('dbName',    $cfg['db_name'] ?? '');
-    $template->set('baseUrl',   $cfg['base_url'] ?? '');
-    $template->set('pmConfigured',  !empty(POSTMARKAPP_API_KEY));
-    $template->set('notifyFailure', defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
+    $companyId = (int) ($_SESSION['user']['company_id'] ?? $_SESSION['user']['companyid'] ?? 0);
+    $stmt = $dbh->prepare('SELECT COUNT(*) FROM connected_platforms WHERE company_id = ?');
+    $stmt->execute([$companyId]);
+
+    $template->set('dbHost',          $cfg['db_host'] ?? '');
+    $template->set('dbName',          $cfg['db_name'] ?? '');
+    $template->set('baseUrl',         $cfg['base_url'] ?? '');
+    $template->set('pmConfigured',    !empty(POSTMARKAPP_API_KEY));
+    $template->set('notifyFailure',   defined('NOTIFY_POST_FAILURE') ? NOTIFY_POST_FAILURE : '0');
+    $template->set('connectionCount', (int) $stmt->fetchColumn());
 }
 
 function database(): void {

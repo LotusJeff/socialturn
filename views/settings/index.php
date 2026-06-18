@@ -3,10 +3,11 @@
  * Settings overview — rendered by settings/index.
  *
  * Template variables:
- *   $dbHost       string   Current DB host from config.ini
- *   $dbName       string   Current DB name from config.ini
- *   $baseUrl      string   Current base URL from config.ini
- *   $pmConfigured bool     True if POSTMARKAPP_API_KEY is non-empty
+ *   $dbHost          string   Current DB host from config.ini
+ *   $dbName          string   Current DB name from config.ini
+ *   $baseUrl         string   Current base URL from config.ini
+ *   $pmConfigured    bool     True if POSTMARKAPP_API_KEY is non-empty
+ *   $connectionCount int      Count of connected_platforms rows for the company
  */
 ?>
 <div class="container py-4">
@@ -63,6 +64,24 @@
                     <?php endif; ?>
                     <br>
                     <a href="<?php echo u('settings', 'app'); ?>" class="btn btn-sm btn-outline-primary">Edit</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Connections</h5>
+                    <p class="card-text text-muted small">
+                        Platform API credentials and connected social media accounts.
+                    </p>
+                    <?php if ($connectionCount > 0): ?>
+                        <span class="badge bg-success mb-2"><?php echo (int) $connectionCount; ?> connected</span>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark mb-2">None connected</span>
+                    <?php endif; ?>
+                    <br>
+                    <a href="<?php echo u('connect', 'index'); ?>" class="btn btn-sm btn-outline-primary">Manage</a>
                 </div>
             </div>
         </div>

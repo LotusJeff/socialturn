@@ -23,13 +23,14 @@ use SocialTurn\Services\FacebookService;
  * flash notifications — not for OAuth handshake CSRF or request token secrets.
  *
  * Functions:
+ *   index()              — List all connected_platforms rows with workspace count
  *   twitter()            — GET: credential form; POST: initiate Twitter OAuth 1.0a
  *   twitterCallback()    — Receive Twitter verifier, exchange, store
  *   facebook()           — GET: credential form; POST: initiate Facebook/Instagram OAuth 2.0
  *   facebookCallback()   — Receive code, exchange tokens, discover pages
  *   pages()              — Render page/account selection UI
  *   savePage()           — Save a selected Facebook Page or Instagram account
- *   cancel()             — Clear SESSION state, return to accounts
+ *   cancel()             — Clear SESSION state, return to Connections
  *   disconnect()         — Delete a connected_platforms row
  */
 
@@ -47,6 +48,36 @@ function connect_companyId(): int
 function connect_userId(): int
 {
     return (int) ($_SESSION['user']['loggedin'] ?? 0);
+}
+
+// -----------------------------------------------------------------------
+// Connections listing
+// -----------------------------------------------------------------------
+
+/**
+ * List all connected_platforms rows for the company, with active workspace count.
+ */
+function index(): void
+{
+    global $dbh, $template;
+
+    $companyId = connect_companyId();
+
+    $stmt = $dbh->prepare(
+        'SELECT cp.id, cp.platform, cp.platform_name, cp.platform_username,
+                cp.is_active, cp.token_expires_at, cp.created_at,
+                COUNT(a.id) AS workspace_count
+           FROM connected_platforms cp
+           LEFT JOIN accounts a ON a.connected_platform_id = cp.id AND a.is_active = 1
+          WHERE cp.company_id = ?
+          GROUP BY cp.id
+          ORDER BY cp.platform ASC, cp.platform_name ASC'
+    );
+    $stmt->execute([$companyId]);
+    $connections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $template->set('connections', $connections);
+    $template->set('csrfToken',   csrf_token());
 }
 
 // -----------------------------------------------------------------------
@@ -149,7 +180,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter authorization was cancelled or did not complete.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -167,7 +198,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter authorization state not found. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -177,7 +208,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter authorization expired. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -197,7 +228,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter token exchange failed. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -206,7 +237,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter did not return a valid access token. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -220,7 +251,7 @@ function twitterCallback(): void
             'type'    => 'error',
             'message' => 'Twitter token verification failed. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -249,7 +280,7 @@ function twitterCallback(): void
         'type'    => 'success',
         'message' => 'Twitter account @' . htmlspecialchars($screenName, ENT_QUOTES, 'UTF-8') . ' connected.',
     ];
-    header('Location: ' . u('accounts'));
+    header('Location: ' . u('connect', 'index'));
     exit;
 }
 
@@ -338,7 +369,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization state missing. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -356,7 +387,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization state not found. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -366,7 +397,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization expired. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -383,7 +414,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook authorization was cancelled.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -396,7 +427,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Facebook token exchange failed. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -407,7 +438,7 @@ function facebookCallback(): void
             'type'    => 'error',
             'message' => 'Could not obtain a long-lived Facebook token. Please try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -469,7 +500,7 @@ function pages(): void
             'type'    => 'error',
             'message' => 'Session expired. Please reconnect.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -482,7 +513,7 @@ function pages(): void
             'type'    => 'error',
             'message' => 'No Facebook Pages found. Make sure your Facebook account manages at least one Page, then try again.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -564,7 +595,7 @@ function savePage(): void
             'type'    => 'error',
             'message' => 'Session expired. Please reconnect.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -596,7 +627,7 @@ function savePage(): void
         'type'    => 'success',
         'message' => ucfirst($platform) . ' account "' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '" connected.',
     ];
-    header('Location: ' . u('accounts'));
+    header('Location: ' . u('connect', 'index'));
     exit;
 }
 
@@ -606,7 +637,7 @@ function savePage(): void
 function cancel(): void
 {
     unset($_SESSION['oauth']);
-    header('Location: ' . u('accounts'));
+    header('Location: ' . u('connect', 'index'));
     exit;
 }
 
@@ -624,12 +655,12 @@ function disconnect(): void
     global $dbh;
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
     if (!csrf_validate()) {
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -637,7 +668,7 @@ function disconnect(): void
     $connectedPlatformId = (int) ($_POST['connected_platform_id'] ?? 0);
 
     if ($connectedPlatformId === 0) {
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -665,7 +696,7 @@ function disconnect(): void
             'type'    => 'error',
             'message' => 'Remove all workspaces using this connection before disconnecting.',
         ];
-        header('Location: ' . u('accounts'));
+        header('Location: ' . u('connect', 'index'));
         exit;
     }
 
@@ -681,6 +712,6 @@ function disconnect(): void
         'type'    => 'success',
         'message' => ucfirst((string) $connection['platform']) . ' account "' . $label . '" disconnected.',
     ];
-    header('Location: ' . u('accounts'));
+    header('Location: ' . u('connect', 'index'));
     exit;
 }

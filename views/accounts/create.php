@@ -55,8 +55,8 @@
                     </select>
                     <div class="form-text">
                         Don't see your platform?
-                        <a href="<?= u('connect', 'twitter') ?>">Connect Twitter</a> or
-                        <a href="<?= u('connect', 'facebook') ?>">Connect Facebook / Instagram</a> first.
+                        <a href="<?= u('connect', 'index') ?>">Connect Twitter</a> or
+                        <a href="<?= u('connect', 'index') ?>">Connect Facebook / Instagram</a> first.
                     </div>
                 </div>
 

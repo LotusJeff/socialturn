@@ -2,7 +2,7 @@
 
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="<?php echo u('accounts'); ?>">Accounts</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo u('connect', 'index'); ?>">Connections</a></li>
             <li class="breadcrumb-item active">Connect Twitter / X</li>
         </ol>
     </nav>
@@ -45,7 +45,7 @@
 
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Continue to Twitter &rarr;</button>
-                    <a href="<?php echo u('accounts'); ?>" class="btn btn-outline-secondary">Cancel</a>
+                    <a href="<?php echo u('connect', 'index'); ?>" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>
 

@@ -7,51 +7,6 @@
  *   $unconnected  array   Connected platforms with no account yet
  *   $csrfToken    string
  */
-
-/**
- * Returns a Bootstrap badge class for a platform name.
- */
-function platformBadgeClass(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'bg-info text-dark',
-        'facebook'  => 'bg-primary',
-        'instagram' => 'bg-danger',
-        default     => 'bg-secondary',
-    };
-}
-
-/**
- * Returns a human-readable platform label.
- */
-function platformLabel(string $platform): string
-{
-    return match ($platform) {
-        'twitter'   => 'Twitter / X',
-        'facebook'  => 'Facebook',
-        'instagram' => 'Instagram',
-        default     => ucfirst($platform),
-    };
-}
-
-/**
- * Returns connection status badge HTML.
- * active=0 → Disconnected; near expiry → Expires soon; otherwise → Connected.
- */
-function connectionStatus(array $account): string
-{
-    if (!(int) $account['platform_active']) {
-        return '<span class="badge bg-danger">Disconnected</span>';
-    }
-    if (!empty($account['token_expires_at'])) {
-        $expiresAt = new DateTimeImmutable($account['token_expires_at']);
-        $threshold = new DateTimeImmutable('+7 days');
-        if ($expiresAt <= $threshold) {
-            return '<span class="badge bg-warning text-dark">Expires soon</span>';
-        }
-    }
-    return '<span class="badge bg-success">Connected</span>';
-}
 ?>
 <div class="container py-4">
 
