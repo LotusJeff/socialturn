@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.15] — 2026-06-18
+
+### Fixed
+- `InstagramService::createMediaContainer()` now returns the Graph API error
+  message on failure instead of `null`. Single-image post failures now record
+  the actual API error in `post_history` instead of a static fallback string.
+  Matches the error propagation pattern already used in the carousel path
+  (`postCarousel()`), which correctly extracted `$response['error']['message']`
+  in all failure branches.
+
+---
+
 ## [0.9.14] — 2026-06-18
 
 ### Fixed

@@ -86,7 +86,7 @@ class InstagramService extends AbstractMetaService
         try {
             if (count($images) === 1) {
                 $imageUrl   = $this->resolveImageUrl($images[0]);
-                $creationId = $this->createMediaContainer(
+                [$creationId, $containerError] = $this->createMediaContainer(
                     (string) $igUserId,
                     $token,
                     $imageUrl,
@@ -94,7 +94,7 @@ class InstagramService extends AbstractMetaService
                 );
 
                 if ($creationId === null) {
-                    $result['error'] = 'Instagram media container creation failed — check image URL, token, and account permissions.';
+                    $result['error'] = $containerError ?? 'Unknown Graph API error.';
                     return $result;
                 }
 
@@ -152,15 +152,17 @@ class InstagramService extends AbstractMetaService
      * The caption (post text) is attached here, not at publish time.
      * The API returns { "id": "creation_id" } on success.
      *
-     * Returns the creation_id string on success, null on any failure
+     * Returns [creation_id, null] on success, [null, error_message] on any failure
      * (API error, missing id in response, network error).
+     *
+     * @return array{0: string|null, 1: string|null}
      */
     private function createMediaContainer(
         string $igUserId,
         string $token,
         string $imageUrl,
         string $caption
-    ): ?string {
+    ): array {
         $response = $this->graphPost(rawurlencode($igUserId) . '/media', [
             'image_url'    => $imageUrl,
             'caption'      => $caption,
@@ -168,10 +170,11 @@ class InstagramService extends AbstractMetaService
         ]);
 
         if (isset($response['error']) || empty($response['id'])) {
-            return null;
+            $msg = $response['error']['message'] ?? 'Unknown Graph API error.';
+            return [null, $msg];
         }
 
-        return (string) $response['id'];
+        return [(string) $response['id'], null];
     }
 
     /**
