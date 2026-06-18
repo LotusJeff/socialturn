@@ -102,7 +102,7 @@ function create(): void
     if (empty($platforms)) {
         $_SESSION['notification'] = [
             'type'    => 'info',
-            'message' => 'Connect a platform before creating an account.',
+            'message' => 'Connect a platform before creating a workspace.',
         ];
         header('Location: ' . u('accounts'));
         exit;
@@ -142,7 +142,7 @@ function store(): void
     $isPosting           = isset($_POST['is_posting']) ? 1 : 0;
 
     if ($name === '' || $connectedPlatformId === 0) {
-        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account name and platform are required.'];
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Workspace name and platform are required.'];
         header('Location: ' . u('accounts', 'create'));
         exit;
     }
@@ -190,12 +190,12 @@ function store(): void
         $dbh->commit();
     } catch (Throwable) {
         $dbh->rollBack();
-        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not create account. Please try again.'];
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Could not create workspace. Please try again.'];
         header('Location: ' . u('accounts', 'create'));
         exit;
     }
 
-    $_SESSION['notification'] = ['type' => 'success', 'message' => 'Account created. Configure the schedule below.'];
+    $_SESSION['notification'] = ['type' => 'success', 'message' => 'Workspace created. Configure the schedule below.'];
     header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
     exit;
 }
@@ -345,7 +345,7 @@ function update(): void
     $overlayFontSize = ($rawFontSize >= 30 && $rawFontSize <= 70) ? $rawFontSize : 48;
 
     if ($name === '' || $connectedPlatformId === 0) {
-        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Account name and platform are required.'];
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Workspace name and platform are required.'];
         header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
         exit;
     }
@@ -591,7 +591,7 @@ function update(): void
         exit;
     }
 
-    $_SESSION['notification'] = ['type' => 'success', 'message' => 'Account settings saved.'];
+    $_SESSION['notification'] = ['type' => 'success', 'message' => 'Workspace settings saved.'];
     header('Location: ' . u('accounts', 'edit', ['id' => $accountId]));
     exit;
 }

@@ -77,7 +77,7 @@
                     <!-- Accounts — admin only -->
                     <li class="nav-item">
                         <a class="nav-link<?php echo ($controller === 'accounts') ? ' active' : ''; ?>"
-                           href="<?php echo u('accounts'); ?>">Accounts</a>
+                           href="<?php echo u('accounts'); ?>">Workspaces</a>
                     </li>
 
                     <!-- Team — admin only -->

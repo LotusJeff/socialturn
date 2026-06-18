@@ -10,7 +10,7 @@
 
   <table style="border-collapse:collapse;width:100%;margin-bottom:24px">
     <tr>
-      <td style="padding:6px 16px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:top;width:120px">Account</td>
+      <td style="padding:6px 16px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:top;width:120px">Workspace</td>
       <td style="padding:6px 0;vertical-align:top"><?= htmlspecialchars($accountName, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
     <tr>

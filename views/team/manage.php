@@ -71,8 +71,8 @@
                             <div x-show="role == 1"
                                  <?php if ((int) $user['type'] !== 1) echo 'style="display: none"'; ?>
                                  class="alert alert-info mb-0" role="alert">
-                                Admins have full access to all accounts &mdash;
-                                no per-account permissions are needed.
+                                Admins have full access to all workspaces &mdash;
+                                no per-workspace permissions are needed.
                             </div>
                         <?php endif; ?>
                     </div>
@@ -81,24 +81,24 @@
                 <?php if (!$isSelf): ?>
                 <div class="card shadow-sm mb-3">
                     <div class="card-body p-4">
-                        <h5 class="card-title mb-3">Account access</h5>
+                        <h5 class="card-title mb-3">Workspace access</h5>
 
                         <div x-show="role == 1"
                              <?php if ((int) $user['type'] !== 1) echo 'style="display: none"'; ?>
                              class="text-muted small">
-                            Admins have access to all accounts automatically.
+                            Admins have access to all workspaces automatically.
                         </div>
 
                         <div x-show="role == 100"
                              <?php if ((int) $user['type'] !== 100) echo 'style="display: none"'; ?>>
                             <?php if (empty($accounts)): ?>
                                 <p class="text-muted small mb-0">
-                                    No accounts exist yet. Create accounts first,
+                                    No workspaces exist yet. Create workspaces first,
                                     then return here to assign access.
                                 </p>
                             <?php else: ?>
                                 <p class="text-muted small mb-3">
-                                    Select the accounts this team member can access.
+                                    Select the workspaces this team member can access.
                                 </p>
                                 <div class="row g-2">
                                     <?php foreach ($accounts as $account): ?>

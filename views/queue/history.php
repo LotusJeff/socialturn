@@ -28,7 +28,7 @@
             &mdash; History
         </h1>
     </div>
-    <p class="text-muted small mb-4">Immutable log of every post attempt for this account.</p>
+    <p class="text-muted small mb-4">Immutable log of every post attempt for this workspace.</p>
 
     <?php if (!empty($_SESSION['notification'])): ?>
     <div class="alert alert-<?= htmlspecialchars($_SESSION['notification']['type'] === 'error' ? 'danger' : $_SESSION['notification']['type'], ENT_QUOTES, 'UTF-8') ?> alert-dismissible fade show" role="alert">

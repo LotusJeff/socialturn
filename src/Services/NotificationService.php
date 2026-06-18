@@ -66,7 +66,7 @@ class NotificationService
         ];
 
         $html  = $this->render('post_failure', $vars);
-        $plain = "Post failed on {$platformLabel} for account: {$accountName}\n"
+        $plain = "Post failed on {$platformLabel} for workspace: {$accountName}\n"
                . "Time: {$postedAtLocal}\n"
                . "Error: {$errorMessage}\n"
                . "Post: {$bodyPreview}";

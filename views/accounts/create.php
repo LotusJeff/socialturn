@@ -11,8 +11,8 @@
 <div class="container py-4" style="max-width:600px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Accounts</a>
-        <h1 class="h3 mb-0">New Account</h1>
+        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Workspaces</a>
+        <h1 class="h3 mb-0">New Workspace</h1>
     </div>
 
     <div class="card">
@@ -22,9 +22,9 @@
 
                 <div class="mb-3">
                     <label for="name" class="form-label fw-semibold">
-                        Account name
+                        Workspace name
                         <span data-bs-toggle="tooltip"
-                              data-bs-title="Internal label — not shown publicly. Helps you tell accounts apart."
+                              data-bs-title="Internal label — not shown publicly. Helps you tell workspaces apart."
                               class="text-muted ms-1" style="cursor:default">&#63;</span>
                         <span class="text-danger">*</span>
                     </label>
@@ -67,14 +67,14 @@
                         <label for="is_posting" class="form-check-label">
                             Start posting immediately
                             <span data-bs-toggle="tooltip"
-                                  data-bs-title="Leave unchecked to configure the schedule first. You can enable posting from the account settings page."
+                                  data-bs-title="Leave unchecked to configure the schedule first. You can enable posting from the workspace settings page."
                                   class="text-muted ms-1" style="cursor:default">&#63;</span>
                         </label>
                     </div>
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Create Account</button>
+                    <button type="submit" class="btn btn-primary">Create Workspace</button>
                     <a href="<?= u('accounts') ?>" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>

@@ -3,7 +3,7 @@
     <h2 class="mb-1">Connect a Facebook Page or Instagram Account</h2>
     <p class="text-muted mb-4">
         Select which Page or account to connect. Each selection creates one connection
-        that you can attach to an account. You can return here to connect additional
+        that you can attach to a workspace. You can return here to connect additional
         Pages or Instagram accounts from the same authorization.
     </p>
 
@@ -68,7 +68,7 @@
 
     <hr class="my-4">
     <a href="<?= u('connect', 'cancel') ?>" class="text-muted small">
-        Cancel — return to accounts without connecting
+        Cancel — return to workspaces without connecting
     </a>
 
 </div>

@@ -51,7 +51,7 @@
                         <hr class="my-4">
                         <h6 class="fw-semibold mb-3">Queue Engine Defaults</h6>
                         <p class="text-muted small mb-3">
-                            These are installation-wide defaults. Per-account overrides take precedence
+                            These are installation-wide defaults. Per-workspace overrides take precedence
                             where they exist.
                         </p>
 
@@ -83,7 +83,7 @@
                             <label class="form-label" for="schedule_min_posts">
                                 Minimum posts to enable scheduling
                                 <span data-bs-toggle="tooltip"
-                                      data-bs-title="Minimum active, recyclable posts required before scheduling can be enabled for an account. Recommended: 5–25."
+                                      data-bs-title="Minimum active, recyclable posts required before scheduling can be enabled for a workspace. Recommended: 5–25."
                                       class="text-muted ms-1" style="cursor:default">&#63;</span>
                             </label>
                             <input type="number" class="form-control" id="schedule_min_posts"

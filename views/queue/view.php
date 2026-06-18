@@ -199,8 +199,8 @@
                 The queue refills automatically when pending posts drop below the
                 recycle threshold on the next cron run.
                 <?php if (!(int) $account['is_posting']): ?>
-                <br><strong>Note:</strong> this account is paused &mdash; enable posting in
-                <a href="<?= u('accounts', 'edit', ['id' => (int) $account['id']]) ?>">account settings</a>
+                <br><strong>Note:</strong> this workspace is paused &mdash; enable posting in
+                <a href="<?= u('accounts', 'edit', ['id' => (int) $account['id']]) ?>">workspace settings</a>
                 for the queue engine to run.
                 <?php endif; ?>
             </p>

@@ -82,15 +82,15 @@ $platformLimits = json_encode([
         <div class="card mb-4">
             <div class="card-body">
 
-                <!-- Account selection -->
+                <!-- Workspace selection -->
                 <div class="mb-3">
                     <label for="account_id" class="form-label fw-semibold">
-                        Account <span class="text-danger">*</span>
+                        Workspace <span class="text-danger">*</span>
                     </label>
                     <select id="account_id" name="account_id" class="form-select"
                             style="max-width:320px" required
                             x-model.number="selectedAccountId">
-                        <option value="0">— select an account —</option>
+                        <option value="0">— select a workspace —</option>
                         <?php foreach ($accounts as $a): ?>
                         <option value="<?= (int) $a['id'] ?>"
                             <?= (int) $a['id'] === $preselect ? 'selected' : '' ?>>
@@ -156,9 +156,9 @@ $platformLimits = json_encode([
                                    placeholder="e.g. Policy Education">
                         </div>
 
-                        <!-- Right: account tags header + values -->
+                        <!-- Right: workspace tags header + values -->
                         <div x-show="selectedAccountId > 0 && currentAccountTags.length > 0" x-cloak>
-                            <div class="form-label text-muted fw-normal">Account tags</div>
+                            <div class="form-label text-muted fw-normal">Workspace tags</div>
                             <div class="form-text" x-text="currentAccountTags.join(' ')"></div>
                         </div>
 
@@ -226,7 +226,7 @@ $platformLimits = json_encode([
                         <div>
                             <label for="schedule_time" class="form-label">Time
                                 <span data-bs-toggle="tooltip"
-                                      data-bs-title="Time is interpreted in this account's posting timezone."
+                                      data-bs-title="Time is interpreted in this workspace's posting timezone."
                                       class="text-muted ms-1" style="cursor:default">&#63;</span>
                             </label>
                             <input type="time" id="schedule_time" name="schedule_time"

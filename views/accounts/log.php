@@ -49,7 +49,7 @@ $count = count($rows);
 <div class="container py-4" style="max-width:900px">
 
     <div class="d-flex align-items-center mb-1 gap-3">
-        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Accounts</a>
+        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Workspaces</a>
         <h1 class="h3 mb-0">
             Activity Log &mdash; <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
         </h1>
@@ -145,7 +145,7 @@ $count = count($rows);
         <div class="card-body">
             <h5 class="card-title text-muted">No activity in the last 48 hours</h5>
             <p class="card-text text-muted small mb-0">
-                Events appear here when the cron job runs and processes posts for this account.
+                Events appear here when the cron job runs and processes posts for this workspace.
                 <?php if ($activeFilter !== ''): ?>
                 <br>Try removing the filter to see all event types.
                 <?php endif; ?>

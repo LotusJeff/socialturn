@@ -36,7 +36,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 <div class="container py-4" style="max-width:720px">
 
     <div class="d-flex align-items-center mb-4 gap-3">
-        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Accounts</a>
+        <a href="<?= u('accounts') ?>" class="text-muted text-decoration-none">&larr; Workspaces</a>
         <h1 class="h3 mb-0">
             <?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>
         </h1>
@@ -70,7 +70,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
             <div class="card-body">
 
                 <div class="mb-3">
-                    <label for="name" class="form-label">Account name</label>
+                    <label for="name" class="form-label">Workspace name</label>
                     <input type="text" id="name" name="name" class="form-control"
                            value="<?= htmlspecialchars((string) $account['name'], ENT_QUOTES, 'UTF-8') ?>"
                            required>
@@ -130,7 +130,7 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                     <label for="scheduling_enabled" class="form-check-label fw-semibold">
                         Enable automated scheduling
                         <span data-bs-toggle="tooltip"
-                              data-bs-title="When enabled, the queue population engine automatically refills this account's schedule."
+                              data-bs-title="When enabled, the queue population engine automatically refills this workspace's schedule."
                               class="text-muted ms-1" style="cursor:default">&#63;</span>
                     </label>
                 </div>

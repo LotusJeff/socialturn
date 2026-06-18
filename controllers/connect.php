@@ -663,7 +663,7 @@ function disconnect(): void
     if ((int) $stmt->fetchColumn() > 0) {
         $_SESSION['notification'] = [
             'type'    => 'error',
-            'message' => 'Remove all accounts using this connection before disconnecting.',
+            'message' => 'Remove all workspaces using this connection before disconnecting.',
         ];
         header('Location: ' . u('accounts'));
         exit;

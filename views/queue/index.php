@@ -72,11 +72,11 @@ function queue_index_connectionStatus(array $r): string
 
     <div class="card text-center py-5">
         <div class="card-body">
-            <h5 class="card-title text-muted">No accounts yet</h5>
+            <h5 class="card-title text-muted">No workspaces yet</h5>
             <p class="card-text text-muted small mb-4">
-                Create an account and add content to get the queue running.
+                Create a workspace and add content to get the queue running.
             </p>
-            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Account</a>
+            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Workspace</a>
         </div>
     </div>
 
@@ -90,7 +90,7 @@ function queue_index_connectionStatus(array $r): string
                 <tr>
                     <th style="width:80px"></th>
                     <th style="width:200px">Status</th>
-                    <th>Account</th>
+                    <th>Workspace</th>
                     <th class="text-center" style="width:130px">Recycled Queue</th>
                     <th class="text-center" style="width:100px">Pending</th>
                     <th class="text-center" style="width:110px">Posted (30d)</th>

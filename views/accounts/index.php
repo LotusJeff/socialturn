@@ -56,12 +56,8 @@ function connectionStatus(array $account): string
 <div class="container py-4">
 
     <div class="d-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0">Accounts</h1>
-        <div class="d-flex gap-2">
-            <a href="<?= u('connect', 'twitter') ?>"  class="btn btn-outline-secondary btn-sm">+ Twitter</a>
-            <a href="<?= u('connect', 'facebook') ?>" class="btn btn-outline-secondary btn-sm">+ Facebook / Instagram</a>
-            <a href="<?= u('accounts', 'create') ?>"  class="btn btn-primary btn-sm">New Account</a>
-        </div>
+        <h1 class="h3 mb-0">Workspaces</h1>
+        <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary btn-sm">New Workspace</a>
     </div>
 
     <?php if (!empty($_SESSION['notification'])): ?>
@@ -71,17 +67,14 @@ function connectionStatus(array $account): string
     </div>
     <?php unset($_SESSION['notification']); endif; ?>
 
-    <?php if (empty($accounts) && empty($unconnected)): ?>
-    <!-- No connections at all — first-time prompt -->
+    <?php if (empty($accounts)): ?>
     <div class="card text-center py-5">
         <div class="card-body">
-            <h5 class="card-title">No platforms connected yet</h5>
+            <h5 class="card-title">No workspaces yet</h5>
             <p class="card-text text-muted mb-4">
-                Connect a Twitter or Facebook account to get started.<br>
-                One Facebook authorization covers both Facebook Pages and Instagram Business accounts.
+                Create a workspace to start scheduling posts for a connected platform.
             </p>
-            <a href="<?= u('connect', 'twitter') ?>"  class="btn btn-outline-dark me-2">Connect Twitter / X</a>
-            <a href="<?= u('connect', 'facebook') ?>" class="btn btn-primary">Connect Facebook / Instagram</a>
+            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">New Workspace</a>
         </div>
     </div>
 
@@ -133,31 +126,6 @@ function connectionStatus(array $account): string
     </div>
     <?php endif; ?>
 
-    <?php if (!empty($unconnected)): ?>
-    <!-- Available connections without an account yet -->
-    <h6 class="text-muted text-uppercase small fw-semibold mb-2">Available Connections</h6>
-    <div class="list-group">
-        <?php foreach ($unconnected as $cp): ?>
-        <div class="list-group-item px-3 py-2 d-flex align-items-center justify-content-between">
-            <div>
-                <span class="badge <?= platformBadgeClass((string) $cp['platform']) ?> me-2">
-                    <?= platformLabel((string) $cp['platform']) ?>
-                </span>
-                <?php if (!empty($cp['platform_name'])): ?>
-                    <?= htmlspecialchars((string) $cp['platform_name'], ENT_QUOTES, 'UTF-8') ?>
-                <?php endif; ?>
-                <?php if (!empty($cp['platform_username'])): ?>
-                    <span class="text-muted small ms-1">
-                        @<?= htmlspecialchars((string) $cp['platform_username'], ENT_QUOTES, 'UTF-8') ?>
-                    </span>
-                <?php endif; ?>
-            </div>
-            <a href="<?= u('accounts', 'create', ['platform_id' => (int) $cp['id']]) ?>"
-               class="btn btn-sm btn-outline-primary">Create Account</a>
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
 
     <?php endif; ?>
 

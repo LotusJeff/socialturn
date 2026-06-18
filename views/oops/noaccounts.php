@@ -2,7 +2,7 @@
 		<div class="row">
 			<div><i class="logo fa fa-thumbs-o-down fa-5x"></i></div>
 			<h2>Oops!</h2>
-			<p>Sorry, no accounts found as yet. You will have to wait till the account owner activates a few accounts for you.</p>
+			<p>Sorry, no workspaces found as yet. You will have to wait till the account owner activates a few workspaces for you.</p>
 		</div>
 
 		<div class="spacer">

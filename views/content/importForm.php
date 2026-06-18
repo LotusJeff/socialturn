@@ -122,9 +122,9 @@
                 <!-- Account checkboxes -->
                 <div class="mb-4">
                     <label class="form-label fw-semibold">
-                        Accounts
+                        Workspaces
                         <span data-bs-toggle="tooltip"
-                              data-bs-title="Each CSV row creates one post per selected account."
+                              data-bs-title="Each CSV row creates one post per selected workspace."
                               class="text-muted ms-1" style="cursor:default">&#63;</span>
                         <span class="text-danger">*</span>
                     </label>

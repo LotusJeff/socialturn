@@ -66,14 +66,14 @@ function content_platformLabel(string $platform): string
     <?php unset($_SESSION['notification']); endif; ?>
 
     <?php if (empty($accounts)): ?>
-    <!-- No accounts yet -->
+    <!-- No workspaces yet -->
     <div class="card text-center py-5">
         <div class="card-body">
-            <h5 class="card-title text-muted">No accounts yet</h5>
+            <h5 class="card-title text-muted">No workspaces yet</h5>
             <p class="card-text text-muted small mb-4">
-                Create an account before adding content.
+                Create a workspace before adding content.
             </p>
-            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Account</a>
+            <a href="<?= u('accounts', 'create') ?>" class="btn btn-primary">Create Workspace</a>
         </div>
     </div>
 
@@ -85,10 +85,10 @@ function content_platformLabel(string $platform): string
         <input type="hidden" name="a" value="index">
 
         <div>
-            <label for="account_id" class="form-label form-label-sm mb-1">Account</label>
+            <label for="account_id" class="form-label form-label-sm mb-1">Workspace</label>
             <select id="account_id" name="account_id" class="form-select form-select-sm" style="max-width:220px"
                     onchange="this.form.submit()">
-                <option value="0" <?= $filterAccountId === 0 ? 'selected' : '' ?>>All accounts</option>
+                <option value="0" <?= $filterAccountId === 0 ? 'selected' : '' ?>>All workspaces</option>
                 <?php foreach ($accounts as $a): ?>
                 <option value="<?= (int) $a['id'] ?>" <?= (int) $a['id'] === $filterAccountId ? 'selected' : '' ?>>
                     <?= htmlspecialchars((string) $a['name'], ENT_QUOTES, 'UTF-8') ?>
