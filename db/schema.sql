@@ -457,7 +457,7 @@ CREATE TABLE IF NOT EXISTS `activity_log` (
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `admin_settings` (
     `id`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    `setting_key` VARCHAR(100)  NOT NULL                           COMMENT 'Constant name in snake_case (e.g. twitter_apikey)',
+    `setting_key` VARCHAR(100)  NOT NULL                           COMMENT 'Constant name in snake_case (e.g. owner_email)',
     `setting_val` TEXT          NULL DEFAULT NULL                  COMMENT 'Setting value; NULL treated as empty string by load_admin_settings()',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_admin_settings_key` (`setting_key`)

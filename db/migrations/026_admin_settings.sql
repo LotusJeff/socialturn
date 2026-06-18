@@ -27,10 +27,6 @@ INSERT IGNORE INTO `admin_settings` (`setting_key`, `setting_val`) VALUES
 ('recycle_threshold_default',     '10'),
 ('recycle_lookahead_days',        '30'),
 ('schedule_min_posts',            '5'),
-('twitter_apikey',                ''),
-('twitter_apisecret',             ''),
-('meta_app_id',                   ''),
-('meta_app_secret',               ''),
 ('postmarkapp_api_key',           ''),
 ('postmarkapp_mail_from_address', ''),
 ('postmarkapp_mail_from_name',    '');

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.8] — 2026-06-18
+
+### Fixed
+- `db/migrations/026_admin_settings.sql` no longer seeds the four deprecated global
+  credential rows (`twitter_apikey`, `twitter_apisecret`, `meta_app_id`,
+  `meta_app_secret`). These rows were removed from `admin_settings` in v0.9.5 (GAP 1)
+  but migration 026 continued to re-insert them on every fresh install via
+  `INSERT IGNORE`. Fresh installs now contain only the seven active settings rows.
+
+### Schema
+- Migration 036: deletes `twitter_apikey`, `twitter_apisecret`, `meta_app_id`, and
+  `meta_app_secret` from `admin_settings` on existing installs where they are still
+  present. No-op if the rows are already absent. Existing installs upgrading from any
+  0.9.x: run `db/migrations/036_remove_credential_admin_settings.sql`.
+
+### Internal
+- `admin_settings` `setting_key` column `COMMENT` in `schema.sql` updated to use
+  `owner_email` as the example key instead of the removed `twitter_apikey`.
+
+---
+
 ## [0.9.7] — 2026-06-18
 
 ### Changed

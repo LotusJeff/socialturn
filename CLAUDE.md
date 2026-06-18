@@ -369,7 +369,8 @@ Format: 001_description.sql, 002_description.sql
 Never make a breaking schema change without a migration file.
 CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 025: scheduling_enabled added to account_settings
-- Migration 026: admin_settings table created with default rows
+- Migration 026: admin_settings table created with default rows; INSERT IGNORE seed
+  list corrected in v0.9.8 to omit the four deprecated credential rows (see migration 036)
 - Migration 027: post_tags VARCHAR(255) NULL added to posts
 - Migration 028: four notify_* keys added to admin_settings (notify_post_failure,
   notify_recap_frequency, notify_recipient_email, notify_recap_last_sent)
@@ -391,6 +392,10 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
 - Migration 035: connected_platform_id INT UNSIGNED NULL added to oauth_states; FK to
   connected_platforms(id) ON DELETE SET NULL; enables in-place reconnect — callbacks
   branch on its presence to UPDATE the existing row vs INSERT a new row.
+- Migration 036: twitter_apikey, twitter_apisecret, meta_app_id, meta_app_secret rows
+  deleted from admin_settings for existing installs; these rows were seeded by migration
+  026 but unused since v0.9.5 (GAP 1); migration 026 INSERT IGNORE list corrected
+  simultaneously to prevent re-insertion on fresh installs
 
 ### post_images columns
 - id — auto-increment primary key
@@ -647,6 +652,9 @@ Architectural changes completed during Phase 9:
 - Settings → Connections screen with Reconnect action per connection
 - In-place OAuth reconnect via migration 035 (connected_platform_id on oauth_states)
 - Team moved into Settings; Connections and Team sub-screens given Settings breadcrumbs
+- Migration 026 ghost credential rows cleaned up (migration 036): twitter_apikey,
+  twitter_apisecret, meta_app_id, meta_app_secret removed from migration 026 INSERT
+  IGNORE seed list; migration 036 deletes them from existing installs
 
 ### Phase 10 — 1.0 Release
 Merge to master. Tag 1.0.0. Public release.
