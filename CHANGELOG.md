@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.13] — 2026-06-18
+
+### Fixed
+- `content/sendNow()` INSERT into `scheduled_posts` wrapped in try/catch.
+  On failure, `error_log()` is called and an error flash notification is shown
+  — success notification only reached on confirmed write. Previously showed
+  "Post will be sent within 5 minutes" even if the queue row was never created.
+- `RecycleService::check()` now logs exception class, message, and account ID
+  via `error_log()` before returning null. Silent queue population failures are
+  now detectable; a draining queue no longer goes unnoticed.
+- `ImageService::prepareForPlatform()` and `ImageService::generateFromTemplate()`
+  catch blocks now log filename, platform, and exception message before returning
+  null. GD failures, missing font files, and storage errors are now visible in
+  server logs.
+- `StorageService` S3 catch blocks in `store()`, `delete()`, and `exists()` now
+  log operation, filename, and exception message via `error_log()`, matching the
+  existing behavior of the local driver.
+
+---
+
 ## [0.9.12] — 2026-06-18
 
 ### Fixed

@@ -79,7 +79,8 @@ class StorageService
                     'SourceFile' => $tmpPath,
                 ]);
                 return true;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                error_log("StorageService::store() S3 failed for '{$filename}': " . $e->getMessage());
                 return false;
             }
         }
@@ -185,7 +186,8 @@ class StorageService
                     'Key'    => $filename,
                 ]);
                 return true;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                error_log("StorageService::delete() S3 failed for '{$filename}': " . $e->getMessage());
                 return false;
             }
         }
@@ -214,7 +216,8 @@ class StorageService
                     'Key'    => $filename,
                 ]);
                 return true;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                error_log("StorageService::exists() S3 failed for '{$filename}': " . $e->getMessage());
                 return false;
             }
         }

@@ -64,7 +64,8 @@ class RecycleService
                 $populateResult = $this->queue->populate($accountId);
             }
 
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            error_log('[SocialTurn] RecycleService::check() failed for account #' . $accountId . ': ' . $e->getMessage());
             return null;
         }
 

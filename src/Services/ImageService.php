@@ -79,7 +79,9 @@ class ImageService
 
             return $storedPath;
 
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            error_log('ImageService::prepareForPlatform() failed for \''
+                . $filename . '\' on ' . $platform . ': ' . $e->getMessage());
             return null;
         } finally {
             if ($src    !== null) { imagedestroy($src); }
@@ -149,7 +151,9 @@ class ImageService
 
             return $storedPath;
 
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            error_log('ImageService::generateFromTemplate() failed for \''
+                . $baseImageFilename . '\' on ' . $platform . ': ' . $e->getMessage());
             return null;
         } finally {
             if ($src    !== null) { imagedestroy($src); }

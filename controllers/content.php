@@ -1114,16 +1114,27 @@ function sendNow(): void
     }
     $finalImageFilenames = empty($processed) ? null : json_encode($processed);
 
-    $dbh->prepare(
-        "INSERT INTO scheduled_posts
-             (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filenames)
-         VALUES (?, ?, NOW(), 'pending', 'share_now', ?, ?)"
-    )->execute([
-        $account['cp_id'],
-        $postId,
-        $finalBody,
-        $finalImageFilenames,
-    ]);
+    try {
+        $dbh->prepare(
+            "INSERT INTO scheduled_posts
+                 (connected_platform_id, post_id, scheduled_time, status, source, final_body, final_image_filenames)
+             VALUES (?, ?, NOW(), 'pending', 'share_now', ?, ?)"
+        )->execute([
+            $account['cp_id'],
+            $postId,
+            $finalBody,
+            $finalImageFilenames,
+        ]);
+    } catch (Throwable $e) {
+        error_log('sendNow() INSERT failed for post #' . $postId . ': ' . $e->getMessage());
+        $_SESSION['notification'] = [
+            'type'    => 'error',
+            'message' => 'Could not queue post for sending. Please try again.',
+        ];
+        $params = $filterAccountId > 0 ? ['account_id' => $filterAccountId] : [];
+        header('Location: ' . u('content', 'index', $params));
+        exit;
+    }
 
     $_SESSION['notification'] = [
         'type'    => 'success',
