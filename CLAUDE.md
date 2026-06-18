@@ -194,6 +194,8 @@ array in load_admin_settings() in libraries/shared.php.** Without
 this, the constant is never defined in any context — web or cron —
 regardless of whether the migration has run.
 
+Settings screen (`views/settings/index.php`) has five cards, admin only: Database & Site URL, Email, Application, Team (→ `team/index`), Connections (→ `connect/index`).
+
 ### Cron Entry Point
 cron.php in the web root. CLI only — exits with 403 if called via
 HTTP. Bootstraps the app without session or template, calls post()
@@ -386,6 +388,9 @@ CHANGELOG.md must document which migrations to run for each version upgrade.
   connected_platforms; admin_settings seed rows for twitter_apikey, twitter_apisecret,
   meta_app_id, meta_app_secret removed; credentials now entered per-connection at
   connect time and stored directly on the connected_platforms row
+- Migration 035: connected_platform_id INT UNSIGNED NULL added to oauth_states; FK to
+  connected_platforms(id) ON DELETE SET NULL; enables in-place reconnect — callbacks
+  branch on its presence to UPDATE the existing row vs INSERT a new row.
 
 ### post_images columns
 - id — auto-increment primary key
@@ -413,6 +418,9 @@ Rows older than 15 minutes are treated as expired; cron purges them automaticall
   written on INSERT (from POST body), read back in the callback, then written to
   connected_platforms on success; deleted with the row (consumed-once)
 - app_secret VARCHAR(255) NULL — same lifecycle as app_key
+- connected_platform_id INT UNSIGNED NULL — FK → connected_platforms.id; ON DELETE SET NULL;
+  NULL = fresh connect flow, set = reconnect of that existing row. Consumed-once pattern
+  unchanged — deleted with the row on callback. Added in migration 035.
 - created_at DATETIME — set on INSERT; used for expiry check and cron purge
 
 **SESSION vs oauth_states boundary (important):**
@@ -422,6 +430,21 @@ Rows older than 15 minutes are treated as expired; cron purges them automaticall
   already been deleted by the time page selection begins)
 - Flash notifications → SESSION only (`$_SESSION['notification']`)
 - Never put handshake secrets back into SESSION — that re-introduces the collision bug
+
+**Reconnect flow:** A "Reconnect" action on the Connections screen re-runs the OAuth
+handshake for an existing `connected_platforms` row, updating tokens and optionally
+credentials in place. The row id and all workspace/history references are preserved.
+`connected_platform_id` on `oauth_states` carries the target row id through the
+handshake; callbacks branch on its presence: set = UPDATE existing row, NULL = INSERT
+new row. A successful reconnect overwrites all token and credential fields with whatever
+the new handshake produced — no rollback, no prior-identity verification. The user's
+deliberate action is trusted outright, including if the reconnect produces a different
+platform account than the original.
+
+**Masked credential display:** `app_key` is shown in full (it is an identifier, not a
+secret); `app_secret` is shown as bullets + last 4 characters only (e.g. `••••a8f2`).
+The full secret is never rendered in any view under any circumstances. This extends the
+existing rule that tokens/secrets never appear in logs, views, or API responses.
 
 ---
 
@@ -619,6 +642,11 @@ Architectural changes completed during Phase 9:
   global admin_settings to per-row app_key/app_secret on connected_platforms (migration 034);
   connect flows now include credential entry forms; service classes accept credentials
   via constructor; Settings → Platform Credentials screen removed
+- Account→Workspace UI rename — all UI-rendered text; codebase variable/table names
+  unchanged (commits 78db0de, 6ab10a5)
+- Settings → Connections screen with Reconnect action per connection
+- In-place OAuth reconnect via migration 035 (connected_platform_id on oauth_states)
+- Team moved into Settings; Connections and Team sub-screens given Settings breadcrumbs
 
 ### Phase 10 — 1.0 Release
 Merge to master. Tag 1.0.0. Public release.
@@ -705,136 +733,64 @@ Merge to master. Tag 1.0.0. Public release.
   during the handshake and are written to connected_platforms on success.
   AbstractMetaService::refreshToken() reads app_key/app_secret directly from the DB row.
   Settings → Platform Credentials screen removed entirely.
+- Account→Workspace UI rename across all views, controllers, flash messages, and outbound
+  emails (commits 78db0de, 6ab10a5)
+- New Settings → Connections screen: connect/index() action and view listing all
+  connected_platforms rows with status, workspace count, and Reconnect/Disconnect actions;
+  Settings overview card; Settings → Connections breadcrumb
+- Reconnect feature: "Reconnect" action on Connections screen re-runs the OAuth handshake
+  and UPDATEs the existing connected_platforms row in place; row id, workspace references,
+  and history preserved; migration 035 adds connected_platform_id to oauth_states; masked
+  credential display (app_key in full, app_secret as ••••last4)
+- Team moved into Settings: Team <li> removed from header nav; Team card added to Settings
+  overview with live member count badge (bg-success / bg-secondary); Settings → Team
+  breadcrumb added to views/team/index.php
+- Connections and Team sub-screens given Settings → [Screen] breadcrumbs for nav consistency
 
 ### Open
 (none)
 
 ---
 
-## Future Roadmap (v0.9.5) — Platform Connections and Posting Schedules Redesign
+## v0.9.5 — Connections, Workspace Rename, and Reconnect — COMPLETE
 
-**Required before v1.0.0 tag. Do not begin implementation until:**
-- ✓ Multiple images per post — complete (migrations 031–032, multi-image cron dispatch)
-- Facebook/Instagram posting is manually tested and confirmed working
-- All Phase 9 bugs are resolved and tested
+### Settled Terminology
 
-### The Three-Level Model (corrected — supersedes earlier "shared connection" design)
+**Connection** (UI term for the `connected_platforms` row)
+A real, authenticated social media account. Carries both developer app credentials
+(`app_key`, `app_secret`) and OAuth tokens (`access_token`, `token_secret`) in one
+row. Set up once; rarely touched after it works. Managed via Settings → Connections.
 
-An earlier version of this roadmap described a Platform Connection as a single
-OAuth-token holder shared across many Posting Schedules with no re-authentication
-needed to add a schedule. **That premise is wrong and must not be implemented.**
-Twitter requires a separate developer app per real connected account — there is
-no way to authenticate two different real Twitter accounts under one developer
-app. Per project decision, every platform is treated the same way for consistency,
-even where a platform (e.g. Meta) might technically allow broader sharing: one
-developer app credential set per one real connected account, always.
+**Workspace** (UI term for the `accounts` row)
+A named scheduling structure attached to exactly one Connection — its own content
+pool, posting interval, active hours, tags, and queue settings. Multiple Workspaces
+can run under a single Connection. Day-to-day operational layer.
 
-The corrected model has three conceptual levels, but only two are separately
-addressable in the schema and UI (Levels 1 and 2 are fused):
+Codebase variable names, table names, and column names continue to use "account"
+internally. Only UI-rendered text (view labels, flash messages, page headings) uses
+"Workspace." No schema changes were needed for this rename.
 
-**Level 1+2 — Platform Connection** (the `connected_platforms` row, already built)
-- A real, authenticated social media account (e.g. "Fred's Tool Company — Twitter")
-- Carries BOTH its own developer app credentials (`app_key`, `app_secret`) AND its
-  own OAuth token (`access_token`, `token_secret`) — these are fused into one row,
-  not separate layers, because the 1:1 constraint means there is never a case where
-  one credential set serves more than one real account
-- Set up once, rarely touched after it works — this is admin-only, infrastructure-
-  level setup, analogous to "register a new account with a vendor," not a
-  day-to-day action
-- Managed in its own dedicated admin section, separate from day-to-day scheduling
-  (see "Connections vs. Posting Schedules UI Split" below) — must NOT be reachable
-  from or co-located with the scheduling-account screen
+### What Was Built
 
-**Level 3 — Posting Schedule** (replaces "account" in the `accounts` table)
-- A named, departmental scheduling structure attached to exactly one Platform
-  Connection (e.g. Marketing's schedule and Ops' schedule, both posting through
-  the same Fred's Tool Company Twitter connection)
-- Has its own content pool, posting interval, active hours, tags, and queue settings
-- Multiple Posting Schedules can run under a single Platform Connection
-- This is the frequent, operational, day-to-day layer — never requires touching
-  credentials
+- **Account→Workspace UI rename** — all views, controllers, flash messages, and
+  outbound emails updated; codebase internals unchanged (commits 78db0de, 6ab10a5)
+- **Settings → Connections screen** (`connect/index()` action + view) — lists all
+  `connected_platforms` rows with platform badge, status, workspace count, and
+  Reconnect / Disconnect actions; accessible via Settings overview card and
+  Settings → Connections breadcrumb
+- **Reconnect feature** — "Reconnect" action re-runs the OAuth handshake for an
+  existing `connected_platforms` row and UPDATEs it in place; row id and all
+  workspace/history references preserved; migration 035
+- **Team moved into Settings** — Team removed from top-level header nav; Team card
+  added to Settings overview with live member count; Settings → Team breadcrumb
+- **Settings breadcrumbs** — Connections and Team sub-screens show Settings → [Screen]
+  for nav consistency
 
-**UI naming note:** "Posting Schedule" is the working term for Level 3, but is not
-yet finalized — see "Open Naming Question" below.
+### Status
 
-### Connections vs. Posting Schedules — UI Split (approved, not yet built)
-
-Both screens are admin-only (`type=1`) under the existing permission system — there
-is no separate "super-admin" role, and none is being added for this. The split is
-purely navigational/visual, not a permissions change. Discovery confirmed: the
-`accounts`, `connect`, `settings`, and `team` controllers are already gated
-identically (`$adminOnlyControllers` in `libraries/shared.php`); team members
-(`type=100`) cannot reach any of them today and are unaffected by this work.
-
-**Approved design (not yet implemented in code):**
-- New top-level nav item "Connections" (sibling to "Posting Schedules," not nested
-  under Settings — Settings is machine-level system config; Connections is
-  account-level setup the admin returns to)
-- New `connect/index()` action + view — lists all `connected_platforms` rows with
-  status, platform badge, and count of Posting Schedules using each connection;
-  "Add Twitter Connection" / "Add Facebook/Instagram Connection" buttons; disconnect
-  action. (Note: a similarly-named screen existed pre-GAP-1 as
-  `views/settings/platforms.php` but was a pure global-credential edit form with no
-  OAuth re-trigger and no per-connection awareness — it is not a usable starting
-  point and should not be revived as-is.)
-- The "Connect Twitter" / "Connect Facebook" buttons move OFF `views/accounts/index.php`
-  entirely
-- `accounts/index.php` is renamed in all user-facing UI from "Accounts" to "Posting
-  Schedules" (internal table/column/route names unchanged — this is a UI label
-  change only)
-- A new Posting Schedule cannot be created if no Platform Connection exists yet —
-  the UI must guide the admin to Connections first, not allow inline connection
-  creation from the Posting Schedules screen
-- Editing an existing Platform Connection's app credentials (e.g. rotating to a new
-  developer app) re-triggers the OAuth handshake for that specific row, producing a
-  new token — this re-uses the existing per-row `oauth_states`-based connect flow,
-  not a separate mechanism
-
-**Status: approved in design discussion, not yet implemented.** No code changes
-have been made for this split as of the GAP 1 / GAP 2 / install-wizard work
-(0.9.4–0.9.6). This is the next major piece of v0.9.5 scope.
-
-### Open Naming Question
-
-"Posting Schedule" is the current working term for Level 3 but has not been
-finalized. Candidates considered: Posting Schedule, Schedule, Scheduling Profile,
-Content Channel, Queue. Leading candidate is "Posting Schedule" / "Schedule" —
-centers the right concept (when/what gets posted, not who is posting) and reads
-naturally in UI copy ("create a new posting schedule for the sales team"). "Content
-Channel" was considered and rejected — "channel" already colloquially refers to the
-platform itself (e.g. "our Twitter channel"), which would collide with the layer
-above it. Decide and lock in before implementing the nav restructure above, so the
-rename only has to happen once.
-
-### Schema Changes Required
-
-- ✓ DONE (migration 034): `app_key` and `app_secret` added to `connected_platforms`
-- ✓ DONE: Platform credential constants (`TWITTER_APIKEY` etc.) removed entirely
-- No further schema changes required for the three-level model — `connected_platforms`
-  already correctly holds one row per real account with its own fused credentials,
-  and `accounts.connected_platform_id` already correctly supports many Posting
-  Schedules per connection. This is a UI/navigation restructure only, not a data
-  model change.
-
-### Service Class Changes
-
-- ✓ DONE: TwitterService and AbstractMetaService accept credentials via constructor
-- ✓ DONE: cron_dispatchToPlatform() passes per-row credentials to service classes
-- ✓ DONE: Connect flows show credential entry form before OAuth
-
-### Implementation Order
-
-1. ✓ Schema migration — app_key, app_secret on connected_platforms (migration 034)
-2. ✓ Service class updates — credentials as constructor parameters
-3. ✓ Cron dispatch update — credentials from DB row
-4. ✓ Connect wizard UI — credential entry form before OAuth per platform
-5. ✓ Install wizard cleanup — credential collection removed from install entirely;
-   pre-flight writability checks added (0.9.6)
-6. Finalize Posting Schedule naming (open question above) — do this first, before #7
-7. Connections vs. Posting Schedules UI split — new connect/index() screen, nav
-   restructure, rename throughout views/accounts/* and controllers/accounts.php
-   user-facing strings, remove connect buttons from accounts/index.php (approved,
-   not started)
+v0.9.5 scope complete. The only remaining gate before v1.0.0 is Phase 9 testing
+completion — both automated (PHPUnit) and manual testing must pass. See Phase 9
+in the Build Order above.
 
 ---
 

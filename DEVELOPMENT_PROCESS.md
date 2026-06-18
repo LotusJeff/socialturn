@@ -250,6 +250,7 @@ Then present [next section] plan before writing any code.
 **Before marking phase complete:**
 - Clean install works?
 - Migrations numbered?
+- Migrations actually executed against the live database? (A migration file being present on disk and a migration having been run are two different facts. Verify both.)
 - schema.sql current?
 - CLAUDE.md current?
 - Commit clean?
