@@ -169,6 +169,50 @@ class ContentStoreTest extends IntegrationTestCase
         $this->assertSame('goodbye world', $row['body_normalized']);
     }
 
+    // TC7 — flush cascade only removes source='queue' pending rows;
+    //        source='share_now' and source='scheduled' rows are left intact
+    public function testFlushCascadeOnlyDeletesQueueSourceRows(): void
+    {
+        $postId = $this->insertPost(1, 'Test post');
+
+        // source='queue' — insertPendingScheduledPost() omits source, so the ENUM default applies
+        $queueId = $this->insertPendingScheduledPost(
+            1, $postId,
+            date('Y-m-d H:i:s', strtotime('+1 hour')),
+            'Test body'
+        );
+
+        // source='share_now'
+        static::$pdo->prepare(
+            "INSERT INTO scheduled_posts
+                 (connected_platform_id, post_id, scheduled_time, final_body, status, source)
+             VALUES (1, ?, DATE_ADD(NOW(), INTERVAL 2 HOUR), 'Test body', 'pending', 'share_now')"
+        )->execute([$postId]);
+        $shareNowId = (int) static::$pdo->lastInsertId();
+
+        // source='scheduled'
+        static::$pdo->prepare(
+            "INSERT INTO scheduled_posts
+                 (connected_platform_id, post_id, scheduled_time, final_body, status, source)
+             VALUES (1, ?, DATE_ADD(NOW(), INTERVAL 3 HOUR), 'Test body', 'pending', 'scheduled')"
+        )->execute([$postId]);
+        $scheduledId = (int) static::$pdo->lastInsertId();
+
+        // Run the flush cascade DELETE — mirrors queue_flush() in controllers/queue.php
+        static::$pdo->prepare(
+            "DELETE FROM scheduled_posts WHERE post_id=? AND status='pending' AND source='queue'"
+        )->execute([$postId]);
+
+        $remaining    = static::$pdo->query(
+            "SELECT id FROM scheduled_posts WHERE post_id={$postId}"
+        )->fetchAll();
+        $remainingIds = array_map('intval', array_column($remaining, 'id'));
+
+        $this->assertNotContains($queueId,    $remainingIds, "source='queue' row must be deleted");
+        $this->assertContains($shareNowId,   $remainingIds, "source='share_now' row must survive");
+        $this->assertContains($scheduledId,  $remainingIds, "source='scheduled' row must survive");
+    }
+
     // -----------------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------------

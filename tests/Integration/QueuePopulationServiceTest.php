@@ -96,6 +96,19 @@ class QueuePopulationServiceTest extends IntegrationTestCase
         $this->assertSame(0, $this->countScheduledPosts());
     }
 
+    // TC-scheduling — scheduling_enabled=0 guard: populate returns error without writing any rows
+    public function testSchedulingDisabledSkipsPopulation(): void
+    {
+        static::$pdo->exec("UPDATE account_settings SET scheduling_enabled=0 WHERE account_id=1");
+        $this->insertPost(1, 'Test post');
+
+        $result = $this->svc->populate(1);
+
+        $this->assertNotNull($result['error']);
+        $this->assertSame(0, $result['posts_scheduled']);
+        $this->assertSame(0, $this->countScheduledPosts());
+    }
+
     // TC6 — happy path: valid account, schedule, and posts → rows inserted
     public function testBasicPopulateInsertsScheduledRows(): void
     {
@@ -212,6 +225,39 @@ class QueuePopulationServiceTest extends IntegrationTestCase
             "SELECT final_body FROM scheduled_posts WHERE status='pending' LIMIT 1"
         )->fetch();
         $this->assertStringContainsString('#testTag', (string) $row['final_body']);
+    }
+
+    // TC-posttags — post_tags and default_tags are merged (deduped, post-level first) in final_body
+    public function testPostTagsMergedWithDefaultTagsInFinalBody(): void
+    {
+        // post_tags is a space-separated string; default_tags is a JSON array.
+        // post_tags=["tagA tagB"], default_tags=["tagB","tagC"] → merged: tagA, tagB, tagC
+        // tagB appears in both — deduplicated to one occurrence; tagA precedes tagC.
+        static::$pdo->exec(
+            "UPDATE accounts SET default_tags = '[\"tagB\",\"tagC\"]' WHERE id = 1"
+        );
+        $postId = $this->insertPost(1, 'Hello world');
+        static::$pdo->exec(
+            "UPDATE posts SET post_tags = 'tagA tagB' WHERE id = {$postId}"
+        );
+
+        $result = $this->svc->populate(1);
+
+        $this->assertNull($result['error']);
+        $row  = static::$pdo->query(
+            "SELECT final_body FROM scheduled_posts WHERE status='pending' LIMIT 1"
+        )->fetch();
+        $body = (string) $row['final_body'];
+
+        $this->assertStringContainsString('#tagA', $body, 'Post-level #tagA must appear in final_body');
+        $this->assertStringContainsString('#tagB', $body, '#tagB must appear in final_body');
+        $this->assertStringContainsString('#tagC', $body, 'Account-level #tagC must appear in final_body');
+        $this->assertSame(1, substr_count($body, '#tagB'), '#tagB must appear exactly once (deduplicated)');
+        $this->assertLessThan(
+            strpos($body, '#tagC'),
+            strpos($body, '#tagA'),
+            'Post-level #tagA must precede account-level #tagC'
+        );
     }
 
     // TC15 — all generated slots fall within the active_hours_start/end window

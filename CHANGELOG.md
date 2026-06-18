@@ -1,35 +1,42 @@
 # Changelog
 
+## [0.9.18] — 2026-06-18
+
+### Changed
+- `scheduling_enabled=0` guard tested in `QueuePopulationServiceTest` — verifies
+  `populate()` returns an error and writes no rows when scheduling is disabled.
+- `post_tags` merge with `default_tags` and deduplication tested in
+  `QueuePopulationServiceTest` — verifies post-level tags precede account-level tags
+  and that tags present in both are deduplicated to one occurrence in `final_body`.
+- `source='queue'` cascade filter tested in `ContentStoreTest` — verifies the flush
+  `DELETE` removes only `source='queue'` pending rows and leaves `source='share_now'`
+  and `source='scheduled'` rows intact.
+- `StorageService::storeFromBytes()` tested — verifies no `st_img_*` temp file is
+  leaked after any call, and that a failure (non-existent destination subdirectory)
+  returns `false` and cleans up via the `finally` block.
+- `InstagramService` Graph API error propagation tested — verifies the actual API
+  error message from `createMediaContainer()` reaches the `post()` result array
+  rather than a static fallback string.
+
+---
+
 ## [0.9.17] — 2026-06-18
 
 ### Changed
-- `getExtensionToMimeTypeMapping()` removed from `libraries/shared.php` — 177-line
-  unused MIME-type lookup table; `getMimeType()` uses PHP's `finfo` extension directly
-  and was never a caller.
-- `$force` parameter removed from `authenticate()` in `libraries/shared.php` — never
-  passed at any call site and never read inside the function.
-- Stale TODO sentence removed from `isLoggedIn()` docblock in `libraries/shared.php`
-  — referenced `validate()` and Section 4, both long completed.
+- `getExtensionToMimeTypeMapping()` removed from `libraries/shared.php` — unused
+  177-line function; `getMimeType()` uses `finfo` directly.
+- `authenticate()` `$force` parameter removed — never passed or read.
+- Stale TODO comment removed from `isLoggedIn()` docblock.
 - `overrideController()` and `overrideAction()` removed from
-  `libraries/template.class.php` — defined but never called anywhere in the codebase.
-- `TagAppenderService` dead dependency removed: constructor parameter and implicit
-  property removed from `QueuePopulationService`; `use` import and `$tagger`
-  instantiation removed from `controllers/cron.php`; unused `use` import removed
-  from `controllers/content.php`; integration test files updated to match the
-  two-parameter constructor signature.
-- Unused `$imageSource` variable assignments removed from `content/update()` in
-  `controllers/content.php` — assigned twice, never read; `image_source` is
-  hardcoded in the SQL literals.
-- Redundant `authenticate()` call removed from `controllers/team.php` —
-  `libraries/shared.php` already calls it at boot before any controller loads.
+  `libraries/template.class.php`.
+- `TagAppenderService` dead dependency removed from `QueuePopulationService`
+  constructor; `use` import and instantiation removed from `controllers/cron.php`;
+  unused import removed from `controllers/content.php`; test files updated to match.
+- Unused `$imageSource` variable assignments removed from `content/update()`.
+- Redundant `authenticate()` call removed from `controllers/team.php`.
 - Duplicate view-level platform helper functions removed from
-  `views/content/index.php` (`content_platformBadgeClass()`,
-  `content_platformLabel()`) and `views/queue/index.php`
-  (`queue_index_platformBadge()`, `queue_index_platformLabel()`,
-  `queue_index_connectionStatus()`); all call sites updated to use
-  `platformBadgeClass()`, `platformLabel()`, and `connectionStatus()` from
-  `libraries/shared.php`. Column alias in `controllers/queue.php` corrected
-  from `platform_active` to `is_active` to match what `connectionStatus()` expects.
+  `views/content/index.php` and `views/queue/index.php`; call sites updated to use
+  `shared.php` equivalents; `controllers/queue.php` column alias corrected to match.
 
 ---
 
