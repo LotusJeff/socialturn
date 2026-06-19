@@ -244,6 +244,8 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
 
                 </div>
 
+                </div><!-- end x-show="schedulingOn" -->
+
                 <!-- Timezone (shared by both modes) -->
                 <div class="mt-3">
                     <label for="timezone" class="form-label">Timezone
@@ -260,8 +262,6 @@ $slotTimesJson = json_encode($slotTimes, JSON_HEX_QUOT | JSON_HEX_TAG);
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                </div><!-- end x-show="schedulingOn" -->
 
             </div>
         </div>

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.20] — 2026-06-19
+
+### Fixed
+- Timezone field on workspace edit form now visible regardless of whether automated
+  scheduling is enabled — moved outside the `x-show="schedulingOn"` container in
+  `views/accounts/edit.php` so users can set timezone before enabling scheduling.
+
+---
+
 ## [0.9.19] — 2026-06-18
 
 ### Changed
